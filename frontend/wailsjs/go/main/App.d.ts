@@ -8,6 +8,14 @@ export function OpenDatabaseDialog():Promise<string>;
 
 export function OpenPositionDialog():Promise<main.FileDialogResponse>;
 
+export function OpenTranscriptionDialog():Promise<string>;
+
+export function ReadTextFile(arg1:string):Promise<string>;
+
 export function SaveDatabaseDialog():Promise<string>;
 
+export function SaveTranscriptionDialog():Promise<string>;
+
 export function ShowAlert(arg1:string):Promise<void>;
+
+export function WriteTextFile(arg1:string,arg2:string):Promise<void>;

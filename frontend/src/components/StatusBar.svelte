@@ -2,6 +2,7 @@
   import { statusBarTextStore, statusBarModeStore, currentPositionIndexStore } from '../stores/uiStore';
   import { positionsStore } from '../stores/positionStore';
   import { analysisStore } from '../stores/analysisStore';
+  import { transcriptionStore, selectedMoveStore, matchValidationStore } from '../stores/transcriptionStore';
   import { tableData as metTable } from '../stores/metTable';
   import { takePoint2LiveTable } from '../stores/takePoint2LiveTable';
   import { takePoint2LastTable } from '../stores/takePoint2LastTable';
@@ -11,6 +12,35 @@
   import { takePoint4LiveTable } from '../stores/takePoint4LiveTable';
   import { takePoint4LastTable } from '../stores/takePoint4LastTable';
   import { get } from 'svelte/store';
+  
+  function getMatchInfo(transcription, selectedMove) {
+    if (!transcription || transcription.games.length === 0) {
+      return { gameNumber: 0, score: '0-0', matchLength: 0 };
+    }
+    
+    const gameIndex = selectedMove?.gameIndex || 0;
+    const game = transcription.games[gameIndex];
+    
+    // Calculate cumulative match score
+    let player1MatchScore = 0;
+    let player2MatchScore = 0;
+    
+    for (let i = 0; i < transcription.games.length; i++) {
+      const g = transcription.games[i];
+      if (g.winner) {
+        if (g.winner.player === 1) player1MatchScore += g.winner.points;
+        else if (g.winner.player === 2) player2MatchScore += g.winner.points;
+      }
+    }
+    
+    return {
+      gameNumber: game?.gameNumber || 1,
+      score: `${player1MatchScore}-${player2MatchScore}`,
+      matchLength: transcription.metadata?.matchLength || 0
+    };
+  }
+  
+  $: matchInfo = getMatchInfo($transcriptionStore, $selectedMoveStore);
 
   function showDatesAndMetadata() {
     const analysis = get(analysisStore);
@@ -104,6 +134,13 @@
 <div class="status-bar">
   <span class="mode">{$statusBarModeStore}</span>
   <div class="separator"></div>
+  {#if matchInfo.matchLength > 0}
+  <span class="match-info">
+    <span class="game-nav">Game {matchInfo.gameNumber}</span>
+     | Score: {matchInfo.score} | {matchInfo.matchLength}pt match
+  </span>
+  <div class="separator"></div>
+  {/if}
   <span class="info-message">{$statusBarTextStore}</span>
   <div class="separator"></div>
   <span class="position">{$positionsStore.length > 0 ? $currentPositionIndexStore + 1 : 0} / {$positionsStore.length}</span>
@@ -131,6 +168,12 @@
       justify-content: center;
   }
 
+  .match-info {
+      font-weight: 600;
+      color: #333;
+      margin: 0 8px;
+  }
+  
   .info-message {
       flex: 1; /* Allow this to expand and take available space */
       text-align: center; /* Center text */

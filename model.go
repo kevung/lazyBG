@@ -1,7 +1,5 @@
 package main
 
-import "time"
-
 const (
 	NumPoints = 24
 	BlackBar  = 25
@@ -33,8 +31,66 @@ const (
 )
 
 const (
-	DatabaseVersion = "1.2.0"
+	DatabaseVersion      = "1.2.0"
+	TranscriptionVersion = "1.0.0"
 )
+
+// Transcription models
+type TranscriptionMetadata struct {
+	Site        string `json:"site"`
+	MatchID     string `json:"matchId"`
+	Event       string `json:"event"`
+	Round       string `json:"round"`
+	Player1     string `json:"player1"`
+	Player2     string `json:"player2"`
+	EventDate   string `json:"eventDate"`
+	EventTime   string `json:"eventTime"`
+	Variation   string `json:"variation"`
+	Unrated     string `json:"unrated"`
+	Crawford    string `json:"crawford"`
+	CubeLimit   string `json:"cubeLimit"`
+	Transcriber string `json:"transcriber"`
+	MatchLength int    `json:"matchLength"`
+}
+
+type MoveData struct {
+	Dice      string `json:"dice"`
+	Move      string `json:"move"`
+	IsIllegal bool   `json:"isIllegal"`
+	IsGala    bool   `json:"isGala"`
+}
+
+type CubeActionData struct {
+	Player   int    `json:"player"`
+	Action   string `json:"action"`
+	Value    int    `json:"value"`
+	Response string `json:"response,omitempty"`
+}
+
+type TranscriptionMove struct {
+	MoveNumber  int             `json:"moveNumber"`
+	Player1Move *MoveData       `json:"player1Move,omitempty"`
+	Player2Move *MoveData       `json:"player2Move,omitempty"`
+	CubeAction  *CubeActionData `json:"cubeAction,omitempty"`
+}
+
+type GameWinner struct {
+	Player int `json:"player"`
+	Points int `json:"points"`
+}
+
+type TranscriptionGame struct {
+	GameNumber   int                 `json:"gameNumber"`
+	Player1Score int                 `json:"player1Score"`
+	Player2Score int                 `json:"player2Score"`
+	Moves        []TranscriptionMove `json:"moves"`
+	Winner       *GameWinner         `json:"winner,omitempty"`
+}
+
+type Transcription struct {
+	Metadata TranscriptionMetadata `json:"metadata"`
+	Games    []TranscriptionGame   `json:"games"`
+}
 
 type Point struct {
 	Checkers int `json:"checkers"`
@@ -61,58 +117,6 @@ type Position struct {
 	DecisionType int    `json:"decision_type"`
 	HasJacoby    int    `json:"has_jacoby"` // Add HasJacoby field
 	HasBeaver    int    `json:"has_beaver"` // Add HasBeaver field
-}
-
-type DoublingCubeAnalysis struct {
-	AnalysisDepth             string  `json:"analysisDepth"`
-	PlayerWinChances          float64 `json:"playerWinChances"`
-	PlayerGammonChances       float64 `json:"playerGammonChances"`
-	PlayerBackgammonChances   float64 `json:"playerBackgammonChances"`
-	OpponentWinChances        float64 `json:"opponentWinChances"`
-	OpponentGammonChances     float64 `json:"opponentGammonChances"`
-	OpponentBackgammonChances float64 `json:"opponentBackgammonChances"`
-	CubelessNoDoubleEquity    float64 `json:"cubelessNoDoubleEquity"`
-	CubelessDoubleEquity      float64 `json:"cubelessDoubleEquity"`
-	CubefulNoDoubleEquity     float64 `json:"cubefulNoDoubleEquity"`
-	CubefulNoDoubleError      float64 `json:"cubefulNoDoubleError"`
-	CubefulDoubleTakeEquity   float64 `json:"cubefulDoubleTakeEquity"`
-	CubefulDoubleTakeError    float64 `json:"cubefulDoubleTakeError"`
-	CubefulDoublePassEquity   float64 `json:"cubefulDoublePassEquity"`
-	CubefulDoublePassError    float64 `json:"cubefulDoublePassError"`
-	BestCubeAction            string  `json:"bestCubeAction"`
-	WrongPassPercentage       float64 `json:"wrongPassPercentage"`
-	WrongTakePercentage       float64 `json:"wrongTakePercentage"`
-}
-
-type CheckerMove struct {
-	Index                    int      `json:"index"`
-	AnalysisDepth            string   `json:"analysisDepth"`
-	Move                     string   `json:"move"`
-	Equity                   float64  `json:"equity"`
-	EquityError              *float64 `json:"equityError,omitempty"`
-	PlayerWinChance          float64  `json:"playerWinChance"`
-	PlayerGammonChance       float64  `json:"playerGammonChance"`
-	PlayerBackgammonChance   float64  `json:"playerBackgammonChance"`
-	OpponentWinChance        float64  `json:"opponentWinChance"`
-	OpponentGammonChance     float64  `json:"opponentGammonChance"`
-	OpponentBackgammonChance float64  `json:"opponentBackgammonChance"`
-}
-
-type CheckerAnalysis struct {
-	Moves []CheckerMove `json:"moves"`
-}
-
-type PositionAnalysis struct {
-	PositionID            int                   `json:"positionId"`
-	XGID                  string                `json:"xgid"`
-	Player1               string                `json:"player1"`
-	Player2               string                `json:"player2"`
-	AnalysisType          string                `json:"analysisType"`
-	AnalysisEngineVersion string                `json:"analysisEngineVersion"`
-	DoublingCubeAnalysis  *DoublingCubeAnalysis `json:"doublingCubeAnalysis,omitempty"`
-	CheckerAnalysis       *CheckerAnalysis      `json:"checkerAnalysis,omitempty"`
-	CreationDate          time.Time             `json:"creationDate"`
-	LastModifiedDate      time.Time             `json:"lastModifiedDate"`
 }
 
 func initializeBoard() Board {

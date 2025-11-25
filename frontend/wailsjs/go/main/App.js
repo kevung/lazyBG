@@ -14,10 +14,26 @@ export function OpenPositionDialog() {
   return window['go']['main']['App']['OpenPositionDialog']();
 }
 
+export function OpenTranscriptionDialog() {
+  return window['go']['main']['App']['OpenTranscriptionDialog']();
+}
+
+export function ReadTextFile(arg1) {
+  return window['go']['main']['App']['ReadTextFile'](arg1);
+}
+
 export function SaveDatabaseDialog() {
   return window['go']['main']['App']['SaveDatabaseDialog']();
 }
 
+export function SaveTranscriptionDialog() {
+  return window['go']['main']['App']['SaveTranscriptionDialog']();
+}
+
 export function ShowAlert(arg1) {
   return window['go']['main']['App']['ShowAlert'](arg1);
+}
+
+export function WriteTextFile(arg1, arg2) {
+  return window['go']['main']['App']['WriteTextFile'](arg1, arg2);
 }

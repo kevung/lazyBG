@@ -19,20 +19,12 @@ var assets embed.FS
 func main() {
 
 	app := NewApp()
-	db := NewDatabase()
 	cfg := NewConfig()
 
 	// Load the configuration file
 	config, err := cfg.LoadConfig()
 	if err != nil {
 		fmt.Println("Error loading configuration file:", err)
-		return
-	}
-
-	// Set up the in-memory database
-	err = db.SetupDatabase(":memory:")
-	if err != nil {
-		fmt.Println("Error setting up in-memory database:", err)
 		return
 	}
 
@@ -54,7 +46,6 @@ func main() {
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,
-			db,
 			cfg,
 		},
 		Linux: &linux.Options{

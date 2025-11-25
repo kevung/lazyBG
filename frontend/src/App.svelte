@@ -3,34 +3,22 @@
     // svelte functions
     import { onMount, onDestroy } from 'svelte';
     import { fade } from 'svelte/transition';
+    import { get } from 'svelte/store';
 
     // import backend functions
     import {
         SaveDatabaseDialog,
         OpenDatabaseDialog,
+        OpenTranscriptionDialog,
+        SaveTranscriptionDialog,
+        ReadTextFile,
+        WriteTextFile,
         OpenPositionDialog,
         DeleteFile,
 
         ShowAlert
 
     } from '../wailsjs/go/main/App.js';
-    import {
-        SetupDatabase,
-        SavePosition,
-        SaveAnalysis,
-        PositionExists,
-        LoadAllPositions,
-        DeletePosition,
-        DeleteAnalysis,
-        UpdatePosition,
-        LoadComment,
-        SaveComment,
-        LoadAnalysis,
-        LoadPositionsByFilters, // Update import
-        CheckDatabaseVersion, // Import CheckDatabaseVersion
-        OpenDatabase, // Import OpenDatabase
-        GetDatabaseVersion // Import GetDatabaseVersion
-    } from '../wailsjs/go/main/Database.js';
 
     import { WindowSetTitle, Quit, ClipboardGetText, WindowGetSize } from '../wailsjs/runtime/runtime.js';
 
@@ -53,86 +41,87 @@
     } from './stores/analysisStore';
 
     import {
-        currentPositionIndexStore, // Import currentPositionIndexStore
+        currentPositionIndexStore,
         statusBarTextStore,
         statusBarModeStore,
-        commentTextStore,
-        showSearchModalStore, // Import showSearchModalStore
-        showMetModalStore, // Import showMetModalStore
-        showTakePoint2LastModalStore, // Import showTakePoint2LastModalStore
-        showTakePoint2LiveModalStore, // Import showTakePoint2LiveModalStore
-        showTakePoint4LastModalStore, // Import showTakePoint4LastModalStore
-        showTakePoint4LiveModalStore, // Import showTakePoint4LiveModalStore
-        showGammonValue1ModalStore, // Import showGammonValue1ModalStore
-        showGammonValue2ModalStore, // Import showGammonValue2ModalStore
-        showGammonValue4ModalStore, // Import showGammonValue4ModalStore
         showCommandStore,
-        showAnalysisStore,
         showHelpStore,
-        showCommentStore,
         showGoToPositionModalStore,
-        showWarningModalStore, // Import showWarningModalStore
-        showMetadataModalStore, // Import showMetadataModalStore
-        showTakePoint2ModalStore, // Import showTakePoint2ModalStore
-        isAnyModalOrPanelOpenStore, // Import the derived store
-        isAnyModalOpenStore, // Import the derived store
-        previousModeStore, // Import previousModeStore
-        showFilterLibraryPanelStore // Import showFilterLibraryPanelStore
+        showMetadataModalStore,
+        showMetadataPanelStore,
+        isAnyModalOpenStore,
+        previousModeStore,
+        showCandidateMovesStore,
+        showMovesTableStore
     } from './stores/uiStore';
 
     import { metaStore } from './stores/metaStore'; // Import metaStore
+
+    // import transcription stores and utils
+    import {
+        transcriptionStore,
+        selectedMoveStore,
+        transcriptionFilePathStore,
+        positionsCacheStore,
+        updateMetadata,
+        addGame,
+        addMove,
+        clearTranscription,
+        swapPlayers
+    } from './stores/transcriptionStore.js';
+    import { parseMatchFile } from './utils/matchParser.js';
+    import { 
+        createInitialPosition, 
+        calculatePositionAtMove,
+        validatePosition 
+    } from './utils/positionCalculator.js';
 
     // import components
     import Toolbar from './components/Toolbar.svelte';
     import Board from './components/Board.svelte';
     import CommandLine from './components/CommandLine.svelte';
     import StatusBar from './components/StatusBar.svelte';
-    import AnalysisPanel from './components/AnalysisPanel.svelte';
-    import CommentPanel from './components/CommentPanel.svelte';
     import HelpModal from './components/HelpModal.svelte';
     import GoToPositionModal from './components/GoToPositionModal.svelte';
-    import SearchModal from './components/SearchModal.svelte'; // Import SearchModal component
-    import MetModal from './components/MetModal.svelte'; // Import MetModal component
-    import TakePoint2LastModal from './components/TakePoint2LastModal.svelte'; // Import TakePoint2LastModal component
-    import TakePoint2LiveModal from './components/TakePoint2LiveModal.svelte'; // Import TakePoint2LiveModal component
-    import TakePoint4LastModal from './components/TakePoint4LastModal.svelte'; // Import TakePoint4LastModal component
-    import TakePoint4LiveModal from './components/TakePoint4LiveModal.svelte'; // Import TakePoint4LiveModal component
-    import GammonValue1Modal from './components/GammonValue1Modal.svelte'; // Import GammonValue1Modal component
-    import GammonValue2Modal from './components/GammonValue2Modal.svelte'; // Import GammonValue2Modal component
-    import GammonValue4Modal from './components/GammonValue4Modal.svelte'; // Import GammonValue4Modal component
-    import WarningModal from './components/WarningModal.svelte'; // Import WarningModal component
-    import MetadataModal from './components/MetadataModal.svelte'; // Import MetadataModal component
-    import TakePoint2Modal from './components/TakePoint2Modal.svelte'; // Import TakePoint2Modal component
-    import TakePoint4Modal from './components/TakePoint4Modal.svelte'; // Import TakePoint4Modal component
-    import FilterLibraryPanel from './components/FilterLibraryPanel.svelte'; // Update import
+    import MetadataModal from './components/MetadataModal.svelte';
+    import MetadataPanel from './components/MetadataPanel.svelte';
+    import MovesTable from './components/MovesTable.svelte';
+    import CandidateMovesPanel from './components/CandidateMovesPanel.svelte';
+
+    // Debug logging
+    console.log('App.svelte: Script starting to execute');
 
     // Visibility variables
-    let showSearchModal = false;
-    let showMetModal = false;
-    let showTakePoint2LastModal = false;
-    let showTakePoint2LiveModal = false;
-    let showTakePoint4LastModal = false;
-    let showTakePoint4LiveModal = false;
-    let showGammonValue1Modal = false;
-    let showGammonValue2Modal = false;
-    let showGammonValue4Modal = false;
     let showCommand = false;
-    let showAnalysis = false;
     let showHelp = false;
-    let showComment = false;
     let showGoToPositionModal = false;
-    let showWarningModal = false;
-    let warningMessage = '';
-    let databaseVersion = '';
     let applicationVersion = '';
     let showMetadataModal = false;
+    let showMetadataPanel = false;
     let databaseLoaded = false;
     let mode = 'NORMAL';
-    let showTakePoint2Modal = false;
-    let showTakePoint4Modal = false;
-    let isAnyModalOrPanelOpen = false;
     let isAnyModalOpen = false;
-    let showFilterLibraryPanel = false; // Update variable
+    let showCandidateMoves = false;
+    let showMovesTable = true;
+    
+    console.log('App.svelte: Variables initialized');
+    
+    // Reference for various elements.
+    let mainArea;
+    let commandInput;
+    let currentPositionIndex = 0;
+    let positions = [];
+
+    // Declare functions before subscriptions that use them
+    export function setStatusBarMessage(message) {
+        statusBarTextStore.set(message);
+    }
+
+    async function showPosition(position) {
+        // Database functionality removed
+        setStatusBarMessage('Database functionality has been removed');
+        return;
+    }
 
     // Subscribe to the metaStore
     metaStore.subscribe(value => {
@@ -140,12 +129,7 @@
     });
 
     // Subscribe to the derived store
-    isAnyModalOrPanelOpenStore.subscribe(value => {
-        isAnyModalOrPanelOpen = value;
-    });
-
-        // Subscribe to the derived store
-        isAnyModalOpenStore.subscribe(value => {
+    isAnyModalOpenStore.subscribe(value => {
         isAnyModalOpen = value;
     });
 
@@ -154,19 +138,16 @@
         databaseLoaded = value;
     });
 
-    // Subscribe to the showFilterLibraryPanelStore
-    showFilterLibraryPanelStore.subscribe(value => {
-        showFilterLibraryPanel = value;
+    // Subscribe to new panel stores
+    showCandidateMovesStore.subscribe(value => {
+        showCandidateMoves = value;
     });
 
-    // Reference for various elements.
-    let mainArea;
-    let commandInput;
-
-    let currentPositionIndex = 0;
+    showMovesTableStore.subscribe(value => {
+        showMovesTable = value;
+    });
 
     // Subscribe to the stores
-    let positions = [];
     positionsStore.subscribe(value => {
         positions = Array.isArray(value) ? value : [];
         if (positions.length === 0) {
@@ -229,71 +210,25 @@
         }
     });
 
-    showSearchModalStore.subscribe(value => {
-        showSearchModal = value;
-    });
-
-    showMetModalStore.subscribe(value => {
-        showMetModal = value;
-    });
-
-    showTakePoint2LastModalStore.subscribe(value => {
-        showTakePoint2LastModal = value;
-    });
-
-    showTakePoint2LiveModalStore.subscribe(value => {
-        showTakePoint2LiveModal = value;
-    });
-
-    showTakePoint4LastModalStore.subscribe(value => {
-        showTakePoint4LastModal = value;
-    });
-
-    showTakePoint4LiveModalStore.subscribe(value => {
-        showTakePoint4LiveModal = value;
-    });
-
-    showGammonValue1ModalStore.subscribe(value => {
-        showGammonValue1Modal = value;
-    });
-
-    showGammonValue2ModalStore.subscribe(value => {
-        showGammonValue2Modal = value;
-    });
-
-    showGammonValue4ModalStore.subscribe(value => {
-        showGammonValue4Modal = value;
-    });
-
     showCommandStore.subscribe(value => {
         showCommand = value;
-    });
-
-    showAnalysisStore.subscribe(value => {
-        showAnalysis = value;
     });
 
     showHelpStore.subscribe(value => {
         showHelp = value;
     });
 
-    showCommentStore.subscribe(value => {
-        showComment = value;
-    });
-
     showGoToPositionModalStore.subscribe(value => {
         showGoToPositionModal = value;
-    });
-
-    showWarningModalStore.subscribe(value => {
-        showWarningModal = value;
     });
 
     showMetadataModalStore.subscribe(value => {
         showMetadataModal = value;
     });
 
-
+    showMetadataPanelStore.subscribe(value => {
+        showMetadataPanel = value;
+    });
 
     databasePathStore.subscribe(value => {
         databaseLoaded = !!value;
@@ -302,6 +237,111 @@
     statusBarModeStore.subscribe(value => {
         mode = value;
     });
+
+    /**
+     * Convert position calculator format to Board component format
+     * Position calculator: points[1..24], bar, off, opponentBar, opponentOff
+     * Board format: board.points[0..25], board.bearoff[0,1]
+     */
+    function convertPositionToBoard(position) {
+        const points = [];
+        
+        // Initialize points array (index 0 is unused, 1-24 are the board points, 25 is bar)
+        for (let i = 0; i <= 25; i++) {
+            if (i === 0) {
+                // Point 0 is unused
+                points.push({ checkers: 0, color: -1 });
+            } else if (i === 25) {
+                // Point 25 is the bar
+                const barCheckers = position.bar;
+                const opponentBarCheckers = Math.abs(position.opponentBar);
+                
+                if (barCheckers > 0) {
+                    points.push({ checkers: barCheckers, color: 0 });
+                } else if (opponentBarCheckers > 0) {
+                    points.push({ checkers: opponentBarCheckers, color: 1 });
+                } else {
+                    points.push({ checkers: 0, color: -1 });
+                }
+            } else {
+                // Regular board points (1-24)
+                const checkersOnPoint = position.points[i];
+                
+                if (checkersOnPoint > 0) {
+                    points.push({ checkers: checkersOnPoint, color: 0 });
+                } else if (checkersOnPoint < 0) {
+                    points.push({ checkers: Math.abs(checkersOnPoint), color: 1 });
+                } else {
+                    points.push({ checkers: 0, color: -1 });
+                }
+            }
+        }
+        
+        return {
+            id: 0,
+            board: {
+                points: points,
+                bearoff: [position.off, position.opponentOff]
+            },
+            cube: {
+                owner: -1,
+                value: 1
+            },
+            dice: [0, 0],
+            score: [0, 0],
+            player_on_roll: 0,
+            decision_type: 0,
+            has_jacoby: 0,
+            has_beaver: 0
+        };
+    }
+
+    // Subscribe to selected move changes to update position
+    // Temporarily commented out to debug
+    /*
+    selectedMoveStore.subscribe(selectedMove => {
+        const transcription = get(transcriptionStore);
+        const positionsCache = get(positionsCacheStore);
+        
+        if (transcription && transcription.games && transcription.games.length > 0) {
+            const { gameIndex, moveIndex, player } = selectedMove;
+            
+            // Check cache first
+            const cacheKey = `${gameIndex}-${moveIndex}-${player}`;
+            if (positionsCache[cacheKey]) {
+                positionStore.set(positionsCache[cacheKey]);
+            } else {
+                // Calculate position
+                const game = transcription.games[gameIndex];
+                if (game) {
+                    const gameNumber = game.gameNumber;
+                    const position = calculatePositionAtMove(
+                        transcription,
+                        gameNumber,
+                        moveIndex,
+                        player === 1 ? 'player1' : 'player2'
+                    );
+                    
+                    // Convert to board format expected by Board component
+                    const boardPosition = convertPositionToBoard(position);
+                    positionStore.set(boardPosition);
+                    
+                    // Cache the calculated position
+                    positionsCacheStore.update(cache => {
+                        cache[cacheKey] = boardPosition;
+                        return cache;
+                    });
+                    
+                    // Validate position
+                    const validation = validatePosition(position);
+                    if (!validation.valid) {
+                        console.warn(`Position validation failed: ${validation.playerCount} vs ${validation.opponentCount} checkers`);
+                    }
+                }
+            }
+        }
+    });
+    */
 
     //Global shortcuts
     function handleKeyDown(event) {
@@ -312,104 +352,60 @@
             return;
         }
 
-        // Prevent command line from opening when editing filter panel fields or comment panel
-        if (document.activeElement.closest('.filter-library-panel') || showComment) {
-            if (event.ctrlKey && (event.code === 'KeyP' || event.code === 'KeyL' || event.code === 'KeyB')) {
-                event.preventDefault();
-            } else {
-                return;
-            }
-        }
-
         if (event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
         } else if(event.ctrlKey && event.code == 'KeyN') {
-            newDatabase();
+            newMatch();
+        } else if(event.ctrlKey && event.code == 'KeyS') {
+            event.preventDefault();
+            saveTranscription();
         } else if(event.ctrlKey && event.code == 'KeyO') {
-            openDatabase();
+            loadMatchFromText();
         } else if (event.ctrlKey && event.code === 'KeyQ') {
             exitApp();
-        } else if(event.ctrlKey && event.code == 'KeyI') {
-            importPosition();
-        } else if(event.ctrlKey && event.code == 'KeyC') {
-            copyPosition();
-        } else if(event.ctrlKey && event.code == 'KeyV') {
-            pastePosition();
-        } else if(event.ctrlKey && event.code == 'KeyS') {
-            saveCurrentPosition();
-        } else if(event.ctrlKey && event.code == 'KeyU') {
-            updatePosition();
-        } else if (event.code === 'Delete') {
-            deletePosition();
         } else if (!event.ctrlKey && event.key === 'PageUp') {
-            if (!showComment) {
-                event.preventDefault();
-                firstPosition();
-            }
+            event.preventDefault();
+            firstPosition();
         } else if (!event.ctrlKey && event.key === 'h') {
-            if (!showComment) {
-                firstPosition();
-            }
+            firstPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowLeft') {
-            if (!showComment) {
-                event.preventDefault();
-                previousPosition();
-            }
+            event.preventDefault();
+            previousPosition();
         } else if (!event.ctrlKey && event.key === 'k') {
-            if (!showComment) {
-                previousPosition();
-            }
+            previousPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowRight') {
-            if (!showComment) {
-                event.preventDefault();
-                nextPosition();
-            }
+            event.preventDefault();
+            nextPosition();
         } else if (!event.ctrlKey && event.key === 'j') {
-            if (!showComment) {
-                nextPosition();
-            }
+            nextPosition();
         } else if (!event.ctrlKey && event.key === 'PageDown') {
-            if (!showComment) {
-                event.preventDefault();
-                lastPosition();
-            }
+            event.preventDefault();
+            lastPosition();
         } else if (!event.ctrlKey && event.key === 'l') {
-            if (!showComment) {
-                lastPosition();
-            }
+            lastPosition();
         } else if(event.ctrlKey && event.code == 'KeyK') {
             gotoPosition();
-        } else if(event.ctrlKey && event.code == 'KeyR') {
-            loadAllPositions();
         } else if(!event.ctrlKey && event.code === 'Tab') {
-                toggleEditMode();
+            toggleEditMode();
         } else if (!event.ctrlKey && event.code === 'Space') {        
-                event.preventDefault();
-                showCommandStore.set(true); // Show command line
-        } else if (event.ctrlKey && event.code === 'KeyL') {
             event.preventDefault();
-            if (showComment) {
-                toggleCommentPanel(); // Close comment panel if open
-            }
-            toggleAnalysisPanel();
-        } else if(event.ctrlKey && event.code == 'KeyP') {
-                event.preventDefault();
-                toggleCommentPanel();
-        } else if (event.ctrlKey && event.code === 'KeyF') {
-            if ($statusBarModeStore === 'EDIT') {
-                findPosition();
-            } else {
-                setStatusBarMessage('Search is only available in edit mode');
-            }
+            showCommandStore.set(true); // Show command line
         } else if (event.ctrlKey && event.code === 'KeyH') {
             toggleHelpModal();
         } else if (!event.ctrlKey && event.key === '?') {
             toggleHelpModal();
         } else if (event.ctrlKey && event.code === 'KeyM') {
-            toggleMetadataModal();
-        } else if (event.ctrlKey && event.code === 'KeyB') {
-            toggleFilterLibraryPanel();
+            event.preventDefault();
+            showMetadataPanelStore.update(v => !v);
+        } else if (event.ctrlKey && event.code === 'KeyI') {
+            loadMatchFromText();
+        } else if (event.ctrlKey && event.code === 'KeyP') {
+            event.preventDefault();
+            showMovesTableStore.update(v => !v);
+        } else if (event.ctrlKey && event.code === 'KeyL') {
+            event.preventDefault();
+            showCandidateMovesStore.update(v => !v);
         }
     }
 
@@ -417,80 +413,185 @@
         return filePath.split('/').pop();
     }
 
-    export function setStatusBarMessage(message) {
-        statusBarTextStore.set(message);
+    // Test function to load a match file
+    async function loadTestMatch() {
+        try {
+            const response = await fetch('/match1.txt');
+            const content = await response.text();
+            const transcription = parseMatchFile(content);
+            
+            // Update the transcription store
+            updateMetadata(transcription.metadata);
+            
+            // Clear existing games and add new ones
+            clearTranscription();
+            updateMetadata(transcription.metadata);
+            
+            for (const game of transcription.games) {
+                addGame(game.gameNumber, game.player1Score, game.player2Score);
+                const gameIndex = transcription.games.indexOf(game);
+                
+                for (const move of game.moves) {
+                    if (move.cubeAction) {
+                        // TODO: Handle cube actions
+                    } else {
+                        if (move.player1Move) {
+                            addMove(gameIndex, move.moveNumber, 1, 
+                                move.player1Move.dice, move.player1Move.move,
+                                move.player1Move.isIllegal, move.player1Move.isGala);
+                        }
+                        if (move.player2Move) {
+                            addMove(gameIndex, move.moveNumber, 2,
+                                move.player2Move.dice, move.player2Move.move,
+                                move.player2Move.isIllegal, move.player2Move.isGala);
+                        }
+                    }
+                }
+            }
+            
+            setStatusBarMessage('Test match loaded successfully');
+            console.log('Test match loaded:', transcription);
+        } catch (error) {
+            console.error('Error loading test match:', error);
+            setStatusBarMessage('Error loading test match');
+        }
     }
 
-    async function newDatabase() {
-        console.log('newDatabase');
+    async function newMatch() {
+        console.log('newMatch');
         try {
-            const filePath = await SaveDatabaseDialog();
-            if (filePath) {
-                // Check if the file exists and delete it
-                try {
-                    await DeleteFile(filePath);
-                    console.log('Existing file deleted:', filePath);
-                } catch (error) {
-                    console.log('No existing file to delete or error deleting file:', error);
-                }
-
-                databasePathStore.set(filePath);
-                console.log('databasePathStore:', $databasePathStore);
-                await SetupDatabase(filePath);
-                setStatusBarMessage('New database created successfully');
-                const filename = getFilenameFromPath(filePath);
-                WindowSetTitle(`lazyBG - ${filename}`);
-                console.log(`New database created at ${filePath}`);
-                // Reset the display
-                await loadAllPositions();
-            } else {
-                console.log('No file selected');
-            }
+            // Create a new empty transcription
+            clearTranscription();
+            updateMetadata({
+                transcriber: 'User',
+                variation: 'Backgammon',
+                crawford: 'On',
+                matchLength: 7
+            });
+            transcriptionFilePathStore.set('');
+            WindowSetTitle('lazyBG - New Match');
+            setStatusBarMessage('New match created - Fill in match details below');
+            console.log('New match created');
+            
+            // Show metadata panel
+            showMetadataPanelStore.set(true);
         } catch (error) {
-            console.error('Error opening file dialog:', error);
-            setStatusBarMessage('Error creating new database');
+            console.error('Error creating new match:', error);
+            setStatusBarMessage('Error creating new match');
         } finally {
             previousModeStore.set('NORMAL');
             statusBarModeStore.set('NORMAL');
         }
     }
 
-    async function openDatabase() {
-        console.log('openDatabase');
+    async function saveTranscription() {
+        console.log('saveTranscription');
         try {
-            const filePath = await OpenDatabaseDialog();
-            if (!filePath) {
-                console.log('No Database selected');
+            // Get current transcription
+            const transcription = get(transcriptionStore);
+            if (!transcription || !transcription.games || transcription.games.length === 0) {
+                setStatusBarMessage('No transcription to save');
                 return;
             }
 
-            databasePathStore.set(filePath);
-            console.log('databasePathStore:', $databasePathStore);
-
-            // Open the database and check for required tables and metadata keys
-            await OpenDatabase(filePath);
-
-            // Check database version after opening the database
-            const dbVersion = await CheckDatabaseVersion();
-            const modelVersion = await GetDatabaseVersion();
-            console.log(`Database version: ${dbVersion}`);
-            console.log(`Model version: ${modelVersion}`);
-            setStatusBarMessage(`Database version: ${dbVersion}`);
-
-            if (getMajorVersion(dbVersion) !== getMajorVersion(modelVersion)) {
-                warningMessage = `Major database version mismatch. The database schema might be incompatible with the current version of lazyBG. Continuing to edit the database is done at your own risk. Backup your file before proceeding any further.\nDatabase version: ${dbVersion}\nExpected version: ${modelVersion}`;
-                showWarningModalStore.set(true); // Use store to show warning modal
+            // Convert transcription to JSON string
+            const jsonContent = JSON.stringify(transcription, null, 2);
+            
+            // Show save dialog
+            const filePath = await SaveTranscriptionDialog();
+            if (!filePath) {
+                console.log('Save cancelled');
+                return;
             }
-
-            setStatusBarMessage('Database opened successfully');
-            const filename = getFilenameFromPath(filePath);
+            
+            // Ensure .lbg extension
+            const finalPath = filePath.endsWith('.lbg') ? filePath : filePath + '.lbg';
+            
+            // Save file
+            await WriteTextFile(finalPath, jsonContent);
+            
+            // Update the stored file path
+            transcriptionFilePathStore.set(finalPath);
+            
+            // Update window title
+            const filename = finalPath.split('/').pop();
             WindowSetTitle(`lazyBG - ${filename}`);
-
-            // Load positions
-            await loadAllPositions();
+            
+            setStatusBarMessage(`Transcription saved to ${filename}`);
+            console.log('Transcription saved to:', finalPath);
         } catch (error) {
-            console.error('Error opening file dialog:', error);
-            setStatusBarMessage('Error opening database');
+            console.error('Error saving transcription:', error);
+            setStatusBarMessage('Error saving transcription');
+        }
+    }
+
+    async function loadMatchFromText() {
+        console.log('loadMatchFromText');
+        try {
+            const filePath = await OpenTranscriptionDialog();
+            if (!filePath) {
+                console.log('No file selected');
+                return;
+            }
+            
+            console.log('Selected file:', filePath);
+            
+            // Check file extension
+            if (filePath.endsWith('.txt')) {
+                // Load .txt match file using backend
+                const content = await ReadTextFile(filePath);
+                const transcription = parseMatchFile(content);
+                
+                // Update the transcription store
+                clearTranscription();
+                updateMetadata(transcription.metadata);
+                
+                for (const game of transcription.games) {
+                    addGame(game.gameNumber, game.player1Score, game.player2Score);
+                    const gameIndex = transcription.games.indexOf(game);
+                    
+                    for (const move of game.moves) {
+                        if (move.cubeAction) {
+                            // TODO: Handle cube actions properly
+                        } else {
+                            if (move.player1Move) {
+                                addMove(gameIndex, move.moveNumber, 1, 
+                                    move.player1Move.dice, move.player1Move.move,
+                                    move.player1Move.isIllegal, move.player1Move.isGala);
+                            }
+                            if (move.player2Move) {
+                                addMove(gameIndex, move.moveNumber, 2,
+                                    move.player2Move.dice, move.player2Move.move,
+                                    move.player2Move.isIllegal, move.player2Move.isGala);
+                            }
+                        }
+                    }
+                }
+                
+                // Save as .lbg file
+                const lbgPath = filePath.replace('.txt', '.lbg');
+                // TODO: Save to lbgPath
+                transcriptionFilePathStore.set(lbgPath);
+                
+                WindowSetTitle(`lazyBG - ${getFilenameFromPath(lbgPath)}`);
+                setStatusBarMessage('Match loaded successfully');
+                
+            } else if (filePath.endsWith('.lbg')) {
+                // Load .lbg JSON file using backend
+                const jsonContent = await ReadTextFile(filePath);
+                const transcription = JSON.parse(jsonContent);
+                
+                clearTranscription();
+                transcriptionStore.set(transcription);
+                transcriptionFilePathStore.set(filePath);
+                
+                WindowSetTitle(`lazyBG - ${getFilenameFromPath(filePath)}`);
+                setStatusBarMessage('Transcription loaded successfully');
+            }
+            
+        } catch (error) {
+            console.error('Error loading match:', error);
+            setStatusBarMessage('Error loading match: ' + error.message);
         } finally {
             previousModeStore.set('NORMAL');
             statusBarModeStore.set('NORMAL');
@@ -501,68 +602,16 @@
         return version.split('.')[0];
     }
 
-    function closeWarningModal() {
-        showWarningModalStore.set(false); // Use store to close warning modal
-    }
+
 
     function exitApp() {
         Quit();
     }
 
     async function savePositionAndAnalysis(positionData, parsedAnalysis, successMessage) {
-        // Ensure checkerAnalysis is correctly structured
-        if (Array.isArray(parsedAnalysis.checkerAnalysis)) {
-            parsedAnalysis.checkerAnalysis = { moves: parsedAnalysis.checkerAnalysis };
-        }
-
-        // Remove creationDate and lastModifiedDate from parsedAnalysis since they are dealt by the backend
-        delete parsedAnalysis.creationDate;
-        delete parsedAnalysis.lastModifiedDate;
-
-        // Check if the position already exists
-        const positionExistsResult = await PositionExists(positionData);
-        if (positionExistsResult.exists) {
-            console.log('Position already exists with ID:', positionExistsResult.id);
-            try {
-                parsedAnalysis.positionId = positionExistsResult.id; // Ensure the position ID is set in the analysis
-                await SaveAnalysis(positionExistsResult.id, parsedAnalysis);
-
-                // Append new comment to existing comment if not already included
-                let existingComment = await LoadComment(positionExistsResult.id);
-                if (!existingComment.includes(parsedAnalysis.comment)) {
-                    existingComment += `\n\n${parsedAnalysis.comment}`;
-                }
-                await SaveComment(positionExistsResult.id, existingComment); // Save the comment
-
-                console.log('Analysis and comment updated for position ID:', positionExistsResult.id);
-                setStatusBarMessage('Position already exists, analysis and comment updated');
-                currentPositionIndexStore.set(-1); //force change to trigger re-render
-                currentPositionIndexStore.set(positions.findIndex(pos => pos.id === positionExistsResult.id)); // Set current position index to display the existing position
-            } catch (error) {
-                console.error('Error updating analysis and comment:', error);
-                setStatusBarMessage('Error updating analysis and comment');
-            }
-            return;
-        }
-
-        // Save the position and analysis to the database
-        try {
-            const positionID = await SavePosition(positionData); // Remove databaseVersion
-            console.log('Position saved with ID:', positionID);
-
-            positionData.id = positionID; // Ensure the position ID is set in the position data
-            parsedAnalysis.positionId = positionID; // Ensure the position ID is set in the analysis
-            await SaveAnalysis(positionID, parsedAnalysis);
-            await SaveComment(positionID, parsedAnalysis.comment); // Save the comment
-            console.log('Analysis and comment saved for position ID:', positionID);
-
-            // Reload all positions and show the last one
-            await loadAllPositions();
-            setStatusBarMessage(successMessage);
-        } catch (error) {
-            console.error('Error saving position, analysis, and comment:', error);
-            setStatusBarMessage('Error saving position, analysis, and comment');
-        }
+        // Database functionality removed
+        setStatusBarMessage('Database functionality has been removed');
+        return;
     }
 
     export async function importPosition() {
@@ -1270,151 +1319,15 @@
     }
 
     async function deletePosition() {
-        if ($statusBarModeStore !== 'NORMAL' && !($statusBarModeStore === 'COMMAND' && $previousModeStore === 'NORMAL')) {
-            setStatusBarMessage('Cannot delete position in current mode');
-            return;
-        }
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        console.log('deletePosition');
-        if ($statusBarModeStore !== 'NORMAL' && $statusBarModeStore !== 'COMMAND') {
-            setStatusBarMessage('Cannot delete position in current mode');
-            return;
-        }
-
-        if (!positions || positions.length === 0) {
-            setStatusBarMessage('No positions to delete');
-            return;
-        }
-
-        try {
-            const positionID = positions[currentPositionIndex].id;
-            await DeletePosition(positionID); // Remove databaseVersion
-            console.log('Position and associated analysis deleted with ID:', positionID);
-
-            // Load all positions from the database
-            await loadAllPositions();
-            setStatusBarMessage('Position and associated analysis deleted successfully');
-        } catch (error) {
-            console.error('Error deleting position and associated analysis:', error);
-            setStatusBarMessage('Error deleting position and associated analysis');
-        } finally {
-            previousModeStore.set('NORMAL');
-            statusBarModeStore.set('NORMAL');
-        }
+        // Database functionality removed
+        setStatusBarMessage('Database functionality has been removed');
+        return;
     }
 
     async function updatePosition() {
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        if ($statusBarModeStore !== 'EDIT' && !($statusBarModeStore === 'COMMAND' && $previousModeStore === 'EDIT')) {
-            setStatusBarMessage('Update is only possible in edit mode');
-            return;
-        }
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        console.log('updatePosition');
-
-        if (positions.length === 0) {
-            setStatusBarMessage('No positions to update');
-            return;
-        }
-
-        const position = $positionStore;
-        const analysis = $analysisStore;
-
-        if (!isValidPosition(position)) {
-            return;
-        }
-
-        try {
-            const originalPosition = positions[currentPositionIndex];
-
-            console.log('Position to update:', position);
-            console.log('Analysis to update:', analysis);
-
-            // Reset all fields of analysis to initialized values
-            analysis.xgid = "";
-            analysis.analysisType = "";
-            analysis.checkerAnalysis = { moves: [] };
-            analysis.doublingCubeAnalysis = {
-                analysisDepth: '',
-                playerWinChances: 0,
-                playerGammonChances: 0,
-                playerBackgammonChances: 0,
-                opponentWinChances: 0,
-                opponentGammonChances: 0,
-                opponentBackgammonChances: 0,
-                cubelessNoDoubleEquity: 0,
-                cubelessDoubleEquity: 0,
-                cubefulNoDoubleEquity: 0,
-                cubefulNoDoubleError: 0,
-                cubefulDoubleTakeEquity: 0,
-                cubefulDoubleTakeError: 0,
-                cubefulDoublePassEquity: 0,
-                cubefulDoublePassError: 0,
-                bestCubeAction: '',
-                wrongPassPercentage: 0,
-                wrongTakePercentage: 0
-            };
-            analysis.analysisEngineVersion = "";
-
-            // Ensure checkerAnalysis is correctly structured
-            if (Array.isArray(analysis.checkerAnalysis)) {
-                analysis.checkerAnalysis = { moves: analysis.checkerAnalysis };
-            }
-
-            // Set dice to [0, 0] if decision type is doubling
-            if (position.decision_type === 1) {
-                position.dice = [0, 0];
-            }
-
-            const positionID = originalPosition.id;
-
-            // Check if the edited position is different from the original position
-            const positionJSON = JSON.stringify(position);
-            const originalPositionJSON = JSON.stringify(originalPosition);
-
-            if (positionJSON !== originalPositionJSON) {
-                // Delete the existing analysis if the position has changed
-                await DeleteAnalysis(positionID);
-                console.log('Analysis deleted for position ID:', positionID);
-            }
-
-            // Update the xgid in the analysis
-            analysis.xgid = generateXGID(position);
-
-            // Update the position in the database
-            // @ts-ignore
-            await UpdatePosition(position);
-            console.log('Position updated with ID:', positionID);
-
-            // Update the analysis in the database
-            // @ts-ignore
-            await SaveAnalysis(positionID, analysis);
-            console.log('Analysis updated for position ID:', positionID);
-
-            // Store the current index before loading all positions
-            const currentIndex = currentPositionIndex;
-
-            // Retrieve all positions and update the store
-            await loadAllPositions();
-            currentPositionIndexStore.set(currentIndex); // Ensure the current index remains the same
-            setStatusBarMessage('Position and analysis updated successfully');
-            statusBarModeStore.set('NORMAL');
-        } catch (error) {
-            console.error('Error updating position and analysis:', error);
-            setStatusBarMessage('Error updating position and analysis');
-        } finally {
-            previousModeStore.set('NORMAL');
-            statusBarModeStore.set('NORMAL');
-        }
+        // Database functionality removed
+        setStatusBarMessage('Database functionality has been removed');
+        return;
     }
 
     function firstPosition() {
@@ -1422,11 +1335,12 @@
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
         }
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        if (positions && positions.length > 0) {
+        
+        // Navigate to first move of first game in transcription
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            selectedMoveStore.set({ gameIndex: 0, moveIndex: 0, player: 1 });
+        } else if ($databasePathStore && positions && positions.length > 0) {
+            // Fallback to database mode
             currentPositionIndexStore.set(0);
         }
     }
@@ -1436,11 +1350,32 @@
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
         }
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        if (positions && $currentPositionIndexStore > 0) {
+        
+        // Navigate in transcription mode
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const { gameIndex, moveIndex, player } = $selectedMoveStore;
+            
+            if (player === 2) {
+                // Move from player 2 to player 1 of same move
+                selectedMoveStore.set({ gameIndex, moveIndex, player: 1 });
+            } else if (moveIndex > 0) {
+                // Move to previous move (player 2)
+                const prevMove = $transcriptionStore.games[gameIndex].moves[moveIndex - 1];
+                if (prevMove && prevMove.player2Move) {
+                    selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 2 });
+                } else {
+                    selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 1 });
+                }
+            } else if (gameIndex > 0) {
+                // Move to last move of previous game
+                const prevGame = $transcriptionStore.games[gameIndex - 1];
+                const lastMoveIndex = prevGame.moves.length - 1;
+                const lastMove = prevGame.moves[lastMoveIndex];
+                const lastPlayer = lastMove && lastMove.player2Move ? 2 : 1;
+                selectedMoveStore.set({ gameIndex: gameIndex - 1, moveIndex: lastMoveIndex, player: lastPlayer });
+            }
+        } else if ($databasePathStore && positions && $currentPositionIndexStore > 0) {
+            // Fallback to database mode
             currentPositionIndexStore.set($currentPositionIndexStore - 1);
         }
     }
@@ -1450,11 +1385,25 @@
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
         }
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        if (positions && $currentPositionIndexStore < positions.length - 1) {
+        
+        // Navigate in transcription mode
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const { gameIndex, moveIndex, player } = $selectedMoveStore;
+            const game = $transcriptionStore.games[gameIndex];
+            const move = game.moves[moveIndex];
+            
+            if (player === 1 && move && move.player2Move) {
+                // Move from player 1 to player 2 of same move
+                selectedMoveStore.set({ gameIndex, moveIndex, player: 2 });
+            } else if (moveIndex < game.moves.length - 1) {
+                // Move to next move (player 1)
+                selectedMoveStore.set({ gameIndex, moveIndex: moveIndex + 1, player: 1 });
+            } else if (gameIndex < $transcriptionStore.games.length - 1) {
+                // Move to first move of next game
+                selectedMoveStore.set({ gameIndex: gameIndex + 1, moveIndex: 0, player: 1 });
+            }
+        } else if ($databasePathStore && positions && $currentPositionIndexStore < positions.length - 1) {
+            // Fallback to database mode
             currentPositionIndexStore.set($currentPositionIndexStore + 1);
         }
     }
@@ -1464,18 +1413,24 @@
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
         }
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        if (positions && positions.length > 0) {
+        
+        // Navigate to last move of last game in transcription
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const lastGameIndex = $transcriptionStore.games.length - 1;
+            const lastGame = $transcriptionStore.games[lastGameIndex];
+            const lastMoveIndex = lastGame.moves.length - 1;
+            const lastMove = lastGame.moves[lastMoveIndex];
+            const lastPlayer = lastMove && lastMove.player2Move ? 2 : 1;
+            selectedMoveStore.set({ gameIndex: lastGameIndex, moveIndex: lastMoveIndex, player: lastPlayer });
+        } else if ($databasePathStore && positions && positions.length > 0) {
+            // Fallback to database mode
             currentPositionIndexStore.set(positions.length - 1);
         }
     }
 
     function gotoPosition() {
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
+        if (!$databasePathStore && (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0)) {
+            setStatusBarMessage('No transcription or database opened');
             return;
         }
         if ($statusBarModeStore !== 'NORMAL') {
@@ -1485,14 +1440,7 @@
         showGoToPositionModalStore.set(true);
     }
 
-    function findPosition() {
-        console.log('findPosition');
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        showSearchModalStore.set(true); // Show the search modal
-    }
+
 
     function toggleEditMode() {
         console.log('toggleEditMode');
@@ -1504,8 +1452,6 @@
         if ($statusBarModeStore !== "EDIT") {
             previousModeStore.set($statusBarModeStore);
             statusBarModeStore.set('EDIT');
-            showCommentStore.set(false);
-            showAnalysisStore.set(false);
         } else {
             previousModeStore.set($statusBarModeStore);
             statusBarModeStore.set('NORMAL');
@@ -1514,80 +1460,6 @@
             currentPositionIndexStore.set(-1); // Temporarily set to a different value to force redraw
             currentPositionIndexStore.set(currentIndex); // Set back to the original value
         }
-    }
-
-    function toggleAnalysisPanel() {
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        console.log('toggleAnalysisPanel');
-        showAnalysisStore.set(!showAnalysis);
-        
-        if (showAnalysis) {
-            statusBarModeStore.set('NORMAL');
-            showFilterLibraryPanelStore.set(false);
-            showCommentStore.set(false);
-            setTimeout(() => {
-                const analysisPanel = document.querySelector('.analysis-panel');
-                if (analysisPanel) {
-                    analysisPanel.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            }, 0);
-        } else {
-            setTimeout(() => {
-                mainArea.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }, 0);
-        }
-
-        previousModeStore.set('NORMAL');
-        statusBarModeStore.set('NORMAL');
-    }
-
-    function toggleCommentPanel() {
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        if (!positions[currentPositionIndex]) {
-            setStatusBarMessage('No current position to comment on');
-            return;
-        }
-        console.log('toggleCommentPanel called');
-        showCommentStore.set(!showComment);
-
-        if (showComment) {
-            statusBarModeStore.set('NORMAL');
-            showAnalysisStore.set(false);
-            showFilterLibraryPanelStore.set(false); // Close filter library panel if open
-            showCommandStore.set(false);
-            const currentIndex = $currentPositionIndexStore;
-            currentPositionIndexStore.set(-1); // Temporarily set to a different value to force redraw
-            currentPositionIndexStore.set(currentIndex); // Set back to the original value
-            setTimeout(() => {
-                const commentPanel = document.querySelector('.comment-panel');
-                if (commentPanel) {
-                    commentPanel.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            }, 0);
-        } else {
-            SaveComment(parseInt(positions[currentPositionIndex].id), $commentTextStore);
-            mainArea.scrollIntoView({
-                behavior: 'smooth'
-            });
-        }
-
-        previousModeStore.set('NORMAL');
-        statusBarModeStore.set('NORMAL');
     }
 
     function toggleMetadataModal() {
@@ -1600,176 +1472,39 @@
         }
     }
 
-    function toggleFilterLibraryPanel() {
-        console.log('toggleFilterLibraryPanel');
+    function toggleCandidateMovesPanel() {
+        console.log('toggleCandidateMovesPanel');
         if (!databaseLoaded) {
             statusBarTextStore.set('No database loaded');
             return;
         }
-        showFilterLibraryPanelStore.set(!showFilterLibraryPanel);
-        if (showFilterLibraryPanel) {
-            // Refresh board and display position associated with currentPositionIndexStore
-            const currentIndex = $currentPositionIndexStore;
-            currentPositionIndexStore.set(-1); // Temporarily set to a different value to force redraw
-            currentPositionIndexStore.set(currentIndex); // Set back to the original value
-        } else {
-            showCommentStore.set(false);
-            showAnalysisStore.set(false);
-        }
+        showCandidateMovesStore.set(!showCandidateMoves);
     }
 
-
-    async function loadPositionsByFilters(
-        filters,
-        includeCube,
-        includeScore,
-        pipCountFilter,
-        winRateFilter,
-        gammonRateFilter,
-        backgammonRateFilter,
-        player2WinRateFilter,
-        player2GammonRateFilter,
-        player2BackgammonRateFilter,
-        player1CheckerOffFilter,
-        player2CheckerOffFilter,
-        player1BackCheckerFilter,
-        player2BackCheckerFilter,
-        player1CheckerInZoneFilter,
-        player2CheckerInZoneFilter,
-        searchText,
-        player1AbsolutePipCountFilter,
-        equityFilter,
-        decisionTypeFilter,
-        diceRollFilter,
-        movePatternFilter,
-        dateFilter,
-        player1OutfieldBlotFilter,
-        player2OutfieldBlotFilter,
-        player1JanBlotFilter,
-        player2JanBlotFilter,
-        noContactFilter,
-        mirrorPositionFilter,
-    ) {
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
+    function toggleMovesTablePanel() {
+        console.log('toggleMovesTablePanel');
+        if (!databaseLoaded) {
+            statusBarTextStore.set('No database loaded');
             return;
         }
-        console.log('loadPositionsByFilters',
-        filters,
-        includeCube,
-        includeScore,
-        pipCountFilter,
-        winRateFilter,
-        gammonRateFilter,
-        backgammonRateFilter,
-        player2WinRateFilter,
-        player2GammonRateFilter,
-        player2BackgammonRateFilter,
-        player1CheckerOffFilter,
-        player2CheckerOffFilter,
-        player1BackCheckerFilter,
-        player2BackCheckerFilter,
-        player1CheckerInZoneFilter,
-        player2CheckerInZoneFilter,
-        searchText,
-        player1AbsolutePipCountFilter,
-        equityFilter,
-        decisionTypeFilter,
-        diceRollFilter,
-        movePatternFilter,
-        dateFilter,
-        player1OutfieldBlotFilter,
-        player2OutfieldBlotFilter,
-        player1JanBlotFilter,
-        player2JanBlotFilter,
-        noContactFilter,
-        mirrorPositionFilter);
-        try {
-            const currentPosition = $positionStore;
-
-            // @ts-ignore
-            const loadedPositions = await LoadPositionsByFilters(
-                currentPosition,
-                includeCube,
-                includeScore,
-                pipCountFilter,
-                winRateFilter,
-                gammonRateFilter,
-                backgammonRateFilter,
-                player2WinRateFilter,
-                player2GammonRateFilter,
-                player2BackgammonRateFilter,
-                player1CheckerOffFilter,
-                player2CheckerOffFilter,
-                player1BackCheckerFilter,
-                player2BackCheckerFilter,
-                player1CheckerInZoneFilter,
-                player2CheckerInZoneFilter,
-                searchText,
-                player1AbsolutePipCountFilter,
-                equityFilter,
-                decisionTypeFilter,
-                diceRollFilter,
-                movePatternFilter,
-                dateFilter,
-                player1OutfieldBlotFilter,
-                player2OutfieldBlotFilter,
-                player1JanBlotFilter,
-                player2JanBlotFilter,
-                noContactFilter,
-                mirrorPositionFilter);
-                
-            positionsStore.set(Array.isArray(loadedPositions) ? loadedPositions : []);
-
-            if (loadedPositions && loadedPositions.length > 0) {
-                if ($currentPositionIndexStore === 0) {
-                    currentPositionIndexStore.set(1); // Temporarily set to a different value to force redraw board
-                }
-                currentPositionIndexStore.set(0); // Ensure the first matching position is displayed
-            } else {
-                setStatusBarMessage('No matching positions found');
-            }
-
-            // Set both previousMode and statusBarMode to NORMAL after search to be sure to switch back to normal mode
-            previousModeStore.set('NORMAL');
-            statusBarModeStore.set('NORMAL');
-        } catch (error) {
-            console.error('Error loading positions by filters:', error);
-            setStatusBarMessage('Error loading positions by filters');
-        }
+        showMovesTableStore.set(!showMovesTable);
     }
+
 
     async function loadAllPositions() {
-        if (!$databasePathStore) {
-            setStatusBarMessage('No database opened');
-            return;
-        }
-        try {
-            const positions = await LoadAllPositions(); // Remove databaseVersion
-            positionsStore.set(Array.isArray(positions) ? positions : []);
-            if (positions && positions.length > 0) {
-                currentPositionIndexStore.set(-1); // Temporarily set to a different value to force redraw board
-                currentPositionIndexStore.set(positions.length - 1);
-            } else {
-                currentPositionIndexStore.set(-1);
-                setStatusBarMessage('No positions found');
-                console.log('No positions found.');
-            }
-        } catch (error) {
-            console.error('Error loading all positions:', error);
-            setStatusBarMessage('Error loading all positions');
-        } finally {
-            previousModeStore.set('NORMAL');
-            statusBarModeStore.set('NORMAL');
-        }
+        // Database functionality removed
+        setStatusBarMessage('Database functionality has been removed');
+        return;
     }
 
     onMount(() => {
+        console.log('App.svelte: onMount called');
         // @ts-ignore
         console.log('Wails runtime:', runtime);
         window.addEventListener("keydown", handleKeyDown);
         mainArea.addEventListener("wheel", handleWheel); // Add wheel event listener to main container
         window.addEventListener("resize", handleResize);
+        console.log('App.svelte: Event listeners added');
     });
 
     onDestroy(() => {
@@ -1785,92 +1520,21 @@
         // Focus the command input when closing the Help modal
         if (!showHelp) {
             setTimeout(() => {
-
                 if(showCommand) {
                     const commandInput = document.querySelector('.command-input');
                     if (commandInput) {
                         // @ts-ignore
                         commandInput.focus();
                     }
-
-                } else if(showComment) {
-                    const textAreaEl = document.getElementById('commentsTextArea');
-                    if (textAreaEl) {
-                        textAreaEl.focus();
-                    }
                 }
-
             }, 0);
         }
-    }
-
-    // Function to show a specific position and analysis
-    async function showPosition(position) {
-        if (!position) {
-            console.error('Invalid position:', position);
-            return;
-        }
-
-        // Create a deep copy of the position data
-        const positionCopy = JSON.parse(JSON.stringify(position));
-        
-        positionStore.set(positionCopy);
-
-        // Load the analysis for the current position
-        const analysis = await LoadAnalysis(position.id);
-        analysisStore.set({
-            positionId: analysis?.positionId || null,
-            xgid: analysis?.xgid || '',
-            player1: analysis?.player1 || '',
-            player2: analysis?.player2 || '',
-            analysisType: analysis?.analysisType || '',
-            analysisEngineVersion: analysis?.analysisEngineVersion || '',
-            checkerAnalysis: analysis?.checkerAnalysis || { moves: [] },
-            doublingCubeAnalysis: analysis?.doublingCubeAnalysis || {
-                analysisDepth: '',
-                playerWinChances: 0,
-                playerGammonChances: 0,
-                playerBackgammonChances: 0,
-                opponentWinChances: 0,
-                opponentGammonChances: 0,
-                opponentBackgammonChances: 0,
-                cubelessNoDoubleEquity: 0,
-                cubelessDoubleEquity: 0,
-                cubefulNoDoubleEquity: 0,
-                cubefulNoDoubleError: 0,
-                cubefulDoubleTakeEquity: 0,
-                cubefulDoubleTakeError: 0,
-                cubefulDoublePassEquity: 0,
-                cubefulDoublePassError: 0,
-                bestCubeAction: '',
-                wrongPassPercentage: 0,
-                wrongTakePercentage: 0
-            },
-            creationDate: analysis?.creationDate || '',
-            lastModifiedDate: analysis?.lastModifiedDate || ''
-        });
-
-        console.log('Analysis Data:', analysis); // Debugging log
-
-        // Load the comment for the current position
-        const comment = await LoadComment(position.id);
-        commentTextStore.set(comment || '');
     }
 
     // Function to handle mouse wheel events
     function handleWheel(event) {
         if ($isAnyModalOpenStore || $statusBarModeStore === 'EDIT') {
             return; // Prevent changing position when any modal is open or in edit mode
-        }
-
-        // Prevent changing position when scrolling in the analysis panel, comment panel, or filter panel
-        const analysisPanel = document.querySelector('.analysis-panel');
-        const commentPanel = document.querySelector('.comment-panel');
-        const filterPanel = document.querySelector('.filter-library-panel'); // Ensure correct class name
-        if ((analysisPanel && analysisPanel.contains(event.target)) || 
-            (commentPanel && commentPanel.contains(event.target)) || 
-            (filterPanel && filterPanel.contains(event.target))) { // Check filter panel
-            return;
         }
 
         if (positions && positions.length > 0) {
@@ -1901,15 +1565,9 @@
 
 <main class="main-container" bind:this={mainArea}>
     <Toolbar
-        onNewDatabase={newDatabase}
-        onOpenDatabase={openDatabase}
+        onNewDatabase={newMatch}
+        onOpenDatabase={loadMatchFromText}
         onExit={exitApp}
-        onImportPosition={importPosition}
-        onCopyPosition={copyPosition}
-        onPastePosition={pastePosition}
-        onSavePosition={saveCurrentPosition}
-        onUpdatePosition={updatePosition}
-        onDeletePosition={deletePosition}
         onFirstPosition={firstPosition}
         onPreviousPosition={previousPosition}
         onNextPosition={nextPosition}
@@ -1917,119 +1575,52 @@
         onGoToPosition={gotoPosition}
         onToggleEditMode={toggleEditMode}
         onToggleCommandMode={() => showCommandStore.set(true)}
-        onShowAnalysis={toggleAnalysisPanel}
-        onShowComment={toggleCommentPanel}
-        onFindPosition={findPosition}
+        onToggleMovesPanel={() => showMovesTableStore.update(v => !v)}
+        onShowCandidateMoves={toggleCandidateMovesPanel}
         onToggleHelp={toggleHelpModal}
-        onLoadAllPositions={loadAllPositions}
         onShowMetadata={toggleMetadataModal}
-        onToggleFilterLibraryPanel={toggleFilterLibraryPanel}
+        onSwapPlayers={swapPlayers}
     />
 
-    <div class="scrollable-content">
+    <div class="transcription-layout">
+        {#if showMovesTable}
+        <div class="moves-table-column">
+            <MovesTable />
+        </div>
+        {/if}
+        
+        <div class="board-column">
+            <div class="board-container">
+                <Board />
+            </div>
+            
+            <CommandLine
+                onToggleHelp={toggleHelpModal}
+                bind:this={commandInput}
+                onNewDatabase={newMatch}
+                onOpenDatabase={loadMatchFromText}
+                exitApp={exitApp}
+            />
+        </div>
 
-        <Board />
-
-        <CommandLine
-            onToggleHelp={toggleHelpModal}
-            bind:this={commandInput}
-            onNewDatabase={newDatabase}
-            onOpenDatabase={openDatabase}
-            importPosition={importPosition}
-            onSavePosition={saveCurrentPosition}
-            onUpdatePosition={updatePosition}
-            onDeletePosition={deletePosition}
-            onToggleAnalysis={toggleAnalysisPanel}
-            onToggleComment={toggleCommentPanel}
-            exitApp={exitApp}
-            onLoadPositionsByFilters={loadPositionsByFilters}
-            onLoadAllPositions={loadAllPositions}
-            toggleFilterLibraryPanel={toggleFilterLibraryPanel}
-        />
-
+        {#if showCandidateMoves}
+        <div class="candidate-moves-column">
+            <CandidateMovesPanel />
+        </div>
+        {/if}
     </div>
 
-    <div class="panel-container">
-
-        <CommentPanel
-            visible={showComment}
-            onClose={toggleCommentPanel}
-        />
-
-        <AnalysisPanel
-            visible={showAnalysis}
-            onClose={toggleAnalysisPanel}
-        /> 
-
-    </div>
+    <MetadataPanel visible={showMetadataPanel} onClose={() => showMetadataPanelStore.set(false)} />
 
     <GoToPositionModal
         visible={showGoToPositionModal}
         onClose={() => showGoToPositionModalStore.set(false)}
     />
 
-    <SearchModal
-        visible={showSearchModal}
-        onClose={() => showSearchModalStore.set(false)}
-        onLoadPositionsByFilters={loadPositionsByFilters}
-    />
-
-    <MetModal
-        visible={showMetModal}
-        onClose={() => showMetModalStore.set(false)}
-    />
-
-    <TakePoint2LastModal
-        visible={showTakePoint2LastModal}
-        onClose={() => showTakePoint2LastModalStore.set(false)}
-    />
-
-    <TakePoint2LiveModal
-        visible={showTakePoint2LiveModal}
-        onClose={() => showTakePoint2LiveModalStore.set(false)}
-    />
-
-    <TakePoint4LastModal
-        visible={showTakePoint4LastModal}
-        onClose={() => showTakePoint4LastModalStore.set(false)}
-    />
-
-    <TakePoint4LiveModal
-        visible={showTakePoint4LiveModal}
-        onClose={() => showTakePoint4LiveModalStore.set(false)}
-    />
-
-    <GammonValue1Modal
-        visible={showGammonValue1Modal}
-        onClose={() => showGammonValue1ModalStore.set(false)}
-    />
-
-    <GammonValue2Modal
-        visible={showGammonValue2Modal}
-        onClose={() => showGammonValue2ModalStore.set(false)}
-    />
-
-    <GammonValue4Modal
-        visible={showGammonValue4Modal}
-        onClose={() => showGammonValue4ModalStore.set(false)}
-    />
-
-    <WarningModal
-        message={warningMessage}
-        visible={$showWarningModalStore}
-        onClose={closeWarningModal}
-    />
-
     <MetadataModal
         visible={showMetadataModal}
         onClose={() => showMetadataModalStore.set(false)}
     />
-
-    <TakePoint2Modal/>
-
-    <TakePoint4Modal/>
-
-    <FilterLibraryPanel onLoadPositionsByFilters={loadPositionsByFilters} />
 
     <HelpModal
         visible={showHelp}
@@ -2046,29 +1637,56 @@
         display: flex;
         flex-direction: column;
         min-height: 100vh;
-        padding: 0; /* No padding so content fills entire viewport */
+        padding: 0;
         box-sizing: border-box;
         position: relative;
-        overflow: hidden; /* Hide overflow initially */
-        width: 100vw; /* Ensure it takes the full viewport width */
+        overflow: hidden;
+        width: 100vw;
     }
 
-    .scrollable-content {
+    .transcription-layout {
         flex-grow: 1;
-        overflow-y: auto; /* Allow vertical scrolling */
-        overflow-x: hidden; /* Disable horizontal scrolling */
-        padding: 0; /* Remove padding */
+        display: flex;
+        flex-direction: row;
+        overflow: hidden;
         width: 100%;
-        box-sizing: border-box;
-        display: flex;
-        justify-content: center; /* Center the board initially */
-    }
-
-
-    .panel-container {
-        display: flex;
-        flex-direction: column; /* Or row, depending on layout */
         height: 100%;
     }
-    
+
+    .moves-table-column {
+        width: 300px;
+        min-width: 200px;
+        max-width: 400px;
+        border-right: 1px solid #ccc;
+        overflow-y: auto;
+        background-color: #f9f9f9;
+    }
+
+    .board-column {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    .board-container {
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        padding: 5px;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .candidate-moves-column {
+        width: 350px;
+        min-width: 250px;
+        max-width: 500px;
+        border-left: 1px solid #ccc;
+        overflow-y: auto;
+        background-color: #f9f9f9;
+    }
 </style>

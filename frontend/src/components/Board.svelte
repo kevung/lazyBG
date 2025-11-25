@@ -3,39 +3,27 @@
     import { onMount, onDestroy } from "svelte";
     import Two from "two.js";
     import { get } from 'svelte/store';
-    import { statusBarModeStore, isAnyModalOpenStore, showSearchModalStore, showCommentStore, showMetadataModalStore, showTakePoint2ModalStore, showTakePoint4ModalStore } from '../stores/uiStore'; // Import showTakePoint2ModalStore and showTakePoint4ModalStore
+    import { statusBarModeStore, isAnyModalOpenStore, showMetadataModalStore, showCandidateMovesStore, showMovesTableStore } from '../stores/uiStore';
 
     let mode;
-    let showSearchModal = false;
-    let showComment = false;
-    let showMetadataModal = false; // Add showMetadataModal variable
-    let showTakePoint2Modal = false; // Add showTakePoint2Modal variable
-    let showTakePoint4Modal = false; // Add showTakePoint4Modal variable
-    statusBarModeStore.subscribe(value => {
-        mode = value;
-    });
-    showSearchModalStore.subscribe(value => {
-        showSearchModal = value;
-    });
-    showCommentStore.subscribe(value => {
-        showComment = value;
-    });
-    showMetadataModalStore.subscribe(value => {
-        showMetadataModal = value;
-    });
-    showTakePoint2ModalStore.subscribe(value => {
-        showTakePoint2Modal = value;
-    });
-    showTakePoint4ModalStore.subscribe(value => {
-        showTakePoint4Modal = value;
-    });
+    let showMetadataModal = false;
+    let showCandidateMoves = false;
+    let showMovesTable = false;
+    let two;
+    let canvas;
+    let width;
+    let height;
+    let unsubscribe;
+    let isMouseDown = false;
+    let startMousePos = null;
+    let cubePosition = { x: 0, y: 0 };
     
     let canvasCfg = {
         aspectFactor: 0.72,
     };
 
     let boardCfg = {
-        widthFactor: 0.75, // Increase widthFactor to make the board take up more space
+        widthFactor: 0.65, // Dynamic width based on panels
         orientation: "right",
         fill: "#f0f0f0", // Light grey background
         stroke: "#333333", // Dark grey border
@@ -57,14 +45,43 @@
         }
     };
 
-    let two;
-    let canvas;
-    let width;
-    let height;
-    let unsubscribe;
-    let isMouseDown = false;
-    let startMousePos = null;
-    let cubePosition = { x: 0, y: 0 };
+    // Function to update board width based on open panels
+    function updateBoardWidth() {
+        const bothClosed = !showCandidateMoves && !showMovesTable;
+        const oneOpen = (showCandidateMoves && !showMovesTable) || (!showCandidateMoves && showMovesTable);
+        const bothOpen = showCandidateMoves && showMovesTable;
+        
+        // Use much higher values to account for all peripheral elements (pip counts, scores, dice, cube)
+        // The board itself + margins + pip counts + scores take significant space
+        if (bothClosed) {
+            boardCfg.widthFactor = 0.65; // Maximum usable width when both panels closed
+        } else if (oneOpen) {
+            boardCfg.widthFactor = 0.60; // Slightly reduced when one panel open
+        } else if (bothOpen) {
+            boardCfg.widthFactor = 0.50; // More reduced when both panels open
+        }
+        
+        // Trigger resize if canvas exists
+        if (canvas && two) {
+            resizeBoard();
+        }
+    }
+    
+    statusBarModeStore.subscribe(value => {
+        mode = value;
+    });
+    showMetadataModalStore.subscribe(value => {
+        showMetadataModal = value;
+    });
+    showCandidateMovesStore.subscribe(value => {
+        showCandidateMoves = value;
+        updateBoardWidth();
+    });
+    showMovesTableStore.subscribe(value => {
+        showMovesTable = value;
+        updateBoardWidth();
+    });
+
     let previousDice = get(positionStore).dice; // Save previous dice values
 
     function handleMouseDown(event) {
@@ -244,10 +261,23 @@
     }
 
     function resizeBoard() {
-        const actualWidth = canvas.clientWidth;
-        const actualHeight = actualWidth * canvasCfg.aspectFactor;
-        width = actualWidth;
-        height = actualHeight;
+        const containerWidth = canvas.parentElement.clientWidth;
+        const containerHeight = canvas.parentElement.clientHeight;
+        
+        // Use the constraining dimension to fit the board
+        const widthBasedHeight = containerWidth * canvasCfg.aspectFactor;
+        const heightBasedWidth = containerHeight / canvasCfg.aspectFactor;
+        
+        if (widthBasedHeight <= containerHeight) {
+            // Width is the constraint
+            width = containerWidth;
+            height = widthBasedHeight;
+        } else {
+            // Height is the constraint
+            width = heightBasedWidth;
+            height = containerHeight;
+        }
+        
         two.width = width;
         two.height = height;
         two.renderer.setSize(width, height);
@@ -495,7 +525,7 @@
 
     function handleOrientationChange(event) {
         const isAnyModalOpen = get(isAnyModalOpenStore);
-        if (isAnyModalOpen || showComment) return; // Disable orientation change when any modal or comment panel is open
+        if (isAnyModalOpen) return; // Disable orientation change when any modal is open
         if (event.ctrlKey && event.key === 'ArrowLeft') {
             setBoardOrientation("left");
         } else if (event.ctrlKey && event.key === 'ArrowRight') {
@@ -504,7 +534,7 @@
     }
 
     function handleKeyDown(event) {
-        if (mode !== "EDIT" || showSearchModal || showMetadataModal || showTakePoint2Modal || showTakePoint4Modal) return; // Disable shortcuts when metadata modal, TakePoint2Modal, or TakePoint4Modal is open
+        if (mode !== "EDIT" || showMetadataModal) return; // Disable shortcuts when metadata modal is open
 
         if (event.key === "Backspace" && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
             event.preventDefault();
@@ -517,13 +547,26 @@
         const params = { width: window.innerWidth, height: window.innerHeight };
         two = new Two(params).appendTo(canvas);
 
-        // Set the width and height based on the actual canvas dimensions after appending
-        const actualWidth = canvas.clientWidth;
-        const actualHeight = actualWidth * canvasCfg.aspectFactor;
-        width = actualWidth;
-        height = actualHeight;
+        // Calculate dimensions based on available space
+        const containerWidth = canvas.parentElement.clientWidth;
+        const containerHeight = canvas.parentElement.clientHeight;
+        
+        // Use the constraining dimension to fit the board
+        const widthBasedHeight = containerWidth * canvasCfg.aspectFactor;
+        const heightBasedWidth = containerHeight / canvasCfg.aspectFactor;
+        
+        if (widthBasedHeight <= containerHeight) {
+            // Width is the constraint
+            width = containerWidth;
+            height = widthBasedHeight;
+        } else {
+            // Height is the constraint
+            width = heightBasedWidth;
+            height = containerHeight;
+        }
+        
         two.width = width;
-        two.height = actualHeight;
+        two.height = height;
         two.renderer.setSize(width, height);
 
         canvas.addEventListener("mousedown", handleMouseDown);
@@ -1152,18 +1195,17 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        margin: 0; /* Remove margin */
-        padding: 0; /* Remove padding */
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
 
     #backgammon-board {
         width: 100%;
-        height: auto; /* Maintain aspect ratio */
-        max-height: 100%; /* Ensure the board fits within the available height */
+        height: 100%;
         box-sizing: border-box;
         padding: 0;
-        border: 1px solid black; /* Add border for debugging */
-        margin: 0; /* Remove margin */
+        margin: 0;
         user-select: none; /* Prevent text or element selection */
     }
 </style>

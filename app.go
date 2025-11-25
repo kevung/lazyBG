@@ -34,6 +34,39 @@ func (a *App) OpenDatabaseDialog() (string, error) {
 	})
 }
 
+func (a *App) OpenTranscriptionDialog() (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Open Match Transcription",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Transcription Files", Pattern: "*.lbg;*.txt"},
+			{DisplayName: "lazyBG Files (*.lbg)", Pattern: "*.lbg"},
+			{DisplayName: "Match Text Files (*.txt)", Pattern: "*.txt"},
+			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
+		},
+	})
+}
+
+func (a *App) SaveTranscriptionDialog() (string, error) {
+	return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:                "Save Match Transcription",
+		DefaultFilename:      "match.lbg",
+		Filters:              []runtime.FileFilter{{DisplayName: "lazyBG Files (*.lbg)", Pattern: "*.lbg"}},
+		CanCreateDirectories: true,
+	})
+}
+
+func (a *App) ReadTextFile(filePath string) (string, error) {
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
+
+func (a *App) WriteTextFile(filePath string, content string) error {
+	return ioutil.WriteFile(filePath, []byte(content), 0644)
+}
+
 func (a *App) DeleteFile(filePath string) error {
 	err := os.Remove(filePath)
 	if err != nil {

@@ -1,6 +1,5 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
-    import { LoadMetadata, SaveMetadata } from '../../wailsjs/go/main/Database.js'; // Import functions
 
     export let visible = false;
     export let onClose;
@@ -11,23 +10,12 @@
     let databaseVersion = ''; // Add variable for database version
 
     async function loadMetadata() {
-        try {
-            const metadata = await LoadMetadata();
-            user = metadata.user || '';
-            description = metadata.description || '';
-            dateOfCreation = metadata.dateOfCreation || '';
-            databaseVersion = metadata.database_version || ''; // Load database version
-        } catch (error) {
-            console.error('Error loading metadata:', error);
-        }
+        // Database functionality removed
+        databaseVersion = 'N/A';
     }
 
     async function saveMetadata() {
-        try {
-            await SaveMetadata({ user, description, dateOfCreation });
-        } catch (error) {
-            console.error('Error saving metadata:', error);
-        }
+        // Database functionality removed
     }
 
     function handleClose() {
