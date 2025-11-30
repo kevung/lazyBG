@@ -23,7 +23,7 @@
     };
 
     let boardCfg = {
-        widthFactor: 0.65, // Dynamic width based on panels
+        widthFactor: 0.65, // Base width factor for board sizing
         orientation: "right",
         fill: "#f0f0f0", // Light grey background
         stroke: "#333333", // Dark grey border
@@ -44,28 +44,6 @@
             linewidth: 2.5 // Added linewidth property and set to 2
         }
     };
-
-    // Function to update board width based on open panels
-    function updateBoardWidth() {
-        const bothClosed = !showCandidateMoves && !showMovesTable;
-        const oneOpen = (showCandidateMoves && !showMovesTable) || (!showCandidateMoves && showMovesTable);
-        const bothOpen = showCandidateMoves && showMovesTable;
-        
-        // Use much higher values to account for all peripheral elements (pip counts, scores, dice, cube)
-        // The board itself + margins + pip counts + scores take significant space
-        if (bothClosed) {
-            boardCfg.widthFactor = 0.65; // Maximum usable width when both panels closed
-        } else if (oneOpen) {
-            boardCfg.widthFactor = 0.60; // Slightly reduced when one panel open
-        } else if (bothOpen) {
-            boardCfg.widthFactor = 0.50; // More reduced when both panels open
-        }
-        
-        // Trigger resize if canvas exists
-        if (canvas && two) {
-            resizeBoard();
-        }
-    }
     
     statusBarModeStore.subscribe(value => {
         mode = value;
@@ -75,11 +53,17 @@
     });
     showCandidateMovesStore.subscribe(value => {
         showCandidateMoves = value;
-        updateBoardWidth();
+        // Trigger resize when panels change
+        if (canvas && two) {
+            setTimeout(() => resizeBoard(), 10);
+        }
     });
     showMovesTableStore.subscribe(value => {
         showMovesTable = value;
-        updateBoardWidth();
+        // Trigger resize when panels change
+        if (canvas && two) {
+            setTimeout(() => resizeBoard(), 10);
+        }
     });
 
     let previousDice = get(positionStore).dice; // Save previous dice values
@@ -581,6 +565,12 @@
         window.addEventListener("resize", resizeBoard);
         window.addEventListener("keydown", handleOrientationChange);
         window.addEventListener("keydown", handleKeyDown);
+
+        // Add ResizeObserver to detect container size changes
+        const resizeObserver = new ResizeObserver(() => {
+            resizeBoard();
+        });
+        resizeObserver.observe(canvas.parentElement);
 
         unsubscribe = positionStore.subscribe(() => {
             drawBoard();
@@ -1198,6 +1188,7 @@
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+        flex: 1;
     }
 
     #backgammon-board {
