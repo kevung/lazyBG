@@ -371,9 +371,6 @@
             event.stopPropagation();
         } else if(event.ctrlKey && event.code == 'KeyN') {
             newMatch();
-        } else if(event.ctrlKey && event.code == 'KeyS') {
-            event.preventDefault();
-            saveTranscription();
         } else if(event.ctrlKey && event.code == 'KeyO') {
             loadMatchFromText();
         } else if (event.ctrlKey && event.code === 'KeyQ') {
