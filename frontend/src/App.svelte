@@ -1676,7 +1676,7 @@
         justify-content: center;
         align-items: center;
         overflow: hidden;
-        padding: 5px;
+        padding: 2px;
         box-sizing: border-box;
         width: 100%;
     }

@@ -23,7 +23,7 @@
     };
 
     let boardCfg = {
-        widthFactor: 0.65, // Base width factor for board sizing
+        widthFactor: 0.70, // Base width factor for board sizing - balanced space usage
         orientation: "right",
         fill: "#f0f0f0", // Light grey background
         stroke: "#333333", // Dark grey border
@@ -36,7 +36,7 @@
         },
         label: {
             size: 20,
-            distanceToBoard: 0.30,
+            distanceToBoard: 0.15, // Reduced from 0.30 for tighter spacing
         },
         checker: {
             sizeFactor: 0.97,
@@ -679,7 +679,7 @@
             if (boardCfg.orientation === "right") {
                 for (let i = 0; i < 6; i++) {
                     const x = boardOrigXpos + (6 - i) * boardCheckerSize;
-                    const y = boardOrigYpos + 0.5 * boardHeight + boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos + 0.5 * boardHeight + (boardCfg.label.distanceToBoard + 0.05) * boardCheckerSize;
                     const t = two.makeText((flip ? 24 - i : i + 1).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
@@ -688,7 +688,7 @@
                 }
                 for (let i = 6; i < 12; i++) {
                     const x = boardOrigXpos - (i - 5) * boardCheckerSize;
-                    const y = boardOrigYpos + 0.5 * boardHeight + boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos + 0.5 * boardHeight + (boardCfg.label.distanceToBoard + 0.05) * boardCheckerSize;
                     const t = two.makeText((flip ? 24 - i : i + 1).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
@@ -697,44 +697,44 @@
                 }
                 for (let i = 12; i < 18; i++) {
                     const x = boardOrigXpos + (i - 18) * boardCheckerSize;
-                    const y = boardOrigYpos - 0.5 * boardHeight - boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos - 0.5 * boardHeight - (boardCfg.label.distanceToBoard + 0.02) * boardCheckerSize;
                     const t = two.makeText((flip ? 24 - i : i + 1).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
-                    t.baseline = "middle";
+                    t.baseline = "bottom";
                     labels.add(t);
                 }
                 for (let i = 18; i < 24; i++) {
                     const x = boardOrigXpos + (i - 17) * boardCheckerSize;
-                    const y = boardOrigYpos - 0.5 * boardHeight - boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos - 0.5 * boardHeight - (boardCfg.label.distanceToBoard + 0.02) * boardCheckerSize;
                     const t = two.makeText((flip ? 24 - i : i + 1).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
-                    t.baseline = "middle";
+                    t.baseline = "bottom";
                     labels.add(t);
                 }
             } else if (boardCfg.orientation === "left") {
                 for (let i = 0; i < 6; i++) {
                     const x = boardOrigXpos - (6 - i) * boardCheckerSize;
-                    const y = boardOrigYpos - 0.5 * boardHeight - boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos - 0.5 * boardHeight - (boardCfg.label.distanceToBoard + 0.02) * boardCheckerSize;
                     const t = two.makeText((flip ? i + 1 : 24 - i).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
-                    t.baseline = "middle";
+                    t.baseline = "bottom";
                     labels.add(t);
                 }
                 for (let i = 6; i < 12; i++) {
                     const x = boardOrigXpos + (i - 5) * boardCheckerSize;
-                    const y = boardOrigYpos - 0.5 * boardHeight - boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos - 0.5 * boardHeight - (boardCfg.label.distanceToBoard + 0.02) * boardCheckerSize;
                     const t = two.makeText((flip ? i + 1 : 24 - i).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
-                    t.baseline = "middle";
+                    t.baseline = "bottom";
                     labels.add(t);
                 }
                 for (let i = 12; i < 18; i++) {
                     const x = boardOrigXpos - (i - 18) * boardCheckerSize;
-                    const y = boardOrigYpos + 0.5 * boardHeight + boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos + 0.5 * boardHeight + (boardCfg.label.distanceToBoard + 0.05) * boardCheckerSize;
                     const t = two.makeText((flip ? i + 1 : 24 - i).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
@@ -743,7 +743,7 @@
                 }
                 for (let i = 18; i < 24; i++) {
                     const x = boardOrigXpos - (i - 17) * boardCheckerSize;
-                    const y = boardOrigYpos + 0.5 * boardHeight + boardCfg.label.distanceToBoard * boardCheckerSize;
+                    const y = boardOrigYpos + 0.5 * boardHeight + (boardCfg.label.distanceToBoard + 0.05) * boardCheckerSize;
                     const t = two.makeText((flip ? i + 1 : 24 - i).toString(), x, y);
                     t.size = boardCfg.label.size;
                     t.alignment = "center";
