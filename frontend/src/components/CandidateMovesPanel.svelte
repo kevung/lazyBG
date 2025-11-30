@@ -16,7 +16,12 @@
         background-color: #f9f9f9;
         border: 1px solid #ddd;
         border-radius: 4px;
-        min-height: 300px;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
     }
 
     h3 {

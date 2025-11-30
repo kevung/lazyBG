@@ -839,7 +839,7 @@
     .main-container {
         display: flex;
         flex-direction: column;
-        min-height: 100vh;
+        height: 100vh;
         padding: 0;
         box-sizing: border-box;
         position: relative;
@@ -854,6 +854,7 @@
         overflow: hidden;
         width: 100%;
         height: 100%;
+        padding-bottom: 32px;
     }
 
     .moves-table-column {
@@ -891,8 +892,10 @@
         min-width: 250px;
         max-width: 500px;
         border-left: 1px solid #ccc;
-        overflow-y: auto;
         background-color: #f9f9f9;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
 
     .metadata-panel-container {
