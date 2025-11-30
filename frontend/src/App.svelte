@@ -238,6 +238,20 @@
         mode = value;
     });
 
+    // Auto-save transcription when it changes (debounced)
+    let autoSaveTimeout = null;
+    transcriptionStore.subscribe(value => {
+        // Clear any existing timeout
+        if (autoSaveTimeout) {
+            clearTimeout(autoSaveTimeout);
+        }
+        
+        // Debounce auto-save by 1 second to avoid too frequent saves
+        autoSaveTimeout = setTimeout(() => {
+            autoSaveTranscription();
+        }, 1000);
+    });
+
     /**
      * Convert position calculator format to Board component format
      * Position calculator: points[1..24], bar, off, opponentBar, opponentOff
@@ -460,7 +474,17 @@
     async function newMatch() {
         console.log('newMatch');
         try {
-            // Create a new empty transcription
+            // Show save dialog to let user choose where to save the new transcription
+            const filePath = await SaveTranscriptionDialog();
+            if (!filePath) {
+                console.log('New match cancelled - no file selected');
+                return;
+            }
+            
+            // Ensure .lbg extension
+            const finalPath = filePath.endsWith('.lbg') ? filePath : filePath + '.lbg';
+            
+            // Create a new empty transcription with default metadata
             clearTranscription();
             updateMetadata({
                 transcriber: 'User',
@@ -468,10 +492,23 @@
                 crawford: 'On',
                 matchLength: 7
             });
-            transcriptionFilePathStore.set('');
-            WindowSetTitle('lazyBG - New Match');
-            setStatusBarMessage('New match created - Fill in match details below');
-            console.log('New match created');
+            
+            // Get the transcription with initial metadata
+            const transcription = get(transcriptionStore);
+            
+            // Save the initial transcription file
+            const jsonContent = JSON.stringify(transcription, null, 2);
+            await WriteTextFile(finalPath, jsonContent);
+            
+            // Store the file path
+            transcriptionFilePathStore.set(finalPath);
+            
+            // Update window title with filename
+            const filename = finalPath.split('/').pop();
+            WindowSetTitle(`lazyBG - ${filename}`);
+            
+            setStatusBarMessage(`New match created: ${filename} - Fill in match details below`);
+            console.log('New match created and saved at:', finalPath);
             
             // Show metadata panel
             showMetadataPanelStore.set(true);
@@ -489,7 +526,7 @@
         try {
             // Get current transcription
             const transcription = get(transcriptionStore);
-            if (!transcription || !transcription.games || transcription.games.length === 0) {
+            if (!transcription) {
                 setStatusBarMessage('No transcription to save');
                 return;
             }
@@ -497,31 +534,50 @@
             // Convert transcription to JSON string
             const jsonContent = JSON.stringify(transcription, null, 2);
             
-            // Show save dialog
-            const filePath = await SaveTranscriptionDialog();
+            // Check if we have an existing file path
+            let filePath = get(transcriptionFilePathStore);
+            
+            // If no existing file path, show save dialog
             if (!filePath) {
-                console.log('Save cancelled');
-                return;
+                filePath = await SaveTranscriptionDialog();
+                if (!filePath) {
+                    console.log('Save cancelled');
+                    return;
+                }
+                // Ensure .lbg extension
+                filePath = filePath.endsWith('.lbg') ? filePath : filePath + '.lbg';
+                transcriptionFilePathStore.set(filePath);
             }
             
-            // Ensure .lbg extension
-            const finalPath = filePath.endsWith('.lbg') ? filePath : filePath + '.lbg';
-            
             // Save file
-            await WriteTextFile(finalPath, jsonContent);
-            
-            // Update the stored file path
-            transcriptionFilePathStore.set(finalPath);
+            await WriteTextFile(filePath, jsonContent);
             
             // Update window title
-            const filename = finalPath.split('/').pop();
+            const filename = filePath.split('/').pop();
             WindowSetTitle(`lazyBG - ${filename}`);
             
             setStatusBarMessage(`Transcription saved to ${filename}`);
-            console.log('Transcription saved to:', finalPath);
+            console.log('Transcription saved to:', filePath);
         } catch (error) {
             console.error('Error saving transcription:', error);
             setStatusBarMessage('Error saving transcription');
+        }
+    }
+
+    // Auto-save function when transcription changes
+    async function autoSaveTranscription() {
+        const filePath = get(transcriptionFilePathStore);
+        if (!filePath) {
+            return; // Don't auto-save if no file path is set
+        }
+        
+        try {
+            const transcription = get(transcriptionStore);
+            const jsonContent = JSON.stringify(transcription, null, 2);
+            await WriteTextFile(filePath, jsonContent);
+            console.log('Auto-saved transcription to:', filePath);
+        } catch (error) {
+            console.error('Error auto-saving transcription:', error);
         }
     }
 
