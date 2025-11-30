@@ -10,7 +10,7 @@ import (
 	"github.com/adrg/xdg"
 )
 
-const configFilePath = "blunderDB/config.yaml"
+const configFilePath = "lazyBG/config.yaml"
 
 type Config struct {
 	WindowWidth  int `json:"window_width"`

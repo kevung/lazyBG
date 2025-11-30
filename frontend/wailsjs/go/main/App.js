@@ -6,10 +6,6 @@ export function DeleteFile(arg1) {
   return window['go']['main']['App']['DeleteFile'](arg1);
 }
 
-export function OpenDatabaseDialog() {
-  return window['go']['main']['App']['OpenDatabaseDialog']();
-}
-
 export function OpenPositionDialog() {
   return window['go']['main']['App']['OpenPositionDialog']();
 }
@@ -20,10 +16,6 @@ export function OpenTranscriptionDialog() {
 
 export function ReadTextFile(arg1) {
   return window['go']['main']['App']['ReadTextFile'](arg1);
-}
-
-export function SaveDatabaseDialog() {
-  return window['go']['main']['App']['SaveDatabaseDialog']();
 }
 
 export function SaveTranscriptionDialog() {

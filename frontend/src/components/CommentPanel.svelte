@@ -4,7 +4,6 @@
 
     import { onMount } from "svelte";
     import { commentTextStore, currentPositionIndexStore } from '../stores/uiStore';
-    import { SaveComment } from '../../wailsjs/go/main/Database.js';
 
     function handleKeyDown(event) {
         if (event.key === 'Escape') {
@@ -20,7 +19,7 @@
     }
 
     function handleClose() {
-        SaveComment(parseInt($currentPositionIndexStore), $commentTextStore); // Ensure position ID is an int64
+        // Database functionality removed - comments are not saved
         onClose();
     }
 

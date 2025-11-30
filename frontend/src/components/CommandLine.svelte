@@ -3,12 +3,11 @@
    import { currentPositionIndexStore, commandTextStore, previousModeStore, statusBarModeStore, showCommandStore, statusBarTextStore } from '../stores/uiStore';
    import { positionsStore } from '../stores/positionStore';
    import { showMetadataModalStore } from '../stores/uiStore';
-   import { databaseLoadedStore } from '../stores/databaseStore';
    import { commandHistoryStore } from '../stores/commandHistoryStore';
 
    export let onToggleHelp;
-   export let onNewDatabase;
-   export let onOpenDatabase;
+   export let onNewMatch;
+   export let onOpenMatch;
    export let exitApp;
    let inputEl;
 
@@ -17,9 +16,6 @@
    // Subscribe to the stores
    let positions = [];
    positionsStore.subscribe(value => positions = value);
-
-   let databaseLoaded = false;
-   databaseLoadedStore.subscribe(value => databaseLoaded = value);
 
    let commandHistory = [];
    let historyIndex = -1;
@@ -98,19 +94,15 @@
                }
                currentPositionIndexStore.set(index);
             } else if (command === 'new' || command === 'ne' || command === 'n') {
-               onNewDatabase();
+               onNewMatch();
             } else if (command === 'open' || command === 'op' || command === 'o') {
-               onOpenDatabase();
+               onOpenMatch();
             } else if (command === 'quit' || command === 'q') {
                exitApp();
             } else if (command === 'help' || command === 'he' || command === 'h') {
                onToggleHelp();
             } else if (command === 'meta') {
-               if (databaseLoaded) {
-                  showMetadataModalStore.set(true);
-               } else {
-                  statusBarTextStore.set('No transcription loaded.');
-               }
+               showMetadataModalStore.set(true);
             } else if (command === 'cl' || command === 'clear') {
                try {
                   // Database functionality removed

@@ -383,7 +383,7 @@
                     
                     <h3>Version</h3>
                     <p>Application version: {applicationVersion}</p>
-                    <p>Database version: {databaseVersion}</p>
+                    <p>Transcription format version: {databaseVersion}</p>
                     
                     <h3>Author</h3>
                     <p><strong>Kévin Unger &lt;blunderdb@proton.me&gt;</strong></p>

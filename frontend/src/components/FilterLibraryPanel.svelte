@@ -2,8 +2,6 @@
     import { onMount, onDestroy } from 'svelte';
     import { filterLibraryStore } from '../stores/filterLibraryStore';
     import { showFilterLibraryPanelStore, statusBarTextStore, statusBarModeStore, currentPositionIndexStore, showCommentStore } from '../stores/uiStore';
-    import { databaseLoadedStore } from '../stores/databaseStore';
-    import { SaveFilter, UpdateFilter, DeleteFilter, LoadFilters, SaveEditPosition, LoadEditPosition } from '../../wailsjs/go/main/Database.js';
     import { positionStore } from '../stores/positionStore';
     import { commandHistoryStore } from '../stores/commandHistoryStore'; // Import command history store
     
@@ -15,17 +13,12 @@
     let selectedFilter = null;
     let visible = false;
     let filterExists = false;
-    let databaseLoaded = false;
     let editPosition = ''; // Add editPosition variable
     let commandHistory = [];
     let historyIndex = -1;
 
     filterLibraryStore.subscribe(value => {
         filters = value || [];
-    });
-
-    databaseLoadedStore.subscribe(value => {
-        databaseLoaded = value;
     });
 
     showFilterLibraryPanelStore.subscribe(async value => {

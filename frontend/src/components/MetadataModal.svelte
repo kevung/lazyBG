@@ -65,8 +65,8 @@
                 <input id="dateOfCreation" type="date" bind:value={dateOfCreation} />
             </div>
             <div class="form-group">
-                <label for="databaseVersion">Database Version:</label>
-                <input id="databaseVersion" type="text" bind:value={databaseVersion} readonly /> <!-- Display database version -->
+                <label for="databaseVersion">Transcription Format Version:</label>
+                <input id="databaseVersion" type="text" bind:value={databaseVersion} readonly /> <!-- Display transcription format version -->
             </div>
         </div>
     </div>

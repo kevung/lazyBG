@@ -48,7 +48,7 @@
     const currentIndex = get(currentPositionIndexStore);
 
     if (!analysis || !analysis.creationDate || !analysis.lastModifiedDate) {
-      statusBarTextStore.set('No database opened');
+      statusBarTextStore.set('No transcription opened');
       return;
     }
 
