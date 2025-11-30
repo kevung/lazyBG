@@ -117,9 +117,11 @@
         position: relative;
         background-color: #f5f5f5;
         border-top: 2px solid #ddd;
-        padding: 10px 20px;
-        height: 150px;
+        padding: 10px 20px 10px 20px;
+        max-height: 150px;
         overflow-y: auto;
+        margin-bottom: 0;
+        box-sizing: border-box;
     }
     
     .close-button {
@@ -144,8 +146,9 @@
     
     .metadata-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 12px;
+        padding-right: 30px; /* Account for close button */
     }
     
     .field-group {

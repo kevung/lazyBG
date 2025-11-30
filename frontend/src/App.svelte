@@ -809,7 +809,11 @@
         {/if}
     </div>
 
-    <MetadataPanel visible={showMetadataPanel} onClose={() => showMetadataPanelStore.set(false)} />
+    {#if showMetadataPanel}
+    <div class="metadata-panel-container">
+        <MetadataPanel visible={showMetadataPanel} onClose={() => showMetadataPanelStore.set(false)} />
+    </div>
+    {/if}
 
     <GoToPositionModal
         visible={showGoToPositionModal}
@@ -889,5 +893,12 @@
         border-left: 1px solid #ccc;
         overflow-y: auto;
         background-color: #f9f9f9;
+    }
+
+    .metadata-panel-container {
+        position: relative;
+        width: 100%;
+        margin-bottom: 32px;
+        z-index: 5;
     }
 </style>
