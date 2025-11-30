@@ -853,12 +853,14 @@
     }
 
     .moves-table-column {
-        width: 300px;
+        width: 250px;
         min-width: 200px;
         max-width: 400px;
         border-right: 1px solid #ccc;
-        overflow-y: auto;
+        overflow: hidden;
         background-color: #f9f9f9;
+        display: flex;
+        flex-direction: column;
     }
 
     .board-column {

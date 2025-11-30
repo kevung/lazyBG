@@ -162,6 +162,8 @@
     function getMoveClass(moveData) {
         if (!moveData) return '';
         const classes = [];
+        // Don't highlight "Cannot Move"
+        if (moveData.move === 'Cannot Move') return '';
         if (moveData.isIllegal) classes.push('illegal');
         if (moveData.isGala) classes.push('gala');
         return classes.join(' ');
@@ -174,14 +176,8 @@
 <div class="moves-table">
     <!-- Moves table -->
     {#if currentGame}
+    <div class="table-wrapper">
     <table>
-        <thead>
-            <tr>
-                <th class="move-number-header">#</th>
-                <th class="dice-header">Dice</th>
-                <th>Move</th>
-            </tr>
-        </thead>
         <tbody>
             {#each playerRows as row, rowIdx}
             <tr 
@@ -194,7 +190,9 @@
                 <td class="move-number">{row.player === 1 ? row.moveNumber : ''}</td>
                 <td class="dice-cell">
                     {#if row.cubeAction && row.player === 1}
-                    <span class="cube-icon">\ud83c\udfb2</span>
+                    <span class="empty"></span>
+                    {:else if row.cubeAction && row.player === 2}
+                    <span class="empty"></span>
                     {:else if row.moveData?.dice}
                     {row.moveData.dice}
                     {:else}
@@ -203,7 +201,9 @@
                 </td>
                 <td class="move-cell">
                     {#if row.cubeAction && row.player === 1}
-                    <span class="cube-action">{row.cubeAction.action} → {row.cubeAction.value}</span>
+                    <span class="cube-action">Doubles → {row.cubeAction.value}</span>
+                    {:else if row.cubeAction && row.player === 2}
+                    <span class="cube-response">{row.cubeAction.response}</span>
                     {:else if row.moveData}
                     <span 
                         role="textbox"
@@ -222,6 +222,7 @@
             {/each}
         </tbody>
     </table>
+    </div>
     {:else}
     <div class="empty-state">
         <p>No match loaded. Open a match file to start transcription.</p>
@@ -235,41 +236,33 @@
         display: flex;
         flex-direction: column;
         height: 100%;
-        padding: 10px;
         background-color: #f9f9f9;
-        overflow: auto;
+        overflow: hidden;
     }
 
 
+
+    .table-wrapper {
+        overflow-y: auto;
+        flex: 1;
+    }
 
     table {
         width: 100%;
         border-collapse: collapse;
         background: white;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        table-layout: fixed;
     }
 
-    thead {
-        background-color: #f0f0f0;
-        position: sticky;
-        top: 0;
-    }
 
-    th {
-        padding: 8px;
-        text-align: left;
-        border-bottom: 2px solid #ddd;
-        font-weight: 600;
-        color: #555;
-    }
-
-    th:first-child {
-        width: 50px;
-    }
 
     td {
-        padding: 6px 8px;
+        padding: 3px 4px;
         border-bottom: 1px solid #eee;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
     }
 
     tbody tr {
@@ -302,36 +295,38 @@
         border-bottom: 2px solid #ddd;
     }
     
-    .move-number-header {
-        width: 50px;
-    }
-    
-    .dice-header {
-        width: 60px;
-        text-align: center;
-    }
-    
     .move-number {
-        font-weight: 600;
-        color: #666;
+        font-weight: 400;
+        color: #aaa;
         text-align: center;
-        width: 50px;
+        width: 20px;
+        min-width: 20px;
+        max-width: 20px;
+        padding: 3px 2px;
+        font-size: 10px;
     }
     
     .dice-cell {
         font-weight: 600;
         color: #2c5aa0;
         text-align: center;
-        width: 60px;
+        width: 45px;
+        min-width: 45px;
+        max-width: 45px;
         font-family: monospace;
+        padding: 3px 3px;
+        font-size: 12px;
     }
     
     .cube-icon {
-        font-size: 16px;
+        font-size: 14px;
     }
     
     .move-cell {
         font-family: monospace;
+        white-space: nowrap;
+        text-align: left;
+        font-size: 13px;
     }
     
     .empty {
@@ -348,9 +343,13 @@
     }
 
     .cube-action {
-        font-weight: bold;
-        color: #d32f2f;
-        font-style: italic;
+        font-weight: normal;
+        color: inherit;
+    }
+
+    .cube-response {
+        font-weight: normal;
+        color: inherit;
     }
 
     .validation-status {
