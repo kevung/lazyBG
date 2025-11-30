@@ -527,39 +527,19 @@
                 const content = await ReadTextFile(filePath);
                 const transcription = parseMatchFile(content);
                 
-                // Update the transcription store
+                // Update the transcription store with the complete transcription
                 clearTranscription();
-                updateMetadata(transcription.metadata);
+                transcriptionStore.set(transcription);
                 
-                for (const game of transcription.games) {
-                    addGame(game.gameNumber, game.player1Score, game.player2Score);
-                    const gameIndex = transcription.games.indexOf(game);
-                    
-                    for (const move of game.moves) {
-                        if (move.cubeAction) {
-                            // TODO: Handle cube actions properly
-                        } else {
-                            if (move.player1Move) {
-                                addMove(gameIndex, move.moveNumber, 1, 
-                                    move.player1Move.dice, move.player1Move.move,
-                                    move.player1Move.isIllegal, move.player1Move.isGala);
-                            }
-                            if (move.player2Move) {
-                                addMove(gameIndex, move.moveNumber, 2,
-                                    move.player2Move.dice, move.player2Move.move,
-                                    move.player2Move.isIllegal, move.player2Move.isGala);
-                            }
-                        }
-                    }
-                }
-                
-                // Save as .lbg file
+                // Save as .lbg file with all the parsed information
                 const lbgPath = filePath.replace('.txt', '.lbg');
-                // TODO: Save to lbgPath
+                const jsonContent = JSON.stringify(transcription, null, 2);
+                await WriteTextFile(lbgPath, jsonContent);
+                
                 transcriptionFilePathStore.set(lbgPath);
                 
                 WindowSetTitle(`lazyBG - ${getFilenameFromPath(lbgPath)}`);
-                setStatusBarMessage('Match loaded successfully');
+                setStatusBarMessage(`Match loaded and saved as ${getFilenameFromPath(lbgPath)}`);
                 
             } else if (filePath.endsWith('.lbg')) {
                 // Load .lbg JSON file using backend
