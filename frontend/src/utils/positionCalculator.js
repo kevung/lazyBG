@@ -5,37 +5,38 @@
 
 /**
  * Creates an initial backgammon position
- * Point numbering: 1-24 from perspective of player
- * Positive numbers = player's checkers, Negative = opponent's checkers
+ * Point numbering: 1-24 from perspective of Player 1 (black checkers)
+ * Player 1 moves from 24 to 1 (bearing off at home board 1-6)
+ * Positive numbers = Player 1's checkers (black), Negative = Player 2's checkers (white)
  */
 export function createInitialPosition() {
   return {
     points: [
       0,   // Point 0 (not used)
-      2,   // Point 1: 2 checkers
+      -2,  // Point 1: 2 opponent (white) checkers
       0,   // Point 2
       0,   // Point 3
       0,   // Point 4
       0,   // Point 5
-      -5,  // Point 6: 5 opponent checkers
+      5,   // Point 6: 5 Player 1 (black) checkers
       0,   // Point 7
-      -3,  // Point 8: 3 opponent checkers
+      3,   // Point 8: 3 Player 1 (black) checkers
       0,   // Point 9
       0,   // Point 10
       0,   // Point 11
-      5,   // Point 12: 5 checkers
-      -5,  // Point 13: 5 opponent checkers
+      -5,  // Point 12: 5 opponent (white) checkers
+      5,   // Point 13: 5 Player 1 (black) checkers (midpoint)
       0,   // Point 14
       0,   // Point 15
       0,   // Point 16
-      3,   // Point 17: 3 checkers
+      -3,  // Point 17: 3 opponent (white) checkers
       0,   // Point 18
-      5,   // Point 19: 5 checkers
+      -5,  // Point 19: 5 opponent (white) checkers
       0,   // Point 20
       0,   // Point 21
       0,   // Point 22
       0,   // Point 23
-      -2,  // Point 24: 2 opponent checkers
+      2,   // Point 24: 2 Player 1 (black) back checkers
     ],
     bar: 0,        // Checkers on bar (positive = player, negative = opponent)
     off: 0,        // Checkers borne off
@@ -139,15 +140,35 @@ export function parseMoveNotation(moveText) {
 }
 
 /**
+ * Convert point number from Player 2's perspective to board perspective
+ * Player 2's point 24 = Board point 1, Player 2's point 1 = Board point 24
+ * @param {number|string} point - Point number from player's perspective, or 'bar'/'off'
+ * @returns {number|string} - Point number in board perspective, or 'bar'/'off'
+ */
+function convertPlayer2Point(point) {
+  if (point === 'bar' || point === 'off' || typeof point !== 'number') {
+    return point;
+  }
+  return 25 - point;
+}
+
+/**
  * Apply a single move segment to a position
  * @param {Object} position - Current position
  * @param {Object} moveSegment - { from, to } where from/to are numbers, 'bar', or 'off'
- * @param {boolean} isPlayer - true for current player, false for opponent
+ * @param {boolean} isPlayer - true for Player 1, false for Player 2
  * @returns {Object} - New position after applying move
  */
 function applyMoveSegment(position, moveSegment, isPlayer = true) {
   const newPos = clonePosition(position);
-  const { from, to } = moveSegment;
+  let { from, to } = moveSegment;
+  
+  // Convert Player 2's perspective to board perspective
+  if (!isPlayer) {
+    from = convertPlayer2Point(from);
+    to = convertPlayer2Point(to);
+  }
+  
   const multiplier = isPlayer ? 1 : -1;
 
   // Handle moving from bar
@@ -157,13 +178,13 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
         console.warn('Cannot move from bar: no checkers on bar');
         return newPos;
       }
-      newPos.bar--;
+      newPos.bar--;  // Remove from player bar (decrease positive count)
     } else {
       if (newPos.opponentBar >= 0) {
         console.warn('Cannot move opponent from bar: no checkers on bar');
         return newPos;
       }
-      newPos.opponentBar++;
+      newPos.opponentBar++;  // Remove from opponent bar (increase towards 0 from negative)
     }
 
     // Place checker on destination point
@@ -171,10 +192,10 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
       // Check if we hit an opponent checker
       if (isPlayer && newPos.points[to] === -1) {
         newPos.points[to] = 1;
-        newPos.opponentBar--;
+        newPos.opponentBar--;  // Opponent bar becomes more negative
       } else if (!isPlayer && newPos.points[to] === 1) {
         newPos.points[to] = -1;
-        newPos.bar--;
+        newPos.bar++;  // Player bar increases
       } else {
         newPos.points[to] += multiplier;
       }
@@ -216,11 +237,13 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
 
       // Check if we hit an opponent checker at destination
       if (isPlayer && newPos.points[to] === -1) {
+        console.log(`Player 1 hits opponent at point ${to}, opponentBar: ${newPos.opponentBar} -> ${newPos.opponentBar - 1}`);
         newPos.points[to] = 1;
-        newPos.opponentBar--;
+        newPos.opponentBar--;  // Opponent bar becomes more negative (0 -> -1)
       } else if (!isPlayer && newPos.points[to] === 1) {
+        console.log(`Player 2 hits opponent at point ${to}, bar: ${newPos.bar} -> ${newPos.bar + 1}`);
         newPos.points[to] = -1;
-        newPos.bar--;
+        newPos.bar++;  // Player bar increases (0 -> 1)
       } else {
         newPos.points[to] += multiplier;
       }

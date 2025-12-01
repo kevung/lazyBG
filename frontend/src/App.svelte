@@ -68,7 +68,8 @@
     import { 
         createInitialPosition, 
         calculatePositionAtMove,
-        validatePosition 
+        validatePosition,
+        applyMove
     } from './utils/positionCalculator.js';
 
     // import components
@@ -235,23 +236,27 @@
      * Position calculator: points[1..24], bar, off, opponentBar, opponentOff
      * Board format: board.points[0..25], board.bearoff[0,1]
      */
-    function convertPositionToBoard(position) {
+    function convertPositionToBoard(position, dice = [0, 0], playerOnRoll = 0, score = [0, 0], cubeValue = 1, cubeOwner = -1) {
         const points = [];
         
-        // Initialize points array (index 0 is unused, 1-24 are the board points, 25 is bar)
+        // Initialize points array
+        // Point 0: Player 2's bar (white, color=1, negative checkers)
+        // Points 1-24: board points
+        // Point 25: Player 1's bar (black, color=0, positive checkers)
         for (let i = 0; i <= 25; i++) {
             if (i === 0) {
-                // Point 0 is unused
-                points.push({ checkers: 0, color: -1 });
-            } else if (i === 25) {
-                // Point 25 is the bar
-                const barCheckers = position.bar;
+                // Point 0 is Player 2's bar (opponent bar - negative checkers)
                 const opponentBarCheckers = Math.abs(position.opponentBar);
-                
+                if (opponentBarCheckers > 0) {
+                    points.push({ checkers: opponentBarCheckers, color: 1 });
+                } else {
+                    points.push({ checkers: 0, color: -1 });
+                }
+            } else if (i === 25) {
+                // Point 25 is Player 1's bar (positive checkers)
+                const barCheckers = position.bar;
                 if (barCheckers > 0) {
                     points.push({ checkers: barCheckers, color: 0 });
-                } else if (opponentBarCheckers > 0) {
-                    points.push({ checkers: opponentBarCheckers, color: 1 });
                 } else {
                     points.push({ checkers: 0, color: -1 });
                 }
@@ -269,6 +274,10 @@
             }
         }
         
+        // Convert cube value to log2 for internal representation
+        // cubeValue 1->0, 2->1, 4->2, 8->3, etc.
+        const cubeValueLog = cubeValue > 0 ? Math.log2(cubeValue) : 0;
+        
         return {
             id: 0,
             board: {
@@ -276,12 +285,12 @@
                 bearoff: [position.off, position.opponentOff]
             },
             cube: {
-                owner: -1,
-                value: 1
+                owner: cubeOwner,
+                value: cubeValueLog
             },
-            dice: [0, 0],
-            score: [0, 0],
-            player_on_roll: 0,
+            dice: dice,
+            score: score,
+            player_on_roll: playerOnRoll,
             decision_type: 0,
             has_jacoby: 0,
             has_beaver: 0
@@ -289,8 +298,6 @@
     }
 
     // Subscribe to selected move changes to update position
-    // Temporarily commented out to debug
-    /*
     selectedMoveStore.subscribe(selectedMove => {
         const transcription = get(transcriptionStore);
         const positionsCache = get(positionsCacheStore);
@@ -303,19 +310,201 @@
             if (positionsCache[cacheKey]) {
                 positionStore.set(positionsCache[cacheKey]);
             } else {
-                // Calculate position
+                // Calculate position by applying moves sequentially up to the selected move
                 const game = transcription.games[gameIndex];
                 if (game) {
-                    const gameNumber = game.gameNumber;
-                    const position = calculatePositionAtMove(
-                        transcription,
-                        gameNumber,
+                    let position = createInitialPosition();
+                    
+                    // Track cube state
+                    let cubeValue = 1;  // Start at 1 (displayed as "1" at center)
+                    let cubeOwner = -1; // -1 = center, 0 = player1, 1 = player2
+                    
+                    // Check if we should show the starting position (before any moves)
+                    // This happens when: moveIndex is 0 AND player 1 is selected BUT player 2 starts the game
+                    const firstMove = game.moves[0];
+                    const player2Starts = firstMove && (!firstMove.player1Move || firstMove.player1Move === null) && firstMove.player2Move;
+                    const showStartingPosition = (moveIndex === 0 && player === 1 && player2Starts);
+                    
+                    console.log('Position calculation:', {
                         moveIndex,
-                        player === 1 ? 'player1' : 'player2'
-                    );
+                        player,
+                        player2Starts,
+                        showStartingPosition,
+                        firstMove: firstMove ? {
+                            player1Move: firstMove.player1Move,
+                            player2Move: firstMove.player2Move
+                        } : null
+                    });
+                    
+                    // If showing starting position, don't apply any moves
+                    if (!showStartingPosition) {
+                        // Apply all moves up to and including the selected move
+                        for (let i = 0; i < game.moves.length; i++) {
+                            const move = game.moves[i];
+                            
+                            // Check if this is the selected move index
+                            if (i === moveIndex) {
+                                // Only apply the selected player's move
+                                if (player === 1) {
+                                    // Apply player1's move if it exists
+                                    if (move.player1Move && move.player1Move.move) {
+                                        position = applyMove(position, move.player1Move.move, true);
+                                    }
+                                    // Process cube action if player 1 made it
+                                    if (move.cubeAction && move.cubeAction.player === 1) {
+                                        if (move.cubeAction.action === 'doubles') {
+                                            cubeValue = move.cubeAction.value;
+                                            cubeOwner = -1; // Center when doubled
+                                            // Don't process response here - it happens after player 1's turn
+                                        } else if (move.cubeAction.action === 'takes') {
+                                            cubeOwner = 0; // Player 1 owns after taking
+                                        }
+                                    }
+                                    // Process cube action if player 2 made it (for viewing player 1's response)
+                                    // Only process if both players have moves (player 2's action happened after player 1's move)
+                                    // OR if there's a response in the same move entry
+                                    if (move.cubeAction && move.cubeAction.player === 2) {
+                                        const bothPlayersHaveMoves = move.player1Move && move.player2Move;
+                                        const hasResponse = move.cubeAction.response;
+                                        
+                                        if (bothPlayersHaveMoves || hasResponse) {
+                                            if (move.cubeAction.action === 'doubles') {
+                                                cubeValue = move.cubeAction.value;
+                                                cubeOwner = -1; // Center when doubled
+                                                // Check if player 1 responded in the same move
+                                                if (move.cubeAction.response === 'takes') {
+                                                    cubeOwner = 0; // Player 1 owns after taking
+                                                } else if (move.cubeAction.response === 'drops') {
+                                                    cubeOwner = -1;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    break; // Stop after the selected player's move
+                                } else if (player === 2) {
+                                    // First process any cube action by player 1 (if it has already occurred before player 2's turn)
+                                    // Only process if there's a response (meaning player 2 is responding) OR both players have moves
+                                    if (move.cubeAction && move.cubeAction.player === 1) {
+                                        const hasResponse = move.cubeAction.response;
+                                        const player2HasMove = move.player2Move;
+                                        
+                                        if (hasResponse || player2HasMove) {
+                                            if (move.cubeAction.action === 'doubles') {
+                                                cubeValue = move.cubeAction.value;
+                                                cubeOwner = -1; // Center when doubled
+                                                // Check if player 2 responded in the same move
+                                                if (move.cubeAction.response === 'takes') {
+                                                    cubeOwner = 1; // Player 2 owns after taking
+                                                } else if (move.cubeAction.response === 'drops') {
+                                                    cubeOwner = -1;
+                                                }
+                                            } else if (move.cubeAction.action === 'takes') {
+                                                cubeOwner = 0; // Player 1 owns after taking
+                                            } else if (move.cubeAction.action === 'drops') {
+                                                cubeOwner = -1;
+                                            }
+                                        }
+                                    }
+                                    // Then apply player1's move (it happened before player2's move)
+                                    if (move.player1Move && move.player1Move.move) {
+                                        position = applyMove(position, move.player1Move.move, true);
+                                    }
+                                    // Then apply player2's move
+                                    if (move.player2Move && move.player2Move.move) {
+                                        position = applyMove(position, move.player2Move.move, false);
+                                    }
+                                    // Process cube action if player 2 made it
+                                    if (move.cubeAction && move.cubeAction.player === 2) {
+                                        if (move.cubeAction.action === 'doubles') {
+                                            cubeValue = move.cubeAction.value;
+                                            cubeOwner = -1; // Center when doubled
+                                            // Check if player 1 responded in the same move
+                                            if (move.cubeAction.response === 'takes') {
+                                                cubeOwner = 0; // Player 1 owns after taking
+                                            } else if (move.cubeAction.response === 'drops') {
+                                                cubeOwner = -1;
+                                            }
+                                        } else if (move.cubeAction.action === 'takes') {
+                                            cubeOwner = 1; // Player 2 owns after taking
+                                        }
+                                    }
+                                    break; // Stop after the selected player's move
+                                }
+                            } else if (i < moveIndex) {
+                                // For moves before the selected one, apply both players' moves
+                                if (move.player1Move && move.player1Move.move) {
+                                    position = applyMove(position, move.player1Move.move, true);
+                                }
+                                if (move.player2Move && move.player2Move.move) {
+                                    position = applyMove(position, move.player2Move.move, false);
+                                }
+                            }
+                            
+                            // Process cube actions from completed moves (before the selected move)
+                            if (i < moveIndex && move.cubeAction) {
+                                if (move.cubeAction.action === 'doubles') {
+                                    cubeValue = move.cubeAction.value;
+                                    // After doubling, check if there's a response
+                                    if (move.cubeAction.response === 'takes' || move.cubeAction.action === 'takes') {
+                                        cubeOwner = move.cubeAction.player === 1 ? 1 : 0; // Opponent owns after taking
+                                    } else if (move.cubeAction.response === 'drops') {
+                                        cubeOwner = -1;
+                                    } else {
+                                        cubeOwner = -1; // Still at center if no response yet
+                                    }
+                                } else if (move.cubeAction.action === 'takes') {
+                                    cubeOwner = move.cubeAction.player - 1; // Convert 1/2 to 0/1
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Get the selected move data for dice and player on roll
+                    const selectedMoveData = game.moves[moveIndex];
+                    const playerMoveData = player === 1 ? selectedMoveData?.player1Move : selectedMoveData?.player2Move;
+                    
+                    // Parse dice from move data - only if player has dice (not just cube action)
+                    let dice = [0, 0];
+                    if (!showStartingPosition && playerMoveData && playerMoveData.dice && playerMoveData.dice.trim() !== '') {
+                        const diceStr = playerMoveData.dice;
+                        if (diceStr.length >= 2) {
+                            dice = [parseInt(diceStr[0]), parseInt(diceStr[1])];
+                        }
+                    }
+                    
+                    // Calculate away scores
+                    const matchLength = transcription.metadata.matchLength || 0;
+                    const player1Score = game.player1Score || 0;
+                    const player2Score = game.player2Score || 0;
+                    
+                    let awayScore1, awayScore2;
+                    if (matchLength === 0) {
+                        // Unlimited match
+                        awayScore1 = -1;
+                        awayScore2 = -1;
+                    } else {
+                        awayScore1 = matchLength - player1Score;
+                        awayScore2 = matchLength - player2Score;
+                        
+                        // Check for Crawford game (one player is 1-away)
+                        const isCrawford = (awayScore1 === 1 || awayScore2 === 1) && 
+                                          transcription.metadata.crawford === 'On';
+                        
+                        if (isCrawford && gameIndex === transcription.games.findIndex(g => 
+                            (matchLength - g.player1Score === 1 || matchLength - g.player2Score === 1))) {
+                            // This is the Crawford game
+                            if (awayScore1 === 1) awayScore1 = 1;
+                            if (awayScore2 === 1) awayScore2 = 1;
+                        } else if (isCrawford && gameIndex > transcription.games.findIndex(g => 
+                            (matchLength - g.player1Score === 1 || matchLength - g.player2Score === 1))) {
+                            // Post-Crawford
+                            if (awayScore1 === 1) awayScore1 = 0;
+                            if (awayScore2 === 1) awayScore2 = 0;
+                        }
+                    }
                     
                     // Convert to board format expected by Board component
-                    const boardPosition = convertPositionToBoard(position);
+                    const boardPosition = convertPositionToBoard(position, dice, player - 1, [awayScore1, awayScore2], cubeValue, cubeOwner);
                     positionStore.set(boardPosition);
                     
                     // Cache the calculated position
@@ -333,7 +522,6 @@
             }
         }
     });
-    */
 
     //Global shortcuts
     function handleKeyDown(event) {
@@ -643,9 +831,11 @@
                 // Move from player 2 to player 1 of same move
                 selectedMoveStore.set({ gameIndex, moveIndex, player: 1 });
             } else if (moveIndex > 0) {
-                // Move to previous move (player 2)
+                // Move to previous move (player 2 if available)
                 const prevMove = $transcriptionStore.games[gameIndex].moves[moveIndex - 1];
-                if (prevMove && prevMove.player2Move) {
+                // Check if player 2 has something to show (move, cube action by player 2, or response to player 1's action)
+                const hasPlayer2Action = prevMove && (prevMove.player2Move || (prevMove.cubeAction && (prevMove.cubeAction.player === 2 || prevMove.cubeAction.response)));
+                if (hasPlayer2Action) {
                     selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 2 });
                 } else {
                     selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 1 });
@@ -655,7 +845,9 @@
                 const prevGame = $transcriptionStore.games[gameIndex - 1];
                 const lastMoveIndex = prevGame.moves.length - 1;
                 const lastMove = prevGame.moves[lastMoveIndex];
-                const lastPlayer = lastMove && lastMove.player2Move ? 2 : 1;
+                // Check if player 2 has something to show (move, cube action by player 2, or response to player 1's action)
+                const hasPlayer2Action = lastMove && (lastMove.player2Move || (lastMove.cubeAction && (lastMove.cubeAction.player === 2 || lastMove.cubeAction.response)));
+                const lastPlayer = hasPlayer2Action ? 2 : 1;
                 selectedMoveStore.set({ gameIndex: gameIndex - 1, moveIndex: lastMoveIndex, player: lastPlayer });
             }
         }
@@ -673,7 +865,10 @@
             const game = $transcriptionStore.games[gameIndex];
             const move = game.moves[moveIndex];
             
-            if (player === 1 && move && move.player2Move) {
+            // Check if player 2 has something to show (move, cube action by player 2, or response to player 1's action)
+            const hasPlayer2Action = move && (move.player2Move || (move.cubeAction && (move.cubeAction.player === 2 || move.cubeAction.response)));
+            
+            if (player === 1 && hasPlayer2Action) {
                 // Move from player 1 to player 2 of same move
                 selectedMoveStore.set({ gameIndex, moveIndex, player: 2 });
             } else if (moveIndex < game.moves.length - 1) {
@@ -713,7 +908,9 @@
             const lastGame = $transcriptionStore.games[lastGameIndex];
             const lastMoveIndex = lastGame.moves.length - 1;
             const lastMove = lastGame.moves[lastMoveIndex];
-            const lastPlayer = lastMove && lastMove.player2Move ? 2 : 1;
+            // Check if player 2 has something to show (move or cube action)
+            const hasPlayer2Action = lastMove && (lastMove.player2Move || (lastMove.cubeAction && lastMove.cubeAction.player === 2));
+            const lastPlayer = hasPlayer2Action ? 2 : 1;
             selectedMoveStore.set({ gameIndex: lastGameIndex, moveIndex: lastMoveIndex, player: lastPlayer });
         }
     }
