@@ -134,8 +134,51 @@ export function parseMatchFile(content) {
         
         if (!currentGame) continue;
         
+        // Check for winner information on lines without move numbers (e.g., "      Wins 1 point")
+        if (!line.match(/^\s*(\d+)\)/)) {
+            const winMatch = line.match(/Wins\s+(\d+)\s+point/i);
+            if (winMatch) {
+                const points = parseInt(winMatch[1]);
+                // Determine which player won based on context
+                // When a player drops, the doubling player wins
+                // Check the last move for a drops action
+                if (currentGame.moves.length > 0) {
+                    const lastMove = currentGame.moves[currentGame.moves.length - 1];
+                    if (lastMove.cubeAction) {
+                        if (lastMove.cubeAction.action === 'doubles') {
+                            // The player who doubled wins
+                            currentGame.winner = {
+                                player: lastMove.cubeAction.player,
+                                points
+                            };
+                        } else if (lastMove.cubeAction.action === 'drops') {
+                            // The player who did NOT drop wins
+                            // If player 2 dropped, player 1 wins; if player 1 dropped, player 2 wins
+                            // We need to find who doubled (in the previous move or same move)
+                            let doublingPlayer = null;
+                            // Check if there's a doubles action in an earlier move
+                            for (let j = currentGame.moves.length - 1; j >= 0; j--) {
+                                const move = currentGame.moves[j];
+                                if (move.cubeAction && move.cubeAction.action === 'doubles') {
+                                    doublingPlayer = move.cubeAction.player;
+                                    break;
+                                }
+                            }
+                            if (doublingPlayer) {
+                                currentGame.winner = {
+                                    player: doublingPlayer,
+                                    points
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        
         // Parse moves - format: "  1) 54: 24/20 13/8                     31: 8/5* 6/5"
-        // Use fixed column positions: right column starts at character 39 in original line
+        // Use fixed column positions: right column starts at position 39 in original line
         const moveMatch = line.match(/^\s*(\d+)\)(.*)/);  // Capture everything after )
         if (moveMatch) {
             const moveNumber = parseInt(moveMatch[1]);
@@ -181,28 +224,31 @@ export function parseMatchFile(content) {
                 const trimmed = item.text;
                 const isLeftColumn = item.isLeft;
                 
-                // Check for cube actions
+                // Check for cube actions first
                 if (trimmed.match(/Doubles\s*=>\s*(\d+)/i)) {
                     const cubeMatch = trimmed.match(/Doubles\s*=>\s*(\d+)/i);
                     const cubeValue = parseInt(cubeMatch[1]);
                     
-                    // Store cube action metadata only
-                    const player = isLeftColumn ? 1 : 2;
-                    moveEntry.cubeAction = {
-                        player,
-                        action: 'doubles',
-                        value: cubeValue,
-                        response: null
-                    };
-                    continue;
-                }
-                
-                if (trimmed.match(/Takes/i)) {
-                    // Takes is a cube response - store as a cube action on this move
-                    if (currentGame.moves.length > 0) {
+                    // Store cube action - only set if not already set
+                    if (!moveEntry.cubeAction) {
+                        const player = isLeftColumn ? 1 : 2;
+                        moveEntry.cubeAction = {
+                            player,
+                            action: 'doubles',
+                            value: cubeValue,
+                            response: null
+                        };
+                    }
+                } else if (trimmed.match(/Takes/i)) {
+                    // Takes is a cube response
+                    // Check if there's a doubles action in the current move entry first
+                    if (moveEntry.cubeAction && moveEntry.cubeAction.action === 'doubles') {
+                        // Same move - store as response
+                        moveEntry.cubeAction.response = 'takes';
+                    } else if (currentGame.moves.length > 0) {
+                        // Previous move - create a new cube action entry
                         const prevMove = currentGame.moves[currentGame.moves.length - 1];
-                        if (prevMove.cubeAction) {
-                            // Create cube action showing the take response
+                        if (prevMove.cubeAction && !moveEntry.cubeAction) {
                             const player = isLeftColumn ? 1 : 2;
                             moveEntry.cubeAction = {
                                 player,
@@ -212,15 +258,16 @@ export function parseMatchFile(content) {
                             };
                         }
                     }
-                    continue;
-                }
-                
-                if (trimmed.match(/Drops/i)) {
-                    // Drops is a cube response - store as a cube action on this move
-                    if (currentGame.moves.length > 0) {
+                } else if (trimmed.match(/Drops/i)) {
+                    // Drops is a cube response
+                    // Check if there's a doubles action in the current move entry first
+                    if (moveEntry.cubeAction && moveEntry.cubeAction.action === 'doubles') {
+                        // Same move - store as response
+                        moveEntry.cubeAction.response = 'drops';
+                    } else if (currentGame.moves.length > 0) {
+                        // Previous move - create a new cube action entry
                         const prevMove = currentGame.moves[currentGame.moves.length - 1];
-                        if (prevMove.cubeAction) {
-                            // Create cube action showing the drop response
+                        if (prevMove.cubeAction && !moveEntry.cubeAction) {
                             const player = isLeftColumn ? 1 : 2;
                             moveEntry.cubeAction = {
                                 player,
@@ -230,10 +277,7 @@ export function parseMatchFile(content) {
                             };
                         }
                     }
-                    continue;
-                }
-                
-                if (trimmed.match(/Wins\s+(\d+)\s+point/i)) {
+                } else if (trimmed.match(/Wins\s+(\d+)\s+point/i)) {
                     const winMatch = trimmed.match(/Wins\s+(\d+)\s+point/i);
                     const points = parseInt(winMatch[1]);
                     // Left column → player 1 (1st row), Right column → player 2 (2nd row)
@@ -242,31 +286,30 @@ export function parseMatchFile(content) {
                         player,
                         points
                     };
-                    continue;
-                }
-                
-                // Parse regular move: "54: 24/20 13/8" or "Cannot Move" or "????"
-                const diceMatch = trimmed.match(/^(\d{2}):\s*(.+)/);
-                if (diceMatch) {
-                    const dice = diceMatch[1];
-                    const move = diceMatch[2].trim();
-                    const isGala = move.match(/Cannot Move/i) !== null;
-                    const isIllegal = move.match(/\?{2,}/) !== null;
-                    
-                    const moveData = {
-                        dice,
-                        move: isGala ? 'Cannot Move' : (isIllegal ? '' : move),
-                        isIllegal,
-                        isGala
-                    };
-                    
-                    // Assign based on column position in text file
-                    // Left column in text file → 1st row in UI (player1Move)
-                    // Right column in text file → 2nd row in UI (player2Move)
-                    if (isLeftColumn) {
-                        moveEntry.player1Move = moveData;
-                    } else {
-                        moveEntry.player2Move = moveData;
+                } else {
+                    // Parse regular move: "54: 24/20 13/8" or "Cannot Move" or "????"
+                    const diceMatch = trimmed.match(/^(\d{2}):\s*(.+)/);
+                    if (diceMatch) {
+                        const dice = diceMatch[1];
+                        const move = diceMatch[2].trim();
+                        const isGala = move.match(/Cannot Move/i) !== null;
+                        const isIllegal = move.match(/\?{2,}/) !== null;
+                        
+                        const moveData = {
+                            dice,
+                            move: isGala ? 'Cannot Move' : (isIllegal ? '' : move),
+                            isIllegal,
+                            isGala
+                        };
+                        
+                        // Assign based on column position in text file
+                        // Left column in text file → 1st row in UI (player1Move)
+                        // Right column in text file → 2nd row in UI (player2Move)
+                        if (isLeftColumn) {
+                            moveEntry.player1Move = moveData;
+                        } else {
+                            moveEntry.player2Move = moveData;
+                        }
                     }
                 }
             }

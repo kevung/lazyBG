@@ -207,6 +207,12 @@
                         {:else if row.cubeAction.action === 'drops'}
                         <span class="cube-response">Drops</span>
                         {/if}
+                    {:else if row.cubeAction && row.cubeAction.player !== row.player && row.cubeAction.response}
+                        {#if row.cubeAction.response === 'takes'}
+                        <span class="cube-response">Takes</span>
+                        {:else if row.cubeAction.response === 'drops'}
+                        <span class="cube-response">Drops</span>
+                        {/if}
                     {:else if row.moveData}
                     <span 
                         role="textbox"
