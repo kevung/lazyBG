@@ -301,6 +301,10 @@
                         </thead>
                         <tbody>
                             <tr>
+                                <td>p</td>
+                                <td>Toggle Initial/Final Position Display</td>
+                            </tr>
+                            <tr>
                                 <td>Ctrl + L</td>
                                 <td>Toggle Candidate Moves Panel</td>
                             </tr>

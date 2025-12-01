@@ -3,12 +3,15 @@
     import { onMount, onDestroy } from "svelte";
     import Two from "two.js";
     import { get } from 'svelte/store';
-    import { statusBarModeStore, isAnyModalOpenStore, showMetadataModalStore, showCandidateMovesStore, showMovesTableStore } from '../stores/uiStore';
+    import { statusBarModeStore, isAnyModalOpenStore, showMetadataModalStore, showCandidateMovesStore, showMovesTableStore, showInitialPositionStore } from '../stores/uiStore';
+    import { selectedMoveStore, transcriptionStore } from '../stores/transcriptionStore';
 
     let mode;
     let showMetadataModal = false;
     let showCandidateMoves = false;
     let showMovesTable = false;
+    let showInitialPosition = false;
+    let currentMoveText = '';
     let two;
     let canvas;
     let width;
@@ -63,6 +66,28 @@
         // Trigger resize when panels change
         if (canvas && two) {
             setTimeout(() => resizeBoard(), 10);
+        }
+    });
+    
+    showInitialPositionStore.subscribe(value => {
+        showInitialPosition = value;
+    });
+    
+    // Subscribe to selected move to get the move text for drawing arrows
+    selectedMoveStore.subscribe(selectedMove => {
+        const transcription = get(transcriptionStore);
+        if (transcription && transcription.games && transcription.games.length > 0) {
+            const { gameIndex, moveIndex, player } = selectedMove;
+            const game = transcription.games[gameIndex];
+            if (game && game.moves[moveIndex]) {
+                const move = game.moves[moveIndex];
+                const playerMove = player === 1 ? move.player1Move : move.player2Move;
+                currentMoveText = playerMove?.move || '';
+            } else {
+                currentMoveText = '';
+            }
+        } else {
+            currentMoveText = '';
         }
     });
 
@@ -598,6 +623,240 @@
         window.removeEventListener("keydown", handleKeyDown);
         if (unsubscribe) unsubscribe();
     });
+
+    /**
+     * Parse move text like "24/20 13/8" or "bar/21" and return array of moves
+     * Each move is {from: number, to: number} where bar=25 for player on top, bar=0 for player on bottom
+     */
+    function parseMoveText(moveText) {
+        if (!moveText || moveText === 'Cannot Move' || moveText.includes('Doubles') || moveText.includes('Takes') || moveText.includes('Drops')) {
+            return [];
+        }
+        
+        const moves = [];
+        const parts = moveText.split(/\s+/);
+        
+        for (const part of parts) {
+            const match = part.match(/^(bar|\d+)\/(off|\d+)\*?$/i);
+            if (match) {
+                let from = match[1].toLowerCase() === 'bar' ? 'bar' : parseInt(match[1]);
+                let to = match[2].toLowerCase() === 'off' ? 'off' : parseInt(match[2]);
+                moves.push({ from, to });
+            }
+        }
+        
+        return moves;
+    }
+
+    /**
+     * Get the x, y coordinates for a point on the board
+     */
+    function getPointCoordinates(point, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize) {
+        let x, yBase;
+        
+        if (boardCfg.orientation === "right") {
+            if (point === 0) { // Player 2's bar
+                x = boardOrigXpos;
+                yBase = boardOrigYpos + 0.5 * boardCheckerSize;
+            } else if (point === 25) { // Player 1's bar
+                x = boardOrigXpos;
+                yBase = boardOrigYpos - 0.5 * boardCheckerSize;
+            } else if (point === 'off-bottom') { // Bear off for bottom player
+                x = boardOrigXpos + boardWidth / 2 + 1.2 * boardCheckerSize;
+                yBase = boardOrigYpos + boardHeight / 2 - 3.7 * boardCheckerSize;
+            } else if (point === 'off-top') { // Bear off for top player
+                x = boardOrigXpos + boardWidth / 2 + 1.2 * boardCheckerSize;
+                yBase = boardOrigYpos - boardHeight / 2 + 3.7 * boardCheckerSize;
+            } else if (point <= 6) {
+                x = boardOrigXpos + (7 - point) * boardCheckerSize;
+                yBase = boardOrigYpos + 0.5 * boardHeight;
+            } else if (point <= 12) {
+                x = boardOrigXpos - (point - 6) * boardCheckerSize;
+                yBase = boardOrigYpos + 0.5 * boardHeight;
+            } else if (point <= 18) {
+                x = boardOrigXpos - (19 - point) * boardCheckerSize;
+                yBase = boardOrigYpos - 0.5 * boardHeight;
+            } else {
+                x = boardOrigXpos + (point - 18) * boardCheckerSize;
+                yBase = boardOrigYpos - 0.5 * boardHeight;
+            }
+        } else if (boardCfg.orientation === "left") {
+            if (point === 0) {
+                x = boardOrigXpos;
+                yBase = boardOrigYpos + 0.5 * boardCheckerSize;
+            } else if (point === 25) {
+                x = boardOrigXpos;
+                yBase = boardOrigYpos - 0.5 * boardCheckerSize;
+            } else if (point === 'off-bottom') {
+                x = boardOrigXpos - boardWidth / 2 - 1.2 * boardCheckerSize;
+                yBase = boardOrigYpos + boardHeight / 2 - 3.7 * boardCheckerSize;
+            } else if (point === 'off-top') {
+                x = boardOrigXpos - boardWidth / 2 - 1.2 * boardCheckerSize;
+                yBase = boardOrigYpos - boardHeight / 2 + 3.7 * boardCheckerSize;
+            } else if (point <= 6) {
+                x = boardOrigXpos - (7 - point) * boardCheckerSize;
+                yBase = boardOrigYpos + 0.5 * boardHeight;
+            } else if (point <= 12) {
+                x = boardOrigXpos + (point - 6) * boardCheckerSize;
+                yBase = boardOrigYpos + 0.5 * boardHeight;
+            } else if (point <= 18) {
+                x = boardOrigXpos + (19 - point) * boardCheckerSize;
+                yBase = boardOrigYpos - 0.5 * boardHeight;
+            } else {
+                x = boardOrigXpos - (point - 18) * boardCheckerSize;
+                yBase = boardOrigYpos - 0.5 * boardHeight;
+            }
+        }
+        
+        return { x, y: yBase };
+    }
+
+    /**
+     * Get the topmost checker position on a point (where a player would naturally pick it up)
+     */
+    function getCheckerPickupPosition(point, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize) {
+        const position = get(positionStore);
+        const pointData = position.board.points[point];
+        
+        // Get base coordinates
+        const baseCoords = getPointCoordinates(point, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+        
+        // Calculate the Y offset based on number of checkers
+        let checkerCount = 0;
+        if (pointData && pointData.checkers > 0) {
+            checkerCount = Math.min(pointData.checkers, 5); // Max 5 visible
+        }
+        
+        // Determine direction (up or down from base)
+        let direction = 1; // default down
+        if (point !== 0 && point <= 12 || point === 25) {
+            direction = -1; // up
+        }
+        
+        // Calculate Y position of topmost checker
+        const yOffset = (checkerCount - 0.5) * boardCfg.checker.sizeFactor * boardCheckerSize * direction;
+        
+        return {
+            x: baseCoords.x,
+            y: baseCoords.y + yOffset
+        };
+    }
+
+    /**
+     * Draw arrows showing checker movements
+     */
+    function drawMoveArrows(boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize) {
+        if (!showInitialPosition || !currentMoveText) {
+            return;
+        }
+        
+        const moves = parseMoveText(currentMoveText);
+        const position = get(positionStore);
+        const playerOnRoll = position.player_on_roll;
+        
+        for (const move of moves) {
+            let fromPoint = move.from;
+            let toPoint = move.to;
+            
+            // Convert 'bar' to appropriate bar point
+            if (fromPoint === 'bar') {
+                fromPoint = playerOnRoll === 0 ? 25 : 0;
+            } else if (typeof fromPoint === 'number' && playerOnRoll === 1) {
+                // Player 2 (white): convert from their perspective (1-24) to board coordinates
+                // Player 2's point 1 = board point 24, Player 2's point 24 = board point 1
+                fromPoint = 25 - fromPoint;
+            }
+            
+            // Convert 'off' to appropriate bearoff position
+            if (toPoint === 'off') {
+                toPoint = playerOnRoll === 0 ? 'off-bottom' : 'off-top';
+            } else if (typeof toPoint === 'number' && playerOnRoll === 1) {
+                // Player 2 (white): convert from their perspective to board coordinates
+                toPoint = 25 - toPoint;
+            }
+            
+            // Get coordinates - from topmost checker on source point or from bar
+            let fromCoords;
+            if (typeof fromPoint === 'number' && fromPoint >= 0 && fromPoint <= 25) {
+                const sourcePointData = position.board.points[fromPoint];
+                // Check if this is the bar (points 0 or 25)
+                if ((fromPoint === 0 || fromPoint === 25) && sourcePointData && sourcePointData.checkers > 0) {
+                    // For bar, get the topmost checker position
+                    fromCoords = getCheckerPickupPosition(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+                } else {
+                    fromCoords = getCheckerPickupPosition(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+                }
+            } else {
+                fromCoords = getPointCoordinates(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+            }
+            
+            // Get coordinates for destination - calculate where checker will land (on top of existing checkers)
+            let toCoords;
+            if (typeof toPoint === 'number' && toPoint >= 0 && toPoint <= 25) {
+                const destPointData = position.board.points[toPoint];
+                const baseCoords = getPointCoordinates(toPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+                
+                // Calculate how many checkers are already there
+                let existingCheckers = 0;
+                if (destPointData && destPointData.checkers > 0) {
+                    existingCheckers = Math.min(destPointData.checkers, 5);
+                }
+                
+                // The new checker will land on top of existing checkers
+                let direction = 1;
+                if (toPoint !== 0 && toPoint <= 12 || toPoint === 25) {
+                    direction = -1;
+                }
+                
+                const yOffset = (existingCheckers + 0.5) * boardCfg.checker.sizeFactor * boardCheckerSize * direction;
+                toCoords = {
+                    x: baseCoords.x,
+                    y: baseCoords.y + yOffset
+                };
+            } else {
+                toCoords = getPointCoordinates(toPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+            }
+            
+            // Use red arrows with transparency
+            const arrowColor = 'rgba(255, 50, 50, 0.7)';
+            const arrowWidth = boardCheckerSize * 0.2;
+            
+            // Calculate arrow geometry
+            const angle = Math.atan2(toCoords.y - fromCoords.y, toCoords.x - fromCoords.x);
+            const arrowHeadSize = boardCheckerSize * 0.5;
+            const arrowAngle = Math.PI / 5; // Slightly narrower arrow
+            
+            // Shorten the line so it stops before the arrow tip
+            const lineEndX = toCoords.x - arrowHeadSize * 0.6 * Math.cos(angle);
+            const lineEndY = toCoords.y - arrowHeadSize * 0.6 * Math.sin(angle);
+            
+            // Create arrow line that stops before the tip
+            const line = two.makeLine(fromCoords.x, fromCoords.y, lineEndX, lineEndY);
+            line.stroke = arrowColor;
+            line.linewidth = arrowWidth;
+            line.cap = 'round';
+            
+            // Create arrowhead
+            const arrowPoint1 = {
+                x: toCoords.x - arrowHeadSize * Math.cos(angle - arrowAngle),
+                y: toCoords.y - arrowHeadSize * Math.sin(angle - arrowAngle)
+            };
+            const arrowPoint2 = {
+                x: toCoords.x - arrowHeadSize * Math.cos(angle + arrowAngle),
+                y: toCoords.y - arrowHeadSize * Math.sin(angle + arrowAngle)
+            };
+            
+            const arrowHead = two.makePath(
+                toCoords.x, toCoords.y,
+                arrowPoint1.x, arrowPoint1.y,
+                arrowPoint2.x, arrowPoint2.y,
+                toCoords.x, toCoords.y
+            );
+            arrowHead.fill = arrowColor;
+            arrowHead.stroke = arrowColor;
+            arrowHead.linewidth = 0;
+        }
+    }
 
     function drawBoard() {
         two.clear();
@@ -1147,6 +1406,9 @@
         drawPipCounts();
         drawDice();
         drawScores();
+        
+        // Draw arrows for checker movements when showing initial position
+        drawMoveArrows(boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
 
         // draw board outline on top to ensure consistent linewidth
         const board = two.makeRectangle(

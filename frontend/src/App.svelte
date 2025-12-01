@@ -45,7 +45,8 @@
         isAnyModalOpenStore,
         previousModeStore,
         showCandidateMovesStore,
-        showMovesTableStore
+        showMovesTableStore,
+        showInitialPositionStore
     } from './stores/uiStore';
 
     import { metaStore } from './stores/metaStore'; // Import metaStore
@@ -305,12 +306,13 @@
     selectedMoveStore.subscribe(selectedMove => {
         const transcription = get(transcriptionStore);
         const positionsCache = get(positionsCacheStore);
+        const showInitialPosition = get(showInitialPositionStore);
         
         if (transcription && transcription.games && transcription.games.length > 0) {
             const { gameIndex, moveIndex, player } = selectedMove;
             
-            // Check cache first
-            const cacheKey = `${gameIndex}-${moveIndex}-${player}`;
+            // Check cache first - include showInitialPosition in cache key
+            const cacheKey = `${gameIndex}-${moveIndex}-${player}-${showInitialPosition ? 'initial' : 'final'}`;
             if (positionsCache[cacheKey]) {
                 positionStore.set(positionsCache[cacheKey]);
             } else {
@@ -348,14 +350,14 @@
                             
                             // Check if this is the selected move index
                             if (i === moveIndex) {
-                                // Only apply the selected player's move
+                                // Only apply the selected player's move (unless showing initial position)
                                 if (player === 1) {
-                                    // Apply player1's move if it exists
-                                    if (move.player1Move && move.player1Move.move) {
+                                    // Apply player1's move if it exists and we want final position
+                                    if (!showInitialPosition && move.player1Move && move.player1Move.move) {
                                         position = applyMove(position, move.player1Move.move, true);
                                     }
-                                    // Process cube action if player 1 made it
-                                    if (move.cubeAction && move.cubeAction.player === 1) {
+                                    // Process cube action if player 1 made it (only if not showing initial position for player 1)
+                                    if (!showInitialPosition && move.cubeAction && move.cubeAction.player === 1) {
                                         if (move.cubeAction.action === 'doubles') {
                                             cubeValue = move.cubeAction.value;
                                             cubeOwner = -1; // Center when doubled
@@ -373,13 +375,16 @@
                                         
                                         if (bothPlayersHaveMoves || hasResponse) {
                                             if (move.cubeAction.action === 'doubles') {
+                                                // Always apply the double (player 2 doubled before player 1's decision)
                                                 cubeValue = move.cubeAction.value;
                                                 cubeOwner = -1; // Center when doubled
-                                                // Check if player 1 responded in the same move
-                                                if (move.cubeAction.response === 'takes') {
-                                                    cubeOwner = 0; // Player 1 owns after taking
-                                                } else if (move.cubeAction.response === 'drops') {
-                                                    cubeOwner = -1;
+                                                // Only process player 1's response if not showing initial position
+                                                if (!showInitialPosition) {
+                                                    if (move.cubeAction.response === 'takes') {
+                                                        cubeOwner = 0; // Player 1 owns after taking
+                                                    } else if (move.cubeAction.response === 'drops') {
+                                                        cubeOwner = -1;
+                                                    }
                                                 }
                                             }
                                         }
@@ -394,15 +399,19 @@
                                         
                                         if (hasResponse || player2HasMove) {
                                             if (move.cubeAction.action === 'doubles') {
+                                                // Always apply the double (player 1 doubled before player 2's decision)
                                                 cubeValue = move.cubeAction.value;
                                                 cubeOwner = -1; // Center when doubled
-                                                // Check if player 2 responded in the same move
-                                                if (move.cubeAction.response === 'takes') {
-                                                    cubeOwner = 1; // Player 2 owns after taking
-                                                } else if (move.cubeAction.response === 'drops') {
-                                                    cubeOwner = -1;
+                                                // Only process player 2's response if not showing initial position
+                                                if (!showInitialPosition) {
+                                                    if (move.cubeAction.response === 'takes') {
+                                                        cubeOwner = 1; // Player 2 owns after taking
+                                                    } else if (move.cubeAction.response === 'drops') {
+                                                        cubeOwner = -1;
+                                                    }
                                                 }
                                             } else if (move.cubeAction.action === 'takes') {
+                                                // Player 1's take action happened before player 2's turn
                                                 cubeOwner = 0; // Player 1 owns after taking
                                             } else if (move.cubeAction.action === 'drops') {
                                                 cubeOwner = -1;
@@ -413,12 +422,12 @@
                                     if (move.player1Move && move.player1Move.move) {
                                         position = applyMove(position, move.player1Move.move, true);
                                     }
-                                    // Then apply player2's move
-                                    if (move.player2Move && move.player2Move.move) {
+                                    // Then apply player2's move (unless showing initial position)
+                                    if (!showInitialPosition && move.player2Move && move.player2Move.move) {
                                         position = applyMove(position, move.player2Move.move, false);
                                     }
-                                    // Process cube action if player 2 made it
-                                    if (move.cubeAction && move.cubeAction.player === 2) {
+                                    // Process cube action if player 2 made it (only if not showing initial position)
+                                    if (!showInitialPosition && move.cubeAction && move.cubeAction.player === 2) {
                                         if (move.cubeAction.action === 'doubles') {
                                             cubeValue = move.cubeAction.value;
                                             cubeOwner = -1; // Center when doubled
@@ -527,6 +536,23 @@
         }
     });
 
+    // Subscribe to show initial position toggle - refresh when it changes
+    showInitialPositionStore.subscribe(() => {
+        // Trigger a refresh by re-setting the selected move
+        const currentSelectedMove = get(selectedMoveStore);
+        const showInitial = get(showInitialPositionStore);
+        // Force recalculation by clearing cache for both initial and final positions
+        const cacheKeyInitial = `${currentSelectedMove.gameIndex}-${currentSelectedMove.moveIndex}-${currentSelectedMove.player}-initial`;
+        const cacheKeyFinal = `${currentSelectedMove.gameIndex}-${currentSelectedMove.moveIndex}-${currentSelectedMove.player}-final`;
+        positionsCacheStore.update(cache => {
+            delete cache[cacheKeyInitial];
+            delete cache[cacheKeyFinal];
+            return cache;
+        });
+        // Trigger recalculation
+        selectedMoveStore.set(currentSelectedMove);
+    });
+
     //Global shortcuts
     function handleKeyDown(event) {
         event.stopPropagation();
@@ -601,6 +627,9 @@
         } else if (event.ctrlKey && event.code === 'KeyL') {
             event.preventDefault();
             showCandidateMovesStore.update(v => !v);
+        } else if (!event.ctrlKey && event.key === 'p') {
+            event.preventDefault();
+            togglePositionDisplay();
         }
     }
 
@@ -1000,6 +1029,14 @@
         showCandidateMovesStore.set(!$showCandidateMovesStore);
     }
 
+    function togglePositionDisplay() {
+        if (mode === 'EDIT') {
+            setStatusBarMessage('Cannot toggle position display in edit mode');
+        } else {
+            showInitialPositionStore.update(v => !v);
+        }
+    }
+
     onMount(() => {
         console.log('App.svelte: onMount called');
         // @ts-ignore
@@ -1078,6 +1115,7 @@
         onNextGame={nextGame}
         onLastPosition={lastPosition}
         onGoToMove={gotoMove}
+        onTogglePositionDisplay={togglePositionDisplay}
         onToggleEditMode={toggleEditMode}
         onToggleCommandMode={() => showCommandStore.set(true)}
         onToggleMovesPanel={() => showMovesTableStore.update(v => !v)}
