@@ -35,6 +35,30 @@
         { gameIndex: selectedGameIndex, moveIndex: mIdx, moveNumber: move.moveNumber, player: 2, moveData: move.player2Move, cubeAction: move.cubeAction }
     ]);
 
+    // Scroll selected move into view when selection changes
+    $: if ($selectedMoveStore && tableWrapper && playerRows.length > 0) {
+        const { gameIndex, moveIndex, player } = $selectedMoveStore;
+        // Find the row index that matches the selected move
+        const selectedRowIndex = playerRows.findIndex(r => 
+            r.gameIndex === gameIndex && r.moveIndex === moveIndex && r.player === player
+        );
+        
+        if (selectedRowIndex >= 0) {
+            // Use setTimeout to ensure DOM is updated
+            setTimeout(() => {
+                const rows = tableWrapper.querySelectorAll('tbody tr');
+                const selectedRow = rows[selectedRowIndex];
+                if (selectedRow) {
+                    selectedRow.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'nearest',
+                        inline: 'nearest'
+                    });
+                }
+            }, 0);
+        }
+    }
+
     function selectMove(gameIndex, moveIndex, player) {
         selectedMoveStore.set({ gameIndex, moveIndex, player });
     }
