@@ -23,7 +23,10 @@ export function parseMatchFile(content) {
         games: []
     };
     
-    // Parse metadata
+    // Parse metadata - temporarily store as filePlayer1 and filePlayer2
+    let filePlayer1 = '';
+    let filePlayer2 = '';
+    
     for (const line of lines) {
         if (line.startsWith('; [')) {
             const match = line.match(/; \[([^\]]+)\s+"([^"]+)"\]/);
@@ -34,9 +37,12 @@ export function parseMatchFile(content) {
                     case 'Match ID': transcription.metadata.matchId = value; break;
                     case 'Event': transcription.metadata.event = value; break;
                     case 'Round': transcription.metadata.round = value; break;
-                    case 'Player 1': transcription.metadata.player1 = value; break;
-                    case 'Player 2': transcription.metadata.player2 = value; break;
-                    case 'EventDate': transcription.metadata.eventDate = value; break;
+                    case 'Player 1': filePlayer1 = value; break;
+                    case 'Player 2': filePlayer2 = value; break;
+                    case 'EventDate': 
+                        // Convert from "2025.10.24" to "2025-10-24"
+                        transcription.metadata.eventDate = value.replace(/\./g, '-');
+                        break;
                     case 'EventTime': transcription.metadata.eventTime = value; break;
                     case 'Variation': transcription.metadata.variation = value; break;
                     case 'Unrated': transcription.metadata.unrated = value; break;
@@ -46,6 +52,31 @@ export function parseMatchFile(content) {
                 }
             }
         }
+    }
+    
+    // Find first score line to determine column layout
+    // Format: "Left Player : 0                       Right Player : 0"
+    let leftColumnPlayer = '';
+    let rightColumnPlayer = '';
+    
+    for (const line of lines) {
+        const scoreMatch = line.match(/^\s*([^:]+):\s*\d+\s+([^:]+):\s*\d+/);
+        if (scoreMatch) {
+            leftColumnPlayer = scoreMatch[1].trim();
+            rightColumnPlayer = scoreMatch[2].trim();
+            break;
+        }
+    }
+    
+    // Assign player1/player2 based on column position
+    // lazyBG convention: player1 = left column (bottom), player2 = right column (top)
+    if (leftColumnPlayer && rightColumnPlayer) {
+        transcription.metadata.player1 = leftColumnPlayer;
+        transcription.metadata.player2 = rightColumnPlayer;
+    } else {
+        // Fallback to file metadata order if no score line found
+        transcription.metadata.player1 = filePlayer1;
+        transcription.metadata.player2 = filePlayer2;
     }
     
     // Find match length
@@ -79,10 +110,16 @@ export function parseMatchFile(content) {
                 }
             }
             
-            // Parse scores from line like "marcow777 : 0     postmanpat : 1"
-            const scoreMatch = scoreLine.match(/:\s*(\d+).*:\s*(\d+)/);
-            const player1Score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
-            const player2Score = scoreMatch ? parseInt(scoreMatch[2]) : 0;
+            // Parse scores from line like "Kévin Unger : 0                       Jacques Ravier : 0"
+            // Simple mapping: left column → player1, right column → player2
+            const scoreLineMatch = scoreLine.match(/[^:]+:\s*(\d+)\s+[^:]+:\s*(\d+)/);
+            let player1Score = 0;
+            let player2Score = 0;
+            
+            if (scoreLineMatch) {
+                player1Score = parseInt(scoreLineMatch[1]); // Left column score
+                player2Score = parseInt(scoreLineMatch[2]); // Right column score
+            }
             
             currentGame = {
                 gameNumber,
@@ -98,10 +135,11 @@ export function parseMatchFile(content) {
         if (!currentGame) continue;
         
         // Parse moves - format: "  1) 54: 24/20 13/8                     31: 8/5* 6/5"
-        const moveMatch = line.match(/^\s*(\d+)\)\s+(.*)/);
+        // Use fixed column positions: right column starts at character 39 in original line
+        const moveMatch = line.match(/^\s*(\d+)\)(.*)/);  // Capture everything after )
         if (moveMatch) {
             const moveNumber = parseInt(moveMatch[1]);
-            const movesText = moveMatch[2];
+            const afterParen = moveMatch[2]; // Everything after ), preserving all spacing
             
             const moveEntry = {
                 moveNumber,
@@ -110,18 +148,46 @@ export function parseMatchFile(content) {
                 cubeAction: null
             };
             
-            // Split by multiple spaces to separate player 1 and player 2 moves
-            const parts = movesText.split(/\s{2,}/);
+            // The match gives us the string starting right after )
+            // We need to know how many characters were before the ) in the original line
+            // Move numbers are right-aligned, so ) is always at position 3 (0-indexed)
+            // Format: "  1)" = positions 0,1,2,3 or " 10)" = positions 0,1,2,3
+            // After the ), position 4 starts the content with a space
+            // So content actually starts at position 5 in the original line
+            const offsetInOriginalLine = 5; // Position where actual move content starts after ") "
             
-            for (const part of parts) {
-                const trimmed = part.trim();
-                if (!trimmed) continue;
+            // Right column starts at position 39 in original line
+            // In afterParen (which starts at offsetInOriginalLine), right column is at: 39 - offsetInOriginalLine
+            const leftBoundary = Math.max(0, 39 - offsetInOriginalLine);
+            
+            const items = [];
+            const leftContent = afterParen.substring(0, leftBoundary).trim();
+            const rightContent = afterParen.substring(leftBoundary).trim();
+            
+            if (leftContent) {
+                items.push({
+                    text: leftContent,
+                    isLeft: true
+                });
+            }
+            if (rightContent) {
+                items.push({
+                    text: rightContent,
+                    isLeft: false
+                });
+            }
+            
+            for (const item of items) {
+                const trimmed = item.text;
+                const isLeftColumn = item.isLeft;
                 
                 // Check for cube actions
                 if (trimmed.match(/Doubles\s*=>\s*(\d+)/i)) {
                     const cubeMatch = trimmed.match(/Doubles\s*=>\s*(\d+)/i);
+                    // Left column → player 1 (1st row), Right column → player 2 (2nd row)
+                    const player = isLeftColumn ? 1 : 2;
                     moveEntry.cubeAction = {
-                        player: parts.indexOf(part) === 0 ? 1 : 2,
+                        player,
                         action: 'doubles',
                         value: parseInt(cubeMatch[1]),
                         response: null
@@ -146,8 +212,10 @@ export function parseMatchFile(content) {
                 if (trimmed.match(/Wins\s+(\d+)\s+point/i)) {
                     const winMatch = trimmed.match(/Wins\s+(\d+)\s+point/i);
                     const points = parseInt(winMatch[1]);
+                    // Left column → player 1 (1st row), Right column → player 2 (2nd row)
+                    const player = isLeftColumn ? 1 : 2;
                     currentGame.winner = {
-                        player: parts.indexOf(part) === 0 ? 1 : 2,
+                        player,
                         points
                     };
                     continue;
@@ -168,7 +236,10 @@ export function parseMatchFile(content) {
                         isGala
                     };
                     
-                    if (parts.indexOf(part) === 0 || !moveEntry.player1Move) {
+                    // Assign based on column position in text file
+                    // Left column in text file → 1st row in UI (player1Move)
+                    // Right column in text file → 2nd row in UI (player2Move)
+                    if (isLeftColumn) {
                         moveEntry.player1Move = moveData;
                     } else {
                         moveEntry.player2Move = moveData;
