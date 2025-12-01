@@ -184,27 +184,51 @@ export function parseMatchFile(content) {
                 // Check for cube actions
                 if (trimmed.match(/Doubles\s*=>\s*(\d+)/i)) {
                     const cubeMatch = trimmed.match(/Doubles\s*=>\s*(\d+)/i);
-                    // Left column → player 1 (1st row), Right column → player 2 (2nd row)
+                    const cubeValue = parseInt(cubeMatch[1]);
+                    
+                    // Store cube action metadata only
                     const player = isLeftColumn ? 1 : 2;
                     moveEntry.cubeAction = {
                         player,
                         action: 'doubles',
-                        value: parseInt(cubeMatch[1]),
+                        value: cubeValue,
                         response: null
                     };
                     continue;
                 }
                 
                 if (trimmed.match(/Takes/i)) {
-                    if (moveEntry.cubeAction) {
-                        moveEntry.cubeAction.response = 'takes';
+                    // Takes is a cube response - store as a cube action on this move
+                    if (currentGame.moves.length > 0) {
+                        const prevMove = currentGame.moves[currentGame.moves.length - 1];
+                        if (prevMove.cubeAction) {
+                            // Create cube action showing the take response
+                            const player = isLeftColumn ? 1 : 2;
+                            moveEntry.cubeAction = {
+                                player,
+                                action: 'takes',
+                                value: prevMove.cubeAction.value,
+                                response: null
+                            };
+                        }
                     }
                     continue;
                 }
                 
                 if (trimmed.match(/Drops/i)) {
-                    if (moveEntry.cubeAction) {
-                        moveEntry.cubeAction.response = 'drops';
+                    // Drops is a cube response - store as a cube action on this move
+                    if (currentGame.moves.length > 0) {
+                        const prevMove = currentGame.moves[currentGame.moves.length - 1];
+                        if (prevMove.cubeAction) {
+                            // Create cube action showing the drop response
+                            const player = isLeftColumn ? 1 : 2;
+                            moveEntry.cubeAction = {
+                                player,
+                                action: 'drops',
+                                value: prevMove.cubeAction.value,
+                                response: null
+                            };
+                        }
                     }
                     continue;
                 }

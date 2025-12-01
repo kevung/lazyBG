@@ -189,9 +189,7 @@
             >
                 <td class="move-number">{row.player === 1 ? row.moveNumber : ''}</td>
                 <td class="dice-cell">
-                    {#if row.cubeAction && row.player === 1}
-                    <span class="empty"></span>
-                    {:else if row.cubeAction && row.player === 2}
+                    {#if row.cubeAction && row.cubeAction.player === row.player}
                     <span class="empty"></span>
                     {:else if row.moveData?.dice}
                     {row.moveData.dice}
@@ -200,10 +198,14 @@
                     {/if}
                 </td>
                 <td class="move-cell">
-                    {#if row.cubeAction && row.player === 1}
-                    <span class="cube-action">Doubles → {row.cubeAction.value}</span>
-                    {:else if row.cubeAction && row.player === 2}
-                    <span class="cube-response">{row.cubeAction.response}</span>
+                    {#if row.cubeAction && row.cubeAction.player === row.player}
+                        {#if row.cubeAction.action === 'doubles'}
+                        <span class="cube-action">Doubles → {row.cubeAction.value}</span>
+                        {:else if row.cubeAction.action === 'takes'}
+                        <span class="cube-response">Takes</span>
+                        {:else if row.cubeAction.action === 'drops'}
+                        <span class="cube-response">Drops</span>
+                        {/if}
                     {:else if row.moveData}
                     <span 
                         role="textbox"
