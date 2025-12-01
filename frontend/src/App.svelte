@@ -840,16 +840,8 @@
                 } else {
                     selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 1 });
                 }
-            } else if (gameIndex > 0) {
-                // Move to last move of previous game
-                const prevGame = $transcriptionStore.games[gameIndex - 1];
-                const lastMoveIndex = prevGame.moves.length - 1;
-                const lastMove = prevGame.moves[lastMoveIndex];
-                // Check if player 2 has something to show (move, cube action by player 2, or response to player 1's action)
-                const hasPlayer2Action = lastMove && (lastMove.player2Move || (lastMove.cubeAction && (lastMove.cubeAction.player === 2 || lastMove.cubeAction.response)));
-                const lastPlayer = hasPlayer2Action ? 2 : 1;
-                selectedMoveStore.set({ gameIndex: gameIndex - 1, moveIndex: lastMoveIndex, player: lastPlayer });
             }
+            // Stop at first move of current game - do not go to previous game
         }
     }
 
@@ -874,10 +866,8 @@
             } else if (moveIndex < game.moves.length - 1) {
                 // Move to next move (player 1)
                 selectedMoveStore.set({ gameIndex, moveIndex: moveIndex + 1, player: 1 });
-            } else if (gameIndex < $transcriptionStore.games.length - 1) {
-                // Move to first move of next game
-                selectedMoveStore.set({ gameIndex: gameIndex + 1, moveIndex: 0, player: 1 });
             }
+            // Stop at last move of current game - do not go to next game
         }
     }
 
