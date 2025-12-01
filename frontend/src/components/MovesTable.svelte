@@ -14,12 +14,20 @@
     let selectedGameIndex = 0;
     let editingMove = null;
     let editingField = null;
+    let tableWrapper;
+    let previousGameIndex = 0;
 
     $: games = $transcriptionStore?.games || [];
     $: selectedGameIndex = $selectedMoveStore?.gameIndex ?? 0;
     $: currentGame = games[selectedGameIndex];
     $: moves = currentGame?.moves || [];
     $: validation = $matchValidationStore;
+    
+    // Scroll to top when game changes
+    $: if (selectedGameIndex !== previousGameIndex && tableWrapper) {
+        tableWrapper.scrollTop = 0;
+        previousGameIndex = selectedGameIndex;
+    }
     
     // Flatten moves into individual player rows
     $: playerRows = moves.flatMap((move, mIdx) => [
@@ -177,7 +185,7 @@
 <div class="moves-table">
     <!-- Moves table -->
     {#if currentGame}
-    <div class="table-wrapper">
+    <div class="table-wrapper" bind:this={tableWrapper}>
     <table>
         <tbody>
             {#each playerRows as row, rowIdx}
