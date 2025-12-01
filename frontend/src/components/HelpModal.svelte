@@ -369,7 +369,7 @@
                             </tr>
                             <tr>
                                 <td>[number]</td>
-                                <td>Go to a specific move by index</td>
+                                <td>Go to a specific move number</td>
                             </tr>
                             <tr>
                                 <td>clear, cl</td>

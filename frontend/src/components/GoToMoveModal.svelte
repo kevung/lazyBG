@@ -1,33 +1,62 @@
 <script>
     import { onMount } from 'svelte';
-    import { positionsStore } from '../stores/positionStore'; // Import positionsStore
-    import { currentPositionIndexStore, statusBarModeStore } from '../stores/uiStore'; // Import currentPositionIndexStore and statusBarModeStore
+    import { selectedMoveStore, transcriptionStore } from '../stores/transcriptionStore';
+    import { statusBarModeStore } from '../stores/uiStore';
 
     export let visible = false;
     export let onClose;
 
-    let moveNumber = 0;
+    let moveNumber = 1;
     let inputField;
-    let maxMoveNumber = 0;
-    let currentIndex = 0;
+    let maxMoveNumber = 1;
+    let currentGameIndex = 0;
 
-    // Subscribe to positionsStore to get the number of moves
-    positionsStore.subscribe(value => {
-        maxMoveNumber = value.length;
-    });
-
-    // Subscribe to currentPositionIndexStore to get the current index
-    currentPositionIndexStore.subscribe(value => {
-        currentIndex = value + 1; // Adjust for 1-based index
-    });
+    // Calculate current move number and max based on current game
+    $: if ($transcriptionStore && $selectedMoveStore) {
+        currentGameIndex = $selectedMoveStore.gameIndex;
+        const game = $transcriptionStore.games[currentGameIndex];
+        
+        if (game && game.moves && game.moves.length > 0) {
+            // Max move number is the last move's moveNumber
+            const lastMove = game.moves[game.moves.length - 1];
+            maxMoveNumber = lastMove.moveNumber;
+            
+            // Current move number is from the selected move
+            const { moveIndex, player } = $selectedMoveStore;
+            const currentMove = game.moves[moveIndex];
+            if (currentMove) {
+                moveNumber = currentMove.moveNumber;
+            } else {
+                moveNumber = 1;
+            }
+        } else {
+            maxMoveNumber = 1;
+            moveNumber = 1;
+        }
+    }
 
     function handleGoToMove() {
-        if (moveNumber < 1) {
-            moveNumber = 1;
-        } else if (moveNumber > maxMoveNumber) {
-            moveNumber = maxMoveNumber;
+        let targetMoveNumber = moveNumber;
+        
+        // Clamp to valid range
+        if (targetMoveNumber < 1) {
+            targetMoveNumber = 1;
+        } else if (targetMoveNumber > maxMoveNumber) {
+            targetMoveNumber = maxMoveNumber;
         }
-        currentPositionIndexStore.set(moveNumber - 1); // Set the store value directly
+        
+        // Find the move with the target moveNumber
+        const game = $transcriptionStore.games[currentGameIndex];
+        if (game && game.moves && game.moves.length > 0) {
+            // Find the move index that matches the moveNumber
+            const moveIndex = game.moves.findIndex(m => m.moveNumber === targetMoveNumber);
+            
+            if (moveIndex !== -1) {
+                // Default to player 1
+                selectedMoveStore.set({ gameIndex: currentGameIndex, moveIndex, player: 1 });
+            }
+        }
+        
         onClose(); // Close the modal after going to the move
     }
 
@@ -41,7 +70,7 @@
 
     onMount(() => {
         if (visible && inputField) {
-            moveNumber = currentIndex; // Set moveNumber to currentIndex initially
+            // moveNumber is already calculated in reactive statement
             inputField.focus();
             inputField.select(); // Select the text to allow direct replacement
         }

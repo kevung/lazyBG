@@ -8,7 +8,7 @@
     export let onNextPosition;
     export let onNextGame;
     export let onLastPosition;
-    export let onGoToPosition;
+    export let onGoToMove;
     export let onToggleEditMode;
     export let onToggleCommandMode;
     export let onShowCandidateMoves;
@@ -88,12 +88,12 @@
         }
     }
 
-    function handleGoToPosition() {
+    function handleGoToMove() {
         if (statusBarMode !== 'NORMAL') {
-            console.error('Cannot go to position in current mode');
-            setStatusBarMessage('Cannot go to position in current mode');
+            console.error('Cannot go to move in current mode');
+            setStatusBarMessage('Cannot go to move in current mode');
         } else {
-            onGoToPosition();
+            onGoToMove();
         }
     }
 </script>
@@ -156,7 +156,7 @@
         </svg>
     </button>  
 
-    <button on:click|stopPropagation={handleGoToPosition} aria-label="Go To Move" title="Go To Move (Ctrl-K)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+    <button on:click|stopPropagation={handleGoToMove} aria-label="Go To Move" title="Go To Move (Ctrl-K)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
         </svg>

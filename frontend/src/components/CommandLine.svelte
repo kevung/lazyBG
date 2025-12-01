@@ -1,9 +1,10 @@
 <script>
    import { onMount, onDestroy } from 'svelte';
-   import { currentPositionIndexStore, commandTextStore, previousModeStore, statusBarModeStore, showCommandStore, statusBarTextStore } from '../stores/uiStore';
-   import { positionsStore } from '../stores/positionStore';
+   import { commandTextStore, previousModeStore, statusBarModeStore, showCommandStore, statusBarTextStore } from '../stores/uiStore';
    import { showMetadataModalStore } from '../stores/uiStore';
    import { commandHistoryStore } from '../stores/commandHistoryStore';
+   import { transcriptionStore, selectedMoveStore } from '../stores/transcriptionStore';
+   import { get } from 'svelte/store';
 
    export let onToggleHelp;
    export let onNewMatch;
@@ -12,10 +13,6 @@
    let inputEl;
 
    let initialized = false;
-
-   // Subscribe to the stores
-   let positions = [];
-   positionsStore.subscribe(value => positions = value);
 
    let commandHistory = [];
    let historyIndex = -1;
@@ -83,16 +80,32 @@
             }
             const match = command.match(/^(\d+)$/);
             if (match) {
-               const positionNumber = parseInt(match[1], 10);
-               let index;
-               if (positionNumber < 1) {
-                  index = 0;
-               } else if (positionNumber > positions.length) {
-                  index = positions.length - 1;
-               } else {
-                  index = positionNumber - 1;
+               let targetMoveNumber = parseInt(match[1], 10);
+               const transcription = get(transcriptionStore);
+               const currentSelectedMove = get(selectedMoveStore);
+               const currentGameIndex = currentSelectedMove.gameIndex;
+               
+               const game = transcription.games[currentGameIndex];
+               if (game && game.moves && game.moves.length > 0) {
+                  // Max move number is the last move's moveNumber
+                  const lastMove = game.moves[game.moves.length - 1];
+                  const maxMoveNumber = lastMove.moveNumber;
+                  
+                  // Clamp to valid range
+                  if (targetMoveNumber < 1) {
+                     targetMoveNumber = 1;
+                  } else if (targetMoveNumber > maxMoveNumber) {
+                     targetMoveNumber = maxMoveNumber;
+                  }
+                  
+                  // Find the move with the target moveNumber
+                  const moveIndex = game.moves.findIndex(m => m.moveNumber === targetMoveNumber);
+                  
+                  if (moveIndex !== -1) {
+                     // Default to player 1
+                     selectedMoveStore.set({ gameIndex: currentGameIndex, moveIndex, player: 1 });
+                  }
                }
-               currentPositionIndexStore.set(index);
             } else if (command === 'new' || command === 'ne' || command === 'n') {
                onNewMatch();
             } else if (command === 'open' || command === 'op' || command === 'o') {

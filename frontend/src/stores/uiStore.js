@@ -13,7 +13,7 @@ export const showMetadataPanelStore = writable(false);
 export const showCommandStore = writable(false);
 
 export const showHelpStore = writable(false);
-export const showGoToPositionModalStore = writable(false);
+export const showGoToMoveModalStore = writable(false);
 
 export const previousModeStore = writable('NORMAL');
 
@@ -25,7 +25,7 @@ export const isAnyModalOrPanelOpenStore = derived(
     showMetadataModalStore,
     showCommandStore,
     showHelpStore,
-    showGoToPositionModalStore,
+    showGoToMoveModalStore,
     showCandidateMovesStore,
     showMovesTableStore
   ],
@@ -33,7 +33,7 @@ export const isAnyModalOrPanelOpenStore = derived(
     showMetadataModal,
     showCommand,
     showHelp,
-    showGoToPositionModal,
+    showGoToMoveModal,
     showCandidateMoves,
     showMovesTable
   ]) => {
@@ -41,7 +41,7 @@ export const isAnyModalOrPanelOpenStore = derived(
       showMetadataModal ||
       showCommand ||
       showHelp ||
-      showGoToPositionModal ||
+      showGoToMoveModal ||
       showCandidateMoves ||
       showMovesTable
     );
@@ -51,19 +51,19 @@ export const isAnyModalOrPanelOpenStore = derived(
 export const isAnyModalOpenStore = derived(
   [
     showMetadataModalStore,
-    showGoToPositionModalStore,
+    showGoToMoveModalStore,
     showHelpStore,
     showCommandStore
   ],
   ([
     showMetadataModal,
-    showGoToPositionModal,
+    showGoToMoveModal,
     showHelp,
     showCommand
   ]) => {
     return (
       showMetadataModal ||
-      showGoToPositionModal ||
+      showGoToMoveModal ||
       showHelp ||
       showCommand
     );

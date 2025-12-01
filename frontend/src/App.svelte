@@ -39,7 +39,7 @@
         statusBarModeStore,
         showCommandStore,
         showHelpStore,
-        showGoToPositionModalStore,
+        showGoToMoveModalStore,
         showMetadataModalStore,
         showMetadataPanelStore,
         isAnyModalOpenStore,
@@ -78,7 +78,7 @@
     import CommandLine from './components/CommandLine.svelte';
     import StatusBar from './components/StatusBar.svelte';
     import HelpModal from './components/HelpModal.svelte';
-    import GoToPositionModal from './components/GoToPositionModal.svelte';
+    import GoToMoveModal from './components/GoToMoveModal.svelte';
     import MetadataModal from './components/MetadataModal.svelte';
     import MetadataPanel from './components/MetadataPanel.svelte';
     import MovesTable from './components/MovesTable.svelte';
@@ -90,7 +90,7 @@
     // Visibility variables
     let showCommand = false;
     let showHelp = false;
-    let showGoToPositionModal = false;
+    let showGoToMoveModal = false;
     let applicationVersion = '';
     let showMetadataModal = false;
     let showMetadataPanel = false;
@@ -205,8 +205,8 @@
         showHelp = value;
     });
 
-    showGoToPositionModalStore.subscribe(value => {
-        showGoToPositionModal = value;
+    showGoToMoveModalStore.subscribe(value => {
+        showGoToMoveModal = value;
     });
 
     showMetadataModalStore.subscribe(value => {
@@ -580,7 +580,7 @@
             event.preventDefault();
             lastMoveOfCurrentGame();
         } else if(event.ctrlKey && event.code == 'KeyK') {
-            gotoPosition();
+            gotoMove();
         } else if(!event.ctrlKey && event.code === 'Tab') {
             toggleEditMode();
         } else if (!event.ctrlKey && event.code === 'Space') {        
@@ -957,16 +957,16 @@
         }
     }
 
-    function gotoPosition() {
+    function gotoMove() {
         if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
             setStatusBarMessage('No transcription opened');
             return;
         }
         if ($statusBarModeStore !== 'NORMAL') {
-            setStatusBarMessage('Cannot go to position in current mode');
+            setStatusBarMessage('Cannot go to move in current mode');
             return;
         }
-        showGoToPositionModalStore.set(true);
+        showGoToMoveModalStore.set(true);
     }
 
     function toggleEditMode() {
@@ -1077,7 +1077,7 @@
         onNextPosition={nextPosition}
         onNextGame={nextGame}
         onLastPosition={lastPosition}
-        onGoToPosition={gotoPosition}
+        onGoToMove={gotoMove}
         onToggleEditMode={toggleEditMode}
         onToggleCommandMode={() => showCommandStore.set(true)}
         onToggleMovesPanel={() => showMovesTableStore.update(v => !v)}
@@ -1121,9 +1121,9 @@
     </div>
     {/if}
 
-    <GoToPositionModal
-        visible={showGoToPositionModal}
-        onClose={() => showGoToPositionModalStore.set(false)}
+    <GoToMoveModal
+        visible={showGoToMoveModal}
+        onClose={() => showGoToMoveModalStore.set(false)}
     />
 
     <MetadataModal
