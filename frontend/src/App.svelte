@@ -106,6 +106,10 @@
     let commandInput;
     let currentPositionIndex = 0;
     let positions = [];
+    
+    // Vim-like navigation state
+    let lastGKeyTime = 0;
+    const GG_TIMEOUT = 500; // milliseconds to wait for second 'g'
 
     // Declare functions before subscriptions that use them
     export function setStatusBarMessage(message) {
@@ -561,6 +565,20 @@
             nextGame();
         } else if (!event.ctrlKey && event.key === 'l') {
             nextGame();
+        } else if (!event.ctrlKey && !event.shiftKey && event.key === 'g') {
+            // Vim-like 'gg' - go to first move of current game
+            const currentTime = Date.now();
+            if (currentTime - lastGKeyTime < GG_TIMEOUT) {
+                event.preventDefault();
+                firstMoveOfCurrentGame();
+                lastGKeyTime = 0; // Reset
+            } else {
+                lastGKeyTime = currentTime;
+            }
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'G') {
+            // Vim-like 'G' - go to last move of current game
+            event.preventDefault();
+            lastMoveOfCurrentGame();
         } else if(event.ctrlKey && event.code == 'KeyK') {
             gotoPosition();
         } else if(!event.ctrlKey && event.code === 'Tab') {
@@ -799,6 +817,40 @@
         // Navigate to first move of first game in transcription
         if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
             selectedMoveStore.set({ gameIndex: 0, moveIndex: 0, player: 1 });
+        }
+    }
+
+    function firstMoveOfCurrentGame() {
+        if ($statusBarModeStore === 'EDIT') {
+            setStatusBarMessage('Cannot browse positions in edit mode');
+            return;
+        }
+        
+        // Navigate to first move of current game
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const { gameIndex } = $selectedMoveStore;
+            selectedMoveStore.set({ gameIndex, moveIndex: 0, player: 1 });
+        }
+    }
+
+    function lastMoveOfCurrentGame() {
+        if ($statusBarModeStore === 'EDIT') {
+            setStatusBarMessage('Cannot browse positions in edit mode');
+            return;
+        }
+        
+        // Navigate to last move of current game
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const { gameIndex } = $selectedMoveStore;
+            const game = $transcriptionStore.games[gameIndex];
+            if (game && game.moves.length > 0) {
+                const lastMoveIndex = game.moves.length - 1;
+                const lastMove = game.moves[lastMoveIndex];
+                // Check if player 2 has something to show (move or cube action)
+                const hasPlayer2Action = lastMove && (lastMove.player2Move || (lastMove.cubeAction && lastMove.cubeAction.player === 2));
+                const lastPlayer = hasPlayer2Action ? 2 : 1;
+                selectedMoveStore.set({ gameIndex, moveIndex: lastMoveIndex, player: lastPlayer });
+            }
         }
     }
 
