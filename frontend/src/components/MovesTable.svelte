@@ -16,6 +16,7 @@
     let editingField = null;
 
     $: games = $transcriptionStore?.games || [];
+    $: selectedGameIndex = $selectedMoveStore?.gameIndex ?? 0;
     $: currentGame = games[selectedGameIndex];
     $: moves = currentGame?.moves || [];
     $: validation = $matchValidationStore;

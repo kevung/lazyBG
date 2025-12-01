@@ -2,9 +2,11 @@
     export let onNewMatch;
     export let onOpenMatch;
     export let onExit;
+    export let onPreviousGame;
     export let onFirstPosition;
     export let onPreviousPosition;
     export let onNextPosition;
+    export let onNextGame;
     export let onLastPosition;
     export let onGoToPosition;
     export let onToggleEditMode;
@@ -32,6 +34,15 @@
         statusBarTextStore.set(message);
     }
 
+    function handlePreviousGame() {
+        if (statusBarMode === 'EDIT') {
+            console.error('Cannot browse positions in edit mode');
+            setStatusBarMessage('Cannot browse positions in edit mode');
+        } else {
+            onPreviousGame();
+        }
+    }
+
     function handleFirstPosition() {
         if (statusBarMode === 'EDIT') {
             console.error('Cannot browse positions in edit mode');
@@ -56,6 +67,15 @@
             setStatusBarMessage('Cannot browse positions in edit mode');
         } else {
             onNextPosition();
+        }
+    }
+
+    function handleNextGame() {
+        if (statusBarMode === 'EDIT') {
+            console.error('Cannot browse positions in edit mode');
+            setStatusBarMessage('Cannot browse positions in edit mode');
+        } else {
+            onNextGame();
         }
     }
 
@@ -101,7 +121,7 @@
     <button on:click|stopPropagation={onShowMetadata} aria-label="Transcription Metadata" title="Transcription Metadata (Ctrl-M)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-          </svg>
+        </svg>
     </button>
 
     <button on:click|stopPropagation={onSwapPlayers} aria-label="Swap Players" title="Swap Player 1 and Player 2">
@@ -112,7 +132,7 @@
 
     <div class="separator"></div>
 
-    <button on:click|stopPropagation={handleFirstPosition} aria-label="Previous Game" title="Previous Game (First Move) (PageUp, h)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={handlePreviousGame} aria-label="Previous Game" title="Previous Game (First Move) (PageUp, h)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
         </svg>
@@ -130,7 +150,7 @@
         </svg>
     </button>
 
-    <button on:click|stopPropagation={handleLastPosition} aria-label="Next Game" title="Next Game (First Move) (PageDown, l)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={handleNextGame} aria-label="Next Game" title="Next Game (First Move) (PageDown, l)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
         </svg>

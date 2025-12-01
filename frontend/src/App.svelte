@@ -353,9 +353,9 @@
             exitApp();
         } else if (!event.ctrlKey && event.key === 'PageUp') {
             event.preventDefault();
-            firstPosition();
+            previousGame();
         } else if (!event.ctrlKey && event.key === 'h') {
-            firstPosition();
+            previousGame();
         } else if (!event.ctrlKey && event.key === 'ArrowLeft') {
             event.preventDefault();
             previousPosition();
@@ -368,9 +368,9 @@
             nextPosition();
         } else if (!event.ctrlKey && event.key === 'PageDown') {
             event.preventDefault();
-            lastPosition();
+            nextGame();
         } else if (!event.ctrlKey && event.key === 'l') {
-            lastPosition();
+            nextGame();
         } else if(event.ctrlKey && event.code == 'KeyK') {
             gotoPosition();
         } else if(!event.ctrlKey && event.code === 'Tab') {
@@ -579,6 +579,21 @@
         }
     }
 
+    function previousGame() {
+        if ($statusBarModeStore === 'EDIT') {
+            setStatusBarMessage('Cannot browse positions in edit mode');
+            return;
+        }
+        
+        // Navigate to first move of previous game
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const { gameIndex } = $selectedMoveStore;
+            if (gameIndex > 0) {
+                selectedMoveStore.set({ gameIndex: gameIndex - 1, moveIndex: 0, player: 1 });
+            }
+        }
+    }
+
     function previousPosition() {
         if ($statusBarModeStore === 'EDIT') {
             setStatusBarMessage('Cannot browse positions in edit mode');
@@ -631,6 +646,21 @@
                 selectedMoveStore.set({ gameIndex, moveIndex: moveIndex + 1, player: 1 });
             } else if (gameIndex < $transcriptionStore.games.length - 1) {
                 // Move to first move of next game
+                selectedMoveStore.set({ gameIndex: gameIndex + 1, moveIndex: 0, player: 1 });
+            }
+        }
+    }
+
+    function nextGame() {
+        if ($statusBarModeStore === 'EDIT') {
+            setStatusBarMessage('Cannot browse positions in edit mode');
+            return;
+        }
+        
+        // Navigate to first move of next game
+        if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
+            const { gameIndex } = $selectedMoveStore;
+            if (gameIndex < $transcriptionStore.games.length - 1) {
                 selectedMoveStore.set({ gameIndex: gameIndex + 1, moveIndex: 0, player: 1 });
             }
         }
@@ -767,9 +797,11 @@
         onNewMatch={newMatch}
         onOpenMatch={loadMatchFromText}
         onExit={exitApp}
+        onPreviousGame={previousGame}
         onFirstPosition={firstPosition}
         onPreviousPosition={previousPosition}
         onNextPosition={nextPosition}
+        onNextGame={nextGame}
         onLastPosition={lastPosition}
         onGoToPosition={gotoPosition}
         onToggleEditMode={toggleEditMode}
