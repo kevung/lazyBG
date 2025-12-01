@@ -52,6 +52,7 @@
 
     // import transcription stores and utils
     import {
+        LAZYBG_VERSION,
         transcriptionStore,
         selectedMoveStore,
         transcriptionFilePathStore,
@@ -63,6 +64,7 @@
         swapPlayers
     } from './stores/transcriptionStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
+    import { checkCompatibility, migrateTranscription, validateTranscription } from './utils/versionUtils.js';
     import { 
         createInitialPosition, 
         calculatePositionAtMove,
@@ -544,14 +546,47 @@
             } else if (filePath.endsWith('.lbg')) {
                 // Load .lbg JSON file using backend
                 const jsonContent = await ReadTextFile(filePath);
-                const transcription = JSON.parse(jsonContent);
+                let transcription = JSON.parse(jsonContent);
+                
+                // Handle version compatibility
+                const fileVersion = transcription.version || '1.0.0';
+                const compatibility = checkCompatibility(fileVersion, LAZYBG_VERSION);
+                
+                if (!compatibility.compatible) {
+                    setStatusBarMessage(compatibility.message);
+                    await ShowAlert(compatibility.message);
+                    return;
+                }
+                
+                // Add version if missing (backward compatibility)
+                if (!transcription.version) {
+                    console.warn('File missing version field, adding v1.0.0');
+                    transcription.version = '1.0.0';
+                }
+                
+                // Migrate if necessary
+                if (compatibility.needsMigration) {
+                    console.log(compatibility.message);
+                    transcription = migrateTranscription(transcription, LAZYBG_VERSION);
+                }
+                
+                // Validate structure
+                const validation = validateTranscription(transcription);
+                if (!validation.valid) {
+                    const errorMsg = 'Invalid file structure: ' + validation.errors.join(', ');
+                    setStatusBarMessage(errorMsg);
+                    await ShowAlert(errorMsg);
+                    return;
+                }
                 
                 clearTranscription();
                 transcriptionStore.set(transcription);
                 transcriptionFilePathStore.set(filePath);
                 
                 WindowSetTitle(`lazyBG - ${getFilenameFromPath(filePath)}`);
-                setStatusBarMessage('Transcription loaded successfully');
+                const versionMsg = compatibility.needsMigration ? 
+                    ` (migrated from v${fileVersion})` : '';
+                setStatusBarMessage(`Transcription loaded successfully${versionMsg}`);
             }
             
         } catch (error) {

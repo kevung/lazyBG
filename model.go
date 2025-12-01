@@ -53,6 +53,12 @@ type TranscriptionMetadata struct {
 	MatchLength int    `json:"matchLength"`
 }
 
+type Transcription struct {
+	Version  string                `json:"version"`
+	Metadata TranscriptionMetadata `json:"metadata"`
+	Games    []TranscriptionGame   `json:"games"`
+}
+
 type MoveData struct {
 	Dice      string `json:"dice"`
 	Move      string `json:"move"`
@@ -85,11 +91,6 @@ type TranscriptionGame struct {
 	Player2Score int                 `json:"player2Score"`
 	Moves        []TranscriptionMove `json:"moves"`
 	Winner       *GameWinner         `json:"winner,omitempty"`
-}
-
-type Transcription struct {
-	Metadata TranscriptionMetadata `json:"metadata"`
-	Games    []TranscriptionGame   `json:"games"`
 }
 
 type Point struct {

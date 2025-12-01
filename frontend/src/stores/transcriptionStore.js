@@ -1,7 +1,11 @@
 import { writable, derived } from 'svelte/store';
 
+// LazyBG file format version
+export const LAZYBG_VERSION = '1.0.0';
+
 // Structure d'une transcription complète
 export const transcriptionStore = writable({
+    version: LAZYBG_VERSION,
     metadata: {
         site: '',
         matchId: '',
@@ -265,6 +269,7 @@ export function swapPlayers() {
 
 export function clearTranscription() {
     transcriptionStore.set({
+        version: LAZYBG_VERSION,
         metadata: {
             site: '',
             matchId: '',

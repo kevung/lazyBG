@@ -1,9 +1,11 @@
 // Parser pour les fichiers de match au format texte
+import { LAZYBG_VERSION } from '../stores/transcriptionStore.js';
 
 export function parseMatchFile(content) {
     const lines = content.split('\n').map(line => line.trim());
     
     const transcription = {
+        version: LAZYBG_VERSION,
         metadata: {
             site: '',
             matchId: '',
@@ -330,7 +332,21 @@ export function serializeTranscription(transcription) {
 
 export function deserializeTranscription(jsonString) {
     try {
-        return JSON.parse(jsonString);
+        const transcription = JSON.parse(jsonString);
+        
+        // Add version field if missing (backward compatibility)
+        if (!transcription.version) {
+            console.warn('Loading file without version field. Assuming version 1.0.0');
+            transcription.version = '1.0.0';
+        }
+        
+        // Future version migration logic can go here
+        // Example:
+        // if (compareVersions(transcription.version, '2.0.0') < 0) {
+        //     transcription = migrateToV2(transcription);
+        // }
+        
+        return transcription;
     } catch (e) {
         console.error('Error parsing transcription:', e);
         return null;
