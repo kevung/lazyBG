@@ -15,28 +15,34 @@
   
   function getMatchInfo(transcription, selectedMove) {
     if (!transcription || transcription.games.length === 0) {
-      return { gameNumber: 0, score: '0-0', matchLength: 0 };
+      return { moveNumber: 0, totalMoves: 0, gameNumber: 0, totalGames: 0 };
     }
     
     const gameIndex = selectedMove?.gameIndex || 0;
+    const moveIndex = selectedMove?.moveIndex || 0;
+    const player = selectedMove?.player || 1;
     const game = transcription.games[gameIndex];
     
-    // Calculate cumulative match score
-    let player1MatchScore = 0;
-    let player2MatchScore = 0;
+    // Get the move number from the move entry
+    let currentMoveNumber = 0;
+    let totalMoves = 0;
     
-    for (let i = 0; i < transcription.games.length; i++) {
-      const g = transcription.games[i];
-      if (g.winner) {
-        if (g.winner.player === 1) player1MatchScore += g.winner.points;
-        else if (g.winner.player === 2) player2MatchScore += g.winner.points;
+    if (game && game.moves && game.moves[moveIndex]) {
+      // The move number is stored in the move entry
+      currentMoveNumber = game.moves[moveIndex].moveNumber || (moveIndex + 1);
+      
+      // Total moves is the last move number in the game
+      if (game.moves.length > 0) {
+        const lastMove = game.moves[game.moves.length - 1];
+        totalMoves = lastMove.moveNumber || game.moves.length;
       }
     }
     
     return {
-      gameNumber: game?.gameNumber || 1,
-      score: `${player1MatchScore}-${player2MatchScore}`,
-      matchLength: transcription.metadata?.matchLength || 0
+      moveNumber: currentMoveNumber,
+      totalMoves: totalMoves,
+      gameNumber: gameIndex + 1,
+      totalGames: transcription.games.length
     };
   }
   
@@ -134,16 +140,9 @@
 <div class="status-bar">
   <span class="mode">{$statusBarModeStore}</span>
   <div class="separator"></div>
-  {#if matchInfo.matchLength > 0}
-  <span class="match-info">
-    <span class="game-nav">Game {matchInfo.gameNumber}</span>
-     | Score: {matchInfo.score} | {matchInfo.matchLength}pt match
-  </span>
-  <div class="separator"></div>
-  {/if}
   <span class="info-message">{$statusBarTextStore}</span>
   <div class="separator"></div>
-  <span class="position">{$positionsStore.length > 0 ? $currentPositionIndexStore + 1 : 0} / {$positionsStore.length}</span>
+  <span class="position">{matchInfo.moveNumber}/{matchInfo.totalMoves} {matchInfo.gameNumber}/{matchInfo.totalGames}</span>
 </div>
 
 <style>
@@ -167,12 +166,6 @@
       text-align: center;
       justify-content: center;
   }
-
-  .match-info {
-      font-weight: 600;
-      color: #333;
-      margin: 0 8px;
-  }
   
   .info-message {
       flex: 1; /* Allow this to expand and take available space */
@@ -181,7 +174,7 @@
   }
 
   .position {
-      width: 80px; /* Fixed width for position */
+      width: 100px; /* Fixed width for position */
       text-align: center;
       justify-content: center;
   }
