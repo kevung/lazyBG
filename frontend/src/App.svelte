@@ -1147,7 +1147,6 @@
         onShowCandidateMoves={toggleCandidateMovesPanel}
         onToggleHelp={toggleHelpModal}
         onShowMetadata={toggleMetadataModal}
-        onSwapPlayers={swapPlayers}
     />
 
     <div class="transcription-layout">

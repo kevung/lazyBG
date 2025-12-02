@@ -15,7 +15,7 @@
     export let onShowCandidateMoves;
     export let onToggleHelp;
     export let onShowMetadata;
-    export let onSwapPlayers;
+    // export let onSwapPlayers; // Temporarily disabled
     export let onToggleMovesPanel;
 
     import { statusBarModeStore, statusBarTextStore, showInitialPositionStore } from '../stores/uiStore';
@@ -129,11 +129,13 @@
         </svg>
     </button>
 
+    <!-- Temporarily disabled: Swap Players functionality
     <button on:click|stopPropagation={onSwapPlayers} aria-label="Swap Players" title="Swap Player 1 and Player 2">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
         </svg>
     </button>
+    -->
 
     <div class="separator"></div>
 
