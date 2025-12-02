@@ -609,6 +609,10 @@
             gotoMove();
         } else if(!event.ctrlKey && event.code === 'Tab') {
             event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
             toggleEditMode();
         } else if (!event.ctrlKey && event.code === 'Space') {        
             event.preventDefault();
@@ -1014,6 +1018,10 @@
     function toggleEditMode() {
         console.log('toggleEditMode');
         if ($statusBarModeStore !== "EDIT") {
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
             previousModeStore.set($statusBarModeStore);
             statusBarModeStore.set('EDIT');
         } else {
