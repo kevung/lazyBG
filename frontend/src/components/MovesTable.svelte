@@ -248,7 +248,6 @@
                     {:else if row.moveData}
                     <span 
                         role="textbox"
-                        tabindex="0"
                         contenteditable={editingMove?.gameIndex === row.gameIndex && editingMove?.moveIndex === row.moveIndex && editingMove?.player === row.player}
                         on:dblclick={() => { editingMove = { gameIndex: row.gameIndex, moveIndex: row.moveIndex, player: row.player }; }}
                         on:blur={(e) => finishEdit(e, row.gameIndex, row.moveIndex, row.player)}

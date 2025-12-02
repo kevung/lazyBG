@@ -608,6 +608,7 @@
         } else if(event.ctrlKey && event.code == 'KeyK') {
             gotoMove();
         } else if(!event.ctrlKey && event.code === 'Tab') {
+            event.preventDefault();
             toggleEditMode();
         } else if (!event.ctrlKey && event.code === 'Space') {        
             event.preventDefault();
@@ -618,14 +619,26 @@
             toggleHelpModal();
         } else if (event.ctrlKey && event.code === 'KeyM') {
             event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
             showMetadataPanelStore.update(v => !v);
         } else if (event.ctrlKey && event.code === 'KeyI') {
             loadMatchFromText();
         } else if (event.ctrlKey && event.code === 'KeyP') {
             event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
             showMovesTableStore.update(v => !v);
         } else if (event.ctrlKey && event.code === 'KeyL') {
             event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
             showCandidateMovesStore.update(v => !v);
         } else if (!event.ctrlKey && event.key === 'p') {
             event.preventDefault();
@@ -1016,16 +1029,28 @@
     function toggleMetadataModal() {
         if (mode === 'EDIT') {
             setStatusBarMessage('Cannot show metadata modal in edit mode');
-        } else {
-            showMetadataModalStore.set(!showMetadataModal);
+            return;
         }
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        showMetadataModalStore.set(!showMetadataModal);
     }
 
     function toggleMovesTable() {
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
         showMovesTableStore.set(!showMovesTable);
     }
 
     function toggleCandidateMovesPanel() {
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
         showCandidateMovesStore.set(!$showCandidateMovesStore);
     }
 
