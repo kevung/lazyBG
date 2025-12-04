@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 
 // LazyBG file format version
 export const LAZYBG_VERSION = '1.0.0';
@@ -48,6 +48,10 @@ export const invertColorsStore = writable(false);
 
 // Cache des positions calculées pour optimisation
 export const positionsCacheStore = writable({});
+
+// Store pour les incohérences détectées dans les coups
+// Format: { gameIndex: { moveIndex: { player: 1|2, reason: string } } }
+export const moveInconsistenciesStore = writable({});
 
 // Derived store: validation du match
 export const matchValidationStore = derived(
@@ -211,7 +215,7 @@ export function setGameWinner(gameIndex, player, points) {
     });
 }
 
-export function invalidatePositionsCacheFrom(gameIndex, moveIndex) {
+export async function invalidatePositionsCacheFrom(gameIndex, moveIndex) {
     positionsCacheStore.update(cache => {
         const newCache = {};
         for (const key in cache) {
@@ -222,6 +226,153 @@ export function invalidatePositionsCacheFrom(gameIndex, moveIndex) {
         }
         return newCache;
     });
+    
+    // Auto-correct hit markers in subsequent moves
+    await autoCorrectHitMarkers(gameIndex, moveIndex);
+    
+    // Recalculate inconsistencies for affected game starting from moveIndex
+    validateGameInconsistencies(gameIndex, moveIndex);
+}
+
+/**
+ * Auto-correct hit markers (*) in moves based on actual position
+ * Recalculates which moves actually cause hits and updates notation
+ */
+export async function autoCorrectHitMarkers(gameIndex, startMoveIndex = 0) {
+    try {
+        const { 
+            createInitialPosition, 
+            applyMove, 
+            removeHitMarker, 
+            addHitMarker 
+        } = await import('../utils/positionCalculator.js');
+        
+        const transcription = get(transcriptionStore);
+        
+        if (!transcription || !transcription.games || !transcription.games[gameIndex]) {
+            return;
+        }
+        
+        const game = transcription.games[gameIndex];
+        let position = createInitialPosition();
+        
+        // Build position up to startMoveIndex
+        for (let i = 0; i < startMoveIndex && i < game.moves.length; i++) {
+            const move = game.moves[i];
+            
+            if (move.player1Move && move.player1Move.move && 
+                move.player1Move.move !== 'Cannot Move' && 
+                move.player1Move.move !== '????') {
+                const cleanMove = removeHitMarker(move.player1Move.move);
+                const result = applyMove(position, cleanMove, true);
+                position = result.position;
+            }
+            
+            if (move.player2Move && move.player2Move.move &&
+                move.player2Move.move !== 'Cannot Move' && 
+                move.player2Move.move !== '????') {
+                const cleanMove = removeHitMarker(move.player2Move.move);
+                const result = applyMove(position, cleanMove, false);
+                position = result.position;
+            }
+        }
+        
+        // Auto-correct moves from startMoveIndex onwards
+        transcriptionStore.update(t => {
+            const currentGame = t.games[gameIndex];
+            
+            for (let i = startMoveIndex; i < currentGame.moves.length; i++) {
+                const move = currentGame.moves[i];
+                
+                // Check and correct player1's move
+                if (move.player1Move && move.player1Move.move && 
+                    move.player1Move.move !== 'Cannot Move' && 
+                    move.player1Move.move !== '????') {
+                    
+                    const cleanMove = removeHitMarker(move.player1Move.move);
+                    const result = applyMove(position, cleanMove, true);
+                    
+                    // Update notation based on actual hit segments
+                    const correctNotation = result.hasHit 
+                        ? addHitMarker(cleanMove, result.hitSegments) 
+                        : cleanMove;
+                    if (correctNotation !== move.player1Move.move) {
+                        move.player1Move.move = correctNotation;
+                    }
+                    
+                    position = result.position;
+                }
+                
+                // Check and correct player2's move
+                if (move.player2Move && move.player2Move.move &&
+                    move.player2Move.move !== 'Cannot Move' && 
+                    move.player2Move.move !== '????') {
+                    
+                    const cleanMove = removeHitMarker(move.player2Move.move);
+                    const result = applyMove(position, cleanMove, false);
+                    
+                    // Update notation based on actual hit segments
+                    const correctNotation = result.hasHit 
+                        ? addHitMarker(cleanMove, result.hitSegments) 
+                        : cleanMove;
+                    if (correctNotation !== move.player2Move.move) {
+                        move.player2Move.move = correctNotation;
+                    }
+                    
+                    position = result.position;
+                }
+            }
+            
+            return t;
+        });
+    } catch (error) {
+        console.error('Error auto-correcting hit markers:', error);
+    }
+}
+
+export async function validateGameInconsistencies(gameIndex, startMoveIndex = 0) {
+    try {
+        const { validateGamePositions } = await import('../utils/positionCalculator.js');
+        const transcription = get(transcriptionStore);
+        
+        if (!transcription || !transcription.games || !transcription.games[gameIndex]) {
+            return;
+        }
+        
+        const game = transcription.games[gameIndex];
+        const inconsistencies = validateGamePositions(game, startMoveIndex);
+        
+        moveInconsistenciesStore.update(store => {
+            // Keep existing inconsistencies before startMoveIndex
+            const existingInconsistencies = store[gameIndex] || {};
+            const preservedInconsistencies = {};
+            
+            // Preserve inconsistencies from before startMoveIndex
+            for (const key in existingInconsistencies) {
+                const [moveIdx] = key.split('-').map(Number);
+                if (moveIdx < startMoveIndex) {
+                    preservedInconsistencies[key] = existingInconsistencies[key];
+                }
+            }
+            
+            // Add new inconsistencies from startMoveIndex onwards
+            for (const inc of inconsistencies) {
+                const key = `${inc.moveIndex}-${inc.player}`;
+                preservedInconsistencies[key] = inc;
+            }
+            
+            if (Object.keys(preservedInconsistencies).length === 0) {
+                // Remove all inconsistencies for this game if none left
+                delete store[gameIndex];
+            } else {
+                store[gameIndex] = preservedInconsistencies;
+            }
+            
+            return store;
+        });
+    } catch (error) {
+        console.error('Error validating game inconsistencies:', error);
+    }
 }
 
 export function updateMetadata(metadata) {
@@ -291,4 +442,5 @@ export function clearTranscription() {
     selectedMoveStore.set({ gameIndex: 0, moveIndex: 0, player: 1 });
     transcriptionFilePathStore.set('');
     positionsCacheStore.set({});
+    moveInconsistenciesStore.set({});
 }

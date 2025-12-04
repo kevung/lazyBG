@@ -84,6 +84,7 @@
     import MetadataPanel from './components/MetadataPanel.svelte';
     import MovesTable from './components/MovesTable.svelte';
     import CandidateMovesPanel from './components/CandidateMovesPanel.svelte';
+    import EditMovePanel from './components/EditMovePanel.svelte';
 
     // Debug logging
     console.log('App.svelte: Script starting to execute');
@@ -354,7 +355,8 @@
                                 if (player === 1) {
                                     // Apply player1's move if it exists and we want final position
                                     if (!showInitialPosition && move.player1Move && move.player1Move.move) {
-                                        position = applyMove(position, move.player1Move.move, true);
+                                        const result = applyMove(position, move.player1Move.move, true);
+                                        position = result.position;
                                     }
                                     // Process cube action if player 1 made it (only if not showing initial position for player 1)
                                     if (!showInitialPosition && move.cubeAction && move.cubeAction.player === 1) {
@@ -420,11 +422,13 @@
                                     }
                                     // Then apply player1's move (it happened before player2's move)
                                     if (move.player1Move && move.player1Move.move) {
-                                        position = applyMove(position, move.player1Move.move, true);
+                                        const result1 = applyMove(position, move.player1Move.move, true);
+                                        position = result1.position;
                                     }
                                     // Then apply player2's move (unless showing initial position)
                                     if (!showInitialPosition && move.player2Move && move.player2Move.move) {
-                                        position = applyMove(position, move.player2Move.move, false);
+                                        const result2 = applyMove(position, move.player2Move.move, false);
+                                        position = result2.position;
                                     }
                                     // Process cube action if player 2 made it (only if not showing initial position)
                                     if (!showInitialPosition && move.cubeAction && move.cubeAction.player === 2) {
@@ -446,10 +450,12 @@
                             } else if (i < moveIndex) {
                                 // For moves before the selected one, apply both players' moves
                                 if (move.player1Move && move.player1Move.move) {
-                                    position = applyMove(position, move.player1Move.move, true);
+                                    const result = applyMove(position, move.player1Move.move, true);
+                                    position = result.position;
                                 }
                                 if (move.player2Move && move.player2Move.move) {
-                                    position = applyMove(position, move.player2Move.move, false);
+                                    const result = applyMove(position, move.player2Move.move, false);
+                                    position = result.position;
                                 }
                             }
                             
@@ -577,13 +583,19 @@
         } else if (!event.ctrlKey && event.key === 'h') {
             previousGame();
         } else if (!event.ctrlKey && event.key === 'ArrowLeft') {
-            event.preventDefault();
-            previousPosition();
+            // Don't intercept if in EDIT mode (allow cursor movement in input fields)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                previousPosition();
+            }
         } else if (!event.ctrlKey && event.key === 'k') {
             previousPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowRight') {
-            event.preventDefault();
-            nextPosition();
+            // Don't intercept if in EDIT mode (allow cursor movement in input fields)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                nextPosition();
+            }
         } else if (!event.ctrlKey && event.key === 'j') {
             nextPosition();
         } else if (!event.ctrlKey && event.key === 'PageDown') {
@@ -614,9 +626,12 @@
                 return;
             }
             toggleEditMode();
-        } else if (!event.ctrlKey && event.code === 'Space') {        
-            event.preventDefault();
-            showCommandStore.set(true); // Show command line
+        } else if (!event.ctrlKey && event.code === 'Space') {
+            // Don't open command mode if in EDIT mode (allow space in input fields)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                showCommandStore.set(true); // Show command line
+            }
         } else if (event.ctrlKey && event.code === 'KeyH') {
             toggleHelpModal();
         } else if (!event.ctrlKey && event.key === '?') {
@@ -1206,6 +1221,8 @@
         onClose={toggleHelpModal}
         handleGlobalKeydown={handleKeyDown}
     />
+
+    <EditMovePanel />
 
     <StatusBar />
 

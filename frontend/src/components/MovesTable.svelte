@@ -3,6 +3,7 @@
         transcriptionStore, 
         selectedMoveStore, 
         matchValidationStore,
+        moveInconsistenciesStore,
         insertMoveBefore,
         insertMoveAfter,
         deleteMove,
@@ -22,6 +23,7 @@
     $: currentGame = games[selectedGameIndex];
     $: moves = currentGame?.moves || [];
     $: validation = $matchValidationStore;
+    $: gameInconsistencies = $moveInconsistenciesStore?.[selectedGameIndex] || {};
     
     // Scroll to top when game changes
     $: if (selectedGameIndex !== previousGameIndex && tableWrapper) {
@@ -192,14 +194,26 @@
         return moveData.move || '-';
     }
 
-    function getMoveClass(moveData) {
+    function getMoveClass(moveData, moveIndex, player) {
         if (!moveData) return '';
         const classes = [];
+        
+        // Check for inconsistencies first (highest priority)
+        const inconsistencyKey = `${moveIndex}-${player}`;
+        if (gameInconsistencies[inconsistencyKey]) {
+            classes.push('inconsistent');
+        }
+        
         // Don't highlight "Cannot Move"
-        if (moveData.move === 'Cannot Move') return '';
+        if (moveData.move === 'Cannot Move') return classes.join(' ');
         if (moveData.isIllegal) classes.push('illegal');
         if (moveData.isGala) classes.push('gala');
         return classes.join(' ');
+    }
+    
+    function hasInconsistency(moveIndex, player) {
+        const inconsistencyKey = `${moveIndex}-${player}`;
+        return gameInconsistencies[inconsistencyKey];
     }
 </script>
 
@@ -217,8 +231,9 @@
                 class:selected={$selectedMoveStore?.gameIndex === row.gameIndex && $selectedMoveStore?.moveIndex === row.moveIndex && $selectedMoveStore?.player === row.player}
                 class:player1={row.player === 1}
                 class:player2={row.player === 2}
-                class={getMoveClass(row.moveData)}
+                class={getMoveClass(row.moveData, row.moveIndex, row.player)}
                 on:click={() => selectMove(row.gameIndex, row.moveIndex, row.player)}
+                title={hasInconsistency(row.moveIndex, row.player) ? hasInconsistency(row.moveIndex, row.player).reason : ''}
             >
                 <td class="move-number">{row.player === 1 ? row.moveNumber : ''}</td>
                 <td class="dice-cell">
@@ -325,6 +340,26 @@
 
     tr.gala {
         background-color: #fff3cd;
+    }
+
+    tr.inconsistent {
+        background-color: #ff6b6b !important;
+        color: white !important;
+    }
+    
+    tr.inconsistent:hover {
+        background-color: #ff5252 !important;
+    }
+    
+    tr.inconsistent.selected {
+        background-color: #ff4444 !important;
+        outline: 2px solid #cc0000;
+    }
+    
+    tr.inconsistent .dice-cell,
+    tr.inconsistent .move-number,
+    tr.inconsistent .empty {
+        color: white !important;
     }
     
     tr.player1 {

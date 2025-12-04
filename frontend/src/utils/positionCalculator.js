@@ -157,11 +157,12 @@ function convertPlayer2Point(point) {
  * @param {Object} position - Current position
  * @param {Object} moveSegment - { from, to } where from/to are numbers, 'bar', or 'off'
  * @param {boolean} isPlayer - true for Player 1, false for Player 2
- * @returns {Object} - New position after applying move
+ * @returns {Object} - { position: new position, hit: true if opponent was hit }
  */
 function applyMoveSegment(position, moveSegment, isPlayer = true) {
   const newPos = clonePosition(position);
   let { from, to } = moveSegment;
+  let hit = false;
   
   // Convert Player 2's perspective to board perspective
   if (!isPlayer) {
@@ -176,13 +177,13 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
     if (isPlayer) {
       if (newPos.bar <= 0) {
         console.warn('Cannot move from bar: no checkers on bar');
-        return newPos;
+        return { position: newPos, hit };
       }
       newPos.bar--;  // Remove from player bar (decrease positive count)
     } else {
       if (newPos.opponentBar >= 0) {
         console.warn('Cannot move opponent from bar: no checkers on bar');
-        return newPos;
+        return { position: newPos, hit };
       }
       newPos.opponentBar++;  // Remove from opponent bar (increase towards 0 from negative)
     }
@@ -193,14 +194,16 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
       if (isPlayer && newPos.points[to] === -1) {
         newPos.points[to] = 1;
         newPos.opponentBar--;  // Opponent bar becomes more negative
+        hit = true;
       } else if (!isPlayer && newPos.points[to] === 1) {
         newPos.points[to] = -1;
         newPos.bar++;  // Player bar increases
+        hit = true;
       } else {
         newPos.points[to] += multiplier;
       }
     }
-    return newPos;
+    return { position: newPos, hit };
   }
 
   // Handle bearing off
@@ -218,7 +221,7 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
         }
       }
     }
-    return newPos;
+    return { position: newPos, hit: false };
   }
 
   // Regular move from point to point
@@ -240,17 +243,19 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
         console.log(`Player 1 hits opponent at point ${to}, opponentBar: ${newPos.opponentBar} -> ${newPos.opponentBar - 1}`);
         newPos.points[to] = 1;
         newPos.opponentBar--;  // Opponent bar becomes more negative (0 -> -1)
+        hit = true;
       } else if (!isPlayer && newPos.points[to] === 1) {
         console.log(`Player 2 hits opponent at point ${to}, bar: ${newPos.bar} -> ${newPos.bar + 1}`);
         newPos.points[to] = -1;
         newPos.bar++;  // Player bar increases (0 -> 1)
+        hit = true;
       } else {
         newPos.points[to] += multiplier;
       }
     }
   }
 
-  return newPos;
+  return { position: newPos, hit };
 }
 
 /**
@@ -258,17 +263,25 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
  * @param {Object} position - Starting position
  * @param {string} moveText - Move notation (e.g., "24/20 13/8")
  * @param {boolean} isPlayer - true for current player, false for opponent
- * @returns {Object} - New position after all move segments applied
+ * @returns {Object} - { position: new position, hasHit: true if any hit occurred }
  */
 export function applyMove(position, moveText, isPlayer = true) {
   const segments = parseMoveNotation(moveText);
   
   let currentPos = position;
-  for (const segment of segments) {
-    currentPos = applyMoveSegment(currentPos, segment, isPlayer);
+  let hasHit = false;
+  const hitSegments = []; // Track which segments caused hits
+  
+  for (let i = 0; i < segments.length; i++) {
+    const result = applyMoveSegment(currentPos, segments[i], isPlayer);
+    currentPos = result.position;
+    if (result.hit) {
+      hasHit = true;
+      hitSegments.push(i);
+    }
   }
   
-  return currentPos;
+  return { position: currentPos, hasHit, hitSegments };
 }
 
 /**
@@ -304,17 +317,20 @@ export function calculatePositionAtMove(transcription, targetGameNumber, targetM
         break;
       } else if (targetPlayer === 'player2' && move.player1Move) {
         // Apply player1's move, but not player2's
-        position = applyMove(position, move.player1Move.move, true);
+        const result = applyMove(position, move.player1Move.move, true);
+        position = result.position;
         break;
       }
     }
 
     // Apply both players' moves for completed moves
     if (move.player1Move) {
-      position = applyMove(position, move.player1Move.move, true);
+      const result = applyMove(position, move.player1Move.move, true);
+      position = result.position;
     }
     if (move.player2Move) {
-      position = applyMove(position, move.player2Move.move, false);
+      const result = applyMove(position, move.player2Move.move, false);
+      position = result.position;
     }
   }
 
@@ -351,3 +367,329 @@ export function validatePosition(position) {
     opponentCount,
   };
 }
+
+/**
+ * Check if a move violates the "bar-first" rule
+ * If a player has checkers on the bar, they must enter before making any other moves
+ * The rule is: you must enter ALL checkers from bar before moving other checkers
+ * @param {Object} position - Position before the move
+ * @param {string} moveText - Move notation
+ * @param {boolean} isPlayer - true for Player 1, false for Player 2
+ * @returns {boolean} - true if move is valid, false if it violates bar-first rule
+ */
+export function validateBarFirstRule(position, moveText, isPlayer = true) {
+  const checkersOnBar = isPlayer ? position.bar : Math.abs(position.opponentBar);
+  
+  if (checkersOnBar === 0) {
+    return true; // No checkers on bar, any move is fine
+  }
+  
+  // Parse the move to check segments
+  const segments = parseMoveNotation(moveText);
+  
+  if (segments.length === 0) {
+    return true; // Cannot Move or ???? are acceptable
+  }
+  
+  // Track how many checkers we've entered from bar
+  let checkersEnteredFromBar = 0;
+  
+  // Check each segment in order
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    
+    if (segment.from === 'bar') {
+      checkersEnteredFromBar++;
+    } else {
+      // Moving from a point - check if all bar checkers have been entered
+      if (checkersEnteredFromBar < checkersOnBar) {
+        return false; // Invalid: still have checkers on bar that weren't entered
+      }
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Validate bar entry with dice information
+ * For doubles: if multiple checkers on bar and not all dice used, it's suspicious
+ * For non-doubles: cannot validate reliably (player might not be able to play both dice)
+ * @param {Object} positionBefore - Position before the move
+ * @param {Object} positionAfter - Position after applying the move
+ * @param {string} moveText - The move notation
+ * @param {string} dice - The dice rolled (e.g., "22", "54", "66")
+ * @param {boolean} isPlayer - true for Player 1, false for Player 2
+ * @returns {Object} - { valid: boolean, reason: string }
+ */
+export function validateBarWithDice(positionBefore, positionAfter, moveText, dice, isPlayer = true) {
+  if (!dice || moveText === 'Cannot Move' || moveText === '????') {
+    return { valid: true, reason: '' };
+  }
+  
+  const checkersOnBarBefore = isPlayer ? positionBefore.bar : Math.abs(positionBefore.opponentBar);
+  const checkersOnBarAfter = isPlayer ? positionAfter.bar : Math.abs(positionAfter.opponentBar);
+  
+  if (checkersOnBarBefore === 0) {
+    return { valid: true, reason: '' };
+  }
+  
+  // Parse dice to get number of moves available
+  const die1 = parseInt(dice[0], 10);
+  const die2 = parseInt(dice[1], 10);
+  const isDoubles = die1 === die2;
+  const numMoves = isDoubles ? 4 : 2;
+  
+  // Count segments in the move
+  const segments = parseMoveNotation(moveText);
+  
+  // Only validate for DOUBLES where all dice should enter the same point
+  // For non-doubles, we can't know if both dice can enter (different entry points)
+  if (isDoubles && checkersOnBarBefore >= 3 && checkersOnBarAfter > 0 && segments.length < numMoves) {
+    // With doubles and 3+ checkers on bar, if not all dice used and checkers remain, likely invalid
+    return {
+      valid: false,
+      reason: `${checkersOnBarAfter} checker(s) remain on bar, only ${segments.length} of ${numMoves} dice used (doubles)`
+    };
+  }
+  
+  return { valid: true, reason: '' };
+}
+
+/**
+ * Add hit marker (*) to move notation if a hit occurred
+ * @param {string} moveText - Original move notation
+ * @returns {string} - Move notation with * added to the last segment if hit occurred
+ */
+export function addHitMarker(moveText, hitSegments = null) {
+  if (!moveText || moveText === 'Cannot Move' || moveText === '????') {
+    return moveText;
+  }
+  
+  // If no specific segments provided, add * at the end (legacy behavior)
+  if (!hitSegments || hitSegments.length === 0) {
+    if (moveText.includes('*')) {
+      return moveText;
+    }
+    return moveText + '*';
+  }
+  
+  // Split move into segments (e.g., "Bar/24 21/16" -> ["Bar/24", "21/16"])
+  const segments = moveText.split(' ').filter(s => s.length > 0);
+  
+  // Add * to specific segments that caused hits
+  const markedSegments = segments.map((seg, idx) => {
+    // Remove existing * if present
+    const cleanSeg = seg.replace(/\*/g, '');
+    // Add * if this segment caused a hit
+    return hitSegments.includes(idx) ? cleanSeg + '*' : cleanSeg;
+  });
+  
+  return markedSegments.join(' ');
+}
+
+/**
+ * Remove hit marker (*) from move notation
+ * @param {string} moveText - Move notation possibly with *
+ * @returns {string} - Move notation without *
+ */
+export function removeHitMarker(moveText) {
+  if (!moveText) {
+    return moveText;
+  }
+  return moveText.replace(/\*/g, '').trim();
+}
+
+/**
+ * Check if a move notation matches what actually happens in the position
+ * For example, if move notation has *, verify a hit actually occurred
+ * @param {Object} position - Position before the move
+ * @param {string} moveText - Move notation (possibly with *)
+ * @param {boolean} isPlayer - true for Player 1, false for Player 2
+ * @returns {Object} - { valid: boolean, reason: string }
+ */
+export function validateMoveNotation(position, moveText, isPlayer = true) {
+  if (!moveText || moveText === 'Cannot Move' || moveText === '????') {
+    return { valid: true };
+  }
+  
+  const hasHitMarker = moveText.includes('*');
+  const cleanMove = removeHitMarker(moveText);
+  
+  try {
+    const result = applyMove(position, cleanMove, isPlayer);
+    const actualHit = result.hasHit;
+    
+    // Check if notation matches reality
+    if (hasHitMarker && !actualHit) {
+      return { valid: false, reason: 'Move has * but no hit occurred' };
+    }
+    
+    // Note: We don't require * to be present if hit occurred, as it might be missing
+    // The EditMovePanel will add it, but existing moves might not have it
+    
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, reason: `Cannot apply move: ${error.message}` };
+  }
+}
+
+/**
+ * Validate all positions in a game and detect inconsistencies
+ * Returns an array of move indices that have position errors
+ * @param {Object} game - Game object with moves
+ * @param {number} startMoveIndex - Index to start validation from (default 0)
+ */
+export function validateGamePositions(game, startMoveIndex = 0) {
+  const inconsistentMoves = [];
+  
+  if (!game || !game.moves || game.moves.length === 0) {
+    return inconsistentMoves;
+  }
+
+  let position = createInitialPosition();
+  let firstError = null;
+  
+  // Build position up to startMoveIndex without validation
+  for (let i = 0; i < startMoveIndex && i < game.moves.length; i++) {
+    const move = game.moves[i];
+    
+    if (move.player1Move && move.player1Move.move && 
+        move.player1Move.move !== 'Cannot Move' && 
+        move.player1Move.move !== '????') {
+      const cleanMove = removeHitMarker(move.player1Move.move);
+      const result = applyMove(position, cleanMove, true);
+      position = result.position;
+    }
+    
+    if (move.player2Move && move.player2Move.move &&
+        move.player2Move.move !== 'Cannot Move' && 
+        move.player2Move.move !== '????') {
+      const cleanMove = removeHitMarker(move.player2Move.move);
+      const result = applyMove(position, cleanMove, false);
+      position = result.position;
+    }
+  }
+  
+  // Validate from startMoveIndex onwards
+  for (let i = startMoveIndex; i < game.moves.length; i++) {
+    const move = game.moves[i];
+    
+    // If we've already encountered an error, mark all subsequent moves as inconsistent
+    if (firstError !== null) {
+      if (move.player1Move && move.player1Move.move) {
+        inconsistentMoves.push({ moveIndex: i, player: 1, reason: 'Previous move caused inconsistency' });
+      }
+      if (move.player2Move && move.player2Move.move) {
+        inconsistentMoves.push({ moveIndex: i, player: 2, reason: 'Previous move caused inconsistency' });
+      }
+      continue;
+    }
+    
+    try {
+      // Try to apply player1's move
+      if (move.player1Move && move.player1Move.move && 
+          move.player1Move.move !== 'Cannot Move' && 
+          move.player1Move.move !== '????') {
+        
+        // Validate move notation (e.g., check if * is correct)
+        const notationCheck = validateMoveNotation(position, move.player1Move.move, true);
+        if (!notationCheck.valid) {
+          inconsistentMoves.push({ moveIndex: i, player: 1, reason: notationCheck.reason });
+          firstError = i;
+        } else {
+          // Remove hit marker for validation
+          const cleanMove = removeHitMarker(move.player1Move.move);
+          
+          // Check bar-first rule
+          if (!validateBarFirstRule(position, cleanMove, true)) {
+            const reason = 'Must enter from bar before moving other checkers';
+            inconsistentMoves.push({ moveIndex: i, player: 1, reason });
+            firstError = i;
+          } else {
+            const result = applyMove(position, cleanMove, true);
+            const newPosition = result.position;
+            
+            // Check bar entry with dice if available
+            const dice = move.player1Move.dice;
+            if (dice) {
+              const barDiceValidation = validateBarWithDice(position, newPosition, cleanMove, dice, true);
+              if (!barDiceValidation.valid) {
+                inconsistentMoves.push({ moveIndex: i, player: 1, reason: barDiceValidation.reason });
+                firstError = i;
+                // Don't update position if validation failed
+                continue;
+              }
+            }
+            
+            const validation = validatePosition(newPosition);
+            
+            if (!validation.valid) {
+              const reason = `Invalid checker count: Player1=${validation.playerCount}, Player2=${validation.opponentCount}`;
+              inconsistentMoves.push({ moveIndex: i, player: 1, reason });
+              firstError = i;
+            } else {
+              position = newPosition;
+            }
+          }
+        }
+      }
+      
+      // Only try player2's move if player1's move was valid (or not present)
+      if (firstError === null && move.player2Move && move.player2Move.move &&
+          move.player2Move.move !== 'Cannot Move' && 
+          move.player2Move.move !== '????') {
+        
+        // Validate move notation (e.g., check if * is correct)
+        const notationCheck = validateMoveNotation(position, move.player2Move.move, false);
+        if (!notationCheck.valid) {
+          inconsistentMoves.push({ moveIndex: i, player: 2, reason: notationCheck.reason });
+          firstError = i;
+        } else {
+          // Remove hit marker for validation
+          const cleanMove = removeHitMarker(move.player2Move.move);
+          
+          // Check bar-first rule
+          if (!validateBarFirstRule(position, cleanMove, false)) {
+            const reason = 'Must enter from bar before moving other checkers';
+            inconsistentMoves.push({ moveIndex: i, player: 2, reason });
+            firstError = i;
+          } else {
+            const result = applyMove(position, cleanMove, false);
+            const newPosition = result.position;
+            
+            // Check bar entry with dice if available
+            const dice = move.player2Move.dice;
+            if (dice) {
+              const barDiceValidation = validateBarWithDice(position, newPosition, cleanMove, dice, false);
+              if (!barDiceValidation.valid) {
+                inconsistentMoves.push({ moveIndex: i, player: 2, reason: barDiceValidation.reason });
+                firstError = i;
+                // Don't update position if validation failed
+                continue;
+              }
+            }
+            
+            const validation = validatePosition(newPosition);
+            
+            if (!validation.valid) {
+              const reason = `Invalid checker count: Player1=${validation.playerCount}, Player2=${validation.opponentCount}`;
+              inconsistentMoves.push({ moveIndex: i, player: 2, reason });
+              firstError = i;
+            } else {
+              position = newPosition;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // If we can't apply a move, it's inconsistent
+      const player = move.player1Move && move.player1Move.move ? 1 : 2;
+      inconsistentMoves.push({ moveIndex: i, player, reason: `Error: ${error.message}` });
+      firstError = i;
+    }
+  }
+  
+  return inconsistentMoves;
+}
+
