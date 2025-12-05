@@ -627,6 +627,7 @@
     /**
      * Parse move text like "24/20 13/8" or "bar/21" and return array of moves
      * Each move is {from: number, to: number} where bar=25 for player on top, bar=0 for player on bottom
+     * Supports repetition notation: "8/5(2)" means two moves from 8 to 5
      */
     function parseMoveText(moveText) {
         if (!moveText || moveText === 'Cannot Move' || moveText.includes('Doubles') || moveText.includes('Takes') || moveText.includes('Drops')) {
@@ -637,11 +638,27 @@
         const parts = moveText.split(/\s+/);
         
         for (const part of parts) {
-            const match = part.match(/^(bar|\d+)\/(off|\d+)\*?$/i);
-            if (match) {
-                let from = match[1].toLowerCase() === 'bar' ? 'bar' : parseInt(match[1]);
-                let to = match[2].toLowerCase() === 'off' ? 'off' : parseInt(match[2]);
-                moves.push({ from, to });
+            // Check for repetition notation: "8/5(2)" or "bar/23(3)"
+            const repeatMatch = part.match(/^(.+?)\((\d+)\)$/);
+            if (repeatMatch) {
+                const baseMove = repeatMatch[1];
+                const count = parseInt(repeatMatch[2], 10);
+                const match = baseMove.match(/^(bar|\d+)\/(off|\d+)\*?$/i);
+                if (match) {
+                    let from = match[1].toLowerCase() === 'bar' ? 'bar' : parseInt(match[1]);
+                    let to = match[2].toLowerCase() === 'off' ? 'off' : parseInt(match[2]);
+                    // Add the move 'count' times
+                    for (let i = 0; i < count; i++) {
+                        moves.push({ from, to });
+                    }
+                }
+            } else {
+                const match = part.match(/^(bar|\d+)\/(off|\d+)\*?$/i);
+                if (match) {
+                    let from = match[1].toLowerCase() === 'bar' ? 'bar' : parseInt(match[1]);
+                    let to = match[2].toLowerCase() === 'off' ? 'off' : parseInt(match[2]);
+                    moves.push({ from, to });
+                }
             }
         }
         
@@ -754,6 +771,10 @@
         const position = get(positionStore);
         const playerOnRoll = position.player_on_roll;
         
+        // Track how many checkers have been moved from each point to draw arrows from correct positions
+        const checkersMovedFrom = {}; // point -> count of checkers moved from that point
+        const checkersMovedTo = {}; // point -> count of checkers moved to that point
+        
         for (const move of moves) {
             let fromPoint = move.from;
             let toPoint = move.to;
@@ -775,31 +796,73 @@
                 toPoint = 25 - toPoint;
             }
             
+            // Track how many checkers have been moved from this point
+            const movedFromCount = checkersMovedFrom[fromPoint] || 0;
+            const movedToCount = checkersMovedTo[toPoint] || 0;
+            
             // Get coordinates - from topmost checker on source point or from bar
             let fromCoords;
             if (typeof fromPoint === 'number' && fromPoint >= 0 && fromPoint <= 25) {
                 const sourcePointData = position.board.points[fromPoint];
-                // Check if this is the bar (points 0 or 25)
-                if ((fromPoint === 0 || fromPoint === 25) && sourcePointData && sourcePointData.checkers > 0) {
-                    // For bar, get the topmost checker position
-                    fromCoords = getCheckerPickupPosition(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
-                } else {
-                    fromCoords = getCheckerPickupPosition(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+                const baseCoords = getPointCoordinates(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+                
+                // Calculate which checker we're moving (accounting for previously moved checkers)
+                // Initial checker count from the position
+                let initialCheckerCount = 0;
+                if (sourcePointData && sourcePointData.checkers > 0) {
+                    initialCheckerCount = Math.min(sourcePointData.checkers, 5); // Max 5 visible
                 }
+                
+                // Add checkers that were moved TO this point in previous moves
+                const checkersAddedHere = checkersMovedTo[fromPoint] || 0;
+                const totalCheckers = initialCheckerCount + checkersAddedHere;
+                
+                // The checker to move is counting from the top down
+                const checkerIndex = totalCheckers - movedFromCount - 1;
+                
+                // Ensure we don't get negative index
+                const safeCheckerIndex = Math.max(0, checkerIndex);
+                
+                // Determine direction (up or down from base)
+                let direction = 1; // default down
+                if (fromPoint !== 0 && fromPoint <= 12 || fromPoint === 25) {
+                    direction = -1; // up
+                }
+                
+                // Calculate Y position of the checker we're moving
+                const yOffset = (safeCheckerIndex + 0.5) * boardCfg.checker.sizeFactor * boardCheckerSize * direction;
+                fromCoords = {
+                    x: baseCoords.x,
+                    y: baseCoords.y + yOffset
+                };
             } else {
                 fromCoords = getPointCoordinates(fromPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
             }
             
-            // Get coordinates for destination - calculate where checker will land (on top of existing checkers)
+            // Get coordinates for destination - calculate where checker will land
             let toCoords;
             if (typeof toPoint === 'number' && toPoint >= 0 && toPoint <= 25) {
                 const destPointData = position.board.points[toPoint];
                 const baseCoords = getPointCoordinates(toPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
                 
-                // Calculate how many checkers are already there
+                // Calculate how many checkers are already there plus how many we've already moved there
                 let existingCheckers = 0;
                 if (destPointData && destPointData.checkers > 0) {
                     existingCheckers = Math.min(destPointData.checkers, 5);
+                }
+                
+                // If there's an opponent blot (exactly 1 opponent checker), arrow should point to it
+                // Player 1 checkers are positive, Player 2 checkers are negative
+                const isHit = (playerOnRoll === 0 && existingCheckers === 1 && destPointData.checkers < 0) ||
+                              (playerOnRoll === 1 && existingCheckers === 1 && destPointData.checkers > 0);
+                
+                let targetCheckerCount;
+                if (isHit) {
+                    // Arrow points to the opponent checker that will be hit (at position 0)
+                    targetCheckerCount = 0;
+                } else {
+                    // Arrow points to where the checker will land (on top of existing checkers + previously moved)
+                    targetCheckerCount = existingCheckers + movedToCount;
                 }
                 
                 // The new checker will land on top of existing checkers
@@ -808,13 +871,19 @@
                     direction = -1;
                 }
                 
-                const yOffset = (existingCheckers + 0.5) * boardCfg.checker.sizeFactor * boardCheckerSize * direction;
+                const yOffset = (targetCheckerCount + 0.5) * boardCfg.checker.sizeFactor * boardCheckerSize * direction;
                 toCoords = {
                     x: baseCoords.x,
                     y: baseCoords.y + yOffset
                 };
             } else {
                 toCoords = getPointCoordinates(toPoint, boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize);
+            }
+            
+            // Update counters for next iteration
+            checkersMovedFrom[fromPoint] = movedFromCount + 1;
+            if (typeof toPoint === 'number') {
+                checkersMovedTo[toPoint] = movedToCount + 1;
             }
             
             // Use red arrows with transparency
