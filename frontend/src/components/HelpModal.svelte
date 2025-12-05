@@ -315,6 +315,30 @@
                         </tbody>
                     </table>
 
+                    <h3>Search</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Shortcut</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Ctrl + F</td>
+                                <td>Open Search Modal</td>
+                            </tr>
+                            <tr>
+                                <td>Ctrl + ]</td>
+                                <td>Next Search Result</td>
+                            </tr>
+                            <tr>
+                                <td>Ctrl + [</td>
+                                <td>Previous Search Result</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
                     <h3>Command Line</h3>
                     <table>
                         <thead>
@@ -379,8 +403,42 @@
                                 <td>clear, cl</td>
                                 <td>Clear command history</td>
                             </tr>
+                            <tr>
+                                <td>s [query]</td>
+                                <td>Search for moves</td>
+                            </tr>
                         </tbody>
                     </table>
+
+                    <h3>Search Commands</h3>
+                    <p>Use the command <code>s</code> followed by a query to search for moves:</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Command</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>s [2 digits]</td>
+                                <td>Search for moves with specific dice (e.g., <code>s 32</code> or <code>s 65</code>)</td>
+                            </tr>
+                            <tr>
+                                <td>s d</td>
+                                <td>Search for cube doubles</td>
+                            </tr>
+                            <tr>
+                                <td>s t</td>
+                                <td>Search for cube takes</td>
+                            </tr>
+                            <tr>
+                                <td>s p</td>
+                                <td>Search for cube passes (drops)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p><em>Note: After searching via command line, use <code>Ctrl + ]</code> and <code>Ctrl + [</code> to navigate between results.</em></p>
                 {/if}
 
                 {#if activeTab === 'about'}

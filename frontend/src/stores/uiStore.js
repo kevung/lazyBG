@@ -14,6 +14,7 @@ export const showCommandStore = writable(false);
 
 export const showHelpStore = writable(false);
 export const showGoToMoveModalStore = writable(false);
+export const showMoveSearchModalStore = writable(false);
 
 export const previousModeStore = writable('NORMAL');
 
@@ -28,6 +29,7 @@ export const isAnyModalOrPanelOpenStore = derived(
     showCommandStore,
     showHelpStore,
     showGoToMoveModalStore,
+    showMoveSearchModalStore,
     showCandidateMovesStore,
     showMovesTableStore
   ],
@@ -36,6 +38,7 @@ export const isAnyModalOrPanelOpenStore = derived(
     showCommand,
     showHelp,
     showGoToMoveModal,
+    showMoveSearchModal,
     showCandidateMoves,
     showMovesTable
   ]) => {
@@ -44,6 +47,7 @@ export const isAnyModalOrPanelOpenStore = derived(
       showCommand ||
       showHelp ||
       showGoToMoveModal ||
+      showMoveSearchModal ||
       showCandidateMoves ||
       showMovesTable
     );

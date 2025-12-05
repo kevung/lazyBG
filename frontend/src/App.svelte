@@ -46,10 +46,19 @@
         previousModeStore,
         showCandidateMovesStore,
         showMovesTableStore,
-        showInitialPositionStore
+        showInitialPositionStore,
+        showMoveSearchModalStore
     } from './stores/uiStore';
 
     import { metaStore } from './stores/metaStore'; // Import metaStore
+
+    // import move search functions
+    import { 
+        executeSearch, 
+        nextSearchResult, 
+        previousSearchResult,
+        clearSearch 
+    } from './stores/moveSearchStore.js';
 
     // import transcription stores and utils
     import {
@@ -85,6 +94,7 @@
     import MovesTable from './components/MovesTable.svelte';
     import CandidateMovesPanel from './components/CandidateMovesPanel.svelte';
     import EditMovePanel from './components/EditMovePanel.svelte';
+    import MoveSearchPanel from './components/MoveSearchPanel.svelte';
 
     // Debug logging
     console.log('App.svelte: Script starting to execute');
@@ -93,6 +103,7 @@
     let showCommand = false;
     let showHelp = false;
     let showGoToMoveModal = false;
+    let showMoveSearchModal = false;
     let applicationVersion = '';
     let showMetadataModal = false;
     let showMetadataPanel = false;
@@ -209,6 +220,10 @@
 
     showGoToMoveModalStore.subscribe(value => {
         showGoToMoveModal = value;
+    });
+
+    showMoveSearchModalStore.subscribe(value => {
+        showMoveSearchModal = value;
     });
 
     showMetadataModalStore.subscribe(value => {
@@ -662,6 +677,27 @@
         } else if (!event.ctrlKey && event.key === 'p') {
             event.preventDefault();
             togglePositionDisplay();
+        } else if (event.ctrlKey && event.code === 'KeyF') {
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            // If panel is open but not focused, focus it. Otherwise toggle.
+            if ($showMoveSearchModalStore) {
+                // Panel is open - try to focus it
+                const event = new CustomEvent('focusSearchPanel');
+                window.dispatchEvent(event);
+            } else {
+                // Panel is closed - open it
+                showMoveSearchModalStore.set(true);
+            }
+        } else if (event.ctrlKey && event.key === ']') {
+            event.preventDefault();
+            nextSearchResult();
+        } else if (event.ctrlKey && event.key === '[') {
+            event.preventDefault();
+            previousSearchResult();
         }
     }
 
@@ -1170,6 +1206,7 @@
         onShowCandidateMoves={toggleCandidateMovesPanel}
         onToggleHelp={toggleHelpModal}
         onShowMetadata={toggleMetadataModal}
+        onShowMoveSearch={() => showMoveSearchModalStore.update(v => !v)}
     />
 
     <div class="transcription-layout">
@@ -1223,6 +1260,11 @@
     />
 
     <EditMovePanel />
+
+    <MoveSearchPanel
+        visible={showMoveSearchModal}
+        onClose={() => showMoveSearchModalStore.set(false)}
+    />
 
     <StatusBar />
 

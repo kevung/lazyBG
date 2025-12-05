@@ -4,6 +4,7 @@
    import { showMetadataModalStore } from '../stores/uiStore';
    import { commandHistoryStore } from '../stores/commandHistoryStore';
    import { transcriptionStore, selectedMoveStore } from '../stores/transcriptionStore';
+   import { executeSearch, searchQueryStore, showMoveSearchModalStore } from '../stores/moveSearchStore';
    import { get } from 'svelte/store';
 
    export let onToggleHelp;
@@ -124,6 +125,17 @@
                } catch (error) {
                   console.error('Error clearing command history:', error);
                   statusBarTextStore.set('Error clearing command history.');
+               }
+            } else if (command.startsWith('s ')) {
+               // Handle search command: s <query>
+               const searchQuery = command.substring(2).trim();
+               if (searchQuery) {
+                  searchQueryStore.set(searchQuery);
+                  showMoveSearchModalStore.set(true);
+                  executeSearch(searchQuery);
+                  statusBarTextStore.set(`Searching for: ${searchQuery}`);
+               } else {
+                  statusBarTextStore.set('Search query is required. Usage: s <dice|d|t|p>');
                }
             }
             showCommandStore.set(false); // Hide the command line after processing the command
