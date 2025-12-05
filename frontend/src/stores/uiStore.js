@@ -21,7 +21,7 @@ export const previousModeStore = writable('NORMAL');
 export const showCandidateMovesStore = writable(false); // Candidate moves panel closed by default
 export const showMovesTableStore = writable(false); // Moves table closed by default
 
-export const showInitialPositionStore = writable(false); // Show final position by default, false = final, true = initial
+export const showInitialPositionStore = writable(true); // Show initial position with arrows by default, false = final, true = initial
 
 export const isAnyModalOrPanelOpenStore = derived(
   [
