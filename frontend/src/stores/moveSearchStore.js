@@ -160,7 +160,10 @@ export function nextSearchResult() {
     
     if (results.length === 0) return;
     
-    const nextIndex = (currentIndex + 1) % results.length;
+    // Prevent going beyond the last result
+    if (currentIndex >= results.length - 1) return;
+    
+    const nextIndex = currentIndex + 1;
     currentSearchResultIndexStore.set(nextIndex);
     selectedMoveStore.set(results[nextIndex]);
 }
@@ -174,7 +177,10 @@ export function previousSearchResult() {
     
     if (results.length === 0) return;
     
-    const prevIndex = currentIndex <= 0 ? results.length - 1 : currentIndex - 1;
+    // Prevent going before the first result
+    if (currentIndex <= 0) return;
+    
+    const prevIndex = currentIndex - 1;
     currentSearchResultIndexStore.set(prevIndex);
     selectedMoveStore.set(results[prevIndex]);
 }
