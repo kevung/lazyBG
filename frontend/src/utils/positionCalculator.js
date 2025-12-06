@@ -850,9 +850,21 @@ export function validateGamePositions(game, startMoveIndex = 0) {
         gameEndedAtMove = i;
       }
       
-      // DON'T mark moves in the same entry as inconsistent
-      // The drop might be a valid response to a double in the same move
-      // Only mark moves that come chronologically AFTER the drop
+      // In backgammon, player 1 acts first in each move entry
+      // If player 1 drops, player 2 should NOT have a move in the same entry
+      // If player 2 drops, it's valid for player 1 to have moved first (they act chronologically first)
+      
+      if (move.player1Move?.cubeAction === 'drops') {
+        // Player 1 dropped - mark player 2's move in same entry as inconsistent
+        if (move.player2Move && (move.player2Move.move || move.player2Move.cubeAction)) {
+          inconsistentMoves.push({ 
+            moveIndex: i, 
+            player: 2, 
+            reason: 'Game ended after player 1 dropped' 
+          });
+        }
+      }
+      // If player 2 drops, player 1's move in same entry is valid (it happened first chronologically)
       
       // Set firstError to mark all subsequent moves in next iterations
       firstError = i;
