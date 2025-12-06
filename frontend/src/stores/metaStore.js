@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
 
 export const metaStore = writable({
-    applicationVersion: '0.7.0',
+    applicationVersion: __APP_VERSION__,
 });

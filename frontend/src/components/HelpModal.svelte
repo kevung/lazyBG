@@ -4,6 +4,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { fade } from 'svelte/transition';
     import { metaStore } from '../stores/metaStore'; // Import metaStore
+    import { LAZYBG_VERSION } from '../stores/transcriptionStore'; // Import transcription format version
 
     export let visible = false;
     export let onClose;
@@ -13,17 +14,11 @@
     const tabs = ['manual', 'shortcuts', 'commands', 'about'];
     let contentArea;
 
-    let databaseVersion = '';
     let applicationVersion = '';
 
     // Subscribe to the metaStore
     metaStore.subscribe(value => {
         applicationVersion = value.applicationVersion;
-    });
-
-    onMount(async () => {
-        // Database functionality removed
-        databaseVersion = 'N/A';
     });
 
     function switchTab(tab) {
@@ -445,10 +440,10 @@
                     
                     <h3>Version</h3>
                     <p>Application version: {applicationVersion}</p>
-                    <p>Transcription format version: {databaseVersion}</p>
+                    <p>Transcription format version: {LAZYBG_VERSION}</p>
                     
                     <h3>Author</h3>
-                    <p><strong>Kévin Unger &lt;blunderdb@proton.me&gt;</strong></p>
+                    <p><strong>Kévin Unger &lt;lazybg@proton.me&gt;</strong></p>
                     <p>You can also find me on Heroes under the nickname <strong>postmanpat</strong>.</p>
                     <p>I created lazyBG as a lightweight and efficient tool for quickly transcribing backgammon matches. Feel free to write to me to share your feedback.</p>
                     <p>Here are several ways to reach out:</p>
