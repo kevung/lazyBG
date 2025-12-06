@@ -19,12 +19,16 @@
     export let onToggleMovesPanel;
     export let onShowMoveSearch;
 
-    import { statusBarModeStore, statusBarTextStore, showInitialPositionStore } from '../stores/uiStore';
+    import { statusBarModeStore, statusBarTextStore, showInitialPositionStore, showMovesTableStore, showCandidateMovesStore, showCommandStore, showMoveSearchModalStore } from '../stores/uiStore';
     import { transcriptionStore } from '../stores/transcriptionStore';
     
     let statusBarMode;
     let hasTranscription = false;
     let showInitialPosition = false;
+    let showMovesTable = false;
+    let showCandidateMoves = false;
+    let showCommand = false;
+    let showMoveSearchModal = false;
     
     statusBarModeStore.subscribe(value => {
         statusBarMode = value;
@@ -34,6 +38,18 @@
     });
     showInitialPositionStore.subscribe(value => {
         showInitialPosition = value;
+    });
+    showMovesTableStore.subscribe(value => {
+        showMovesTable = value;
+    });
+    showCandidateMovesStore.subscribe(value => {
+        showCandidateMoves = value;
+    });
+    showCommandStore.subscribe(value => {
+        showCommand = value;
+    });
+    showMoveSearchModalStore.subscribe(value => {
+        showMoveSearchModal = value;
     });
 
     function setStatusBarMessage(message) {
@@ -172,7 +188,7 @@
 
     <div class="separator"></div>
 
-    <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (p)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={showInitialPosition}>
+    <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (p)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={!showInitialPosition}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -181,13 +197,13 @@
 
     <div class="separator"></div>
 
-    <button on:click|stopPropagation={onToggleEditMode} aria-label="Edit Mode" title="Edit Mode (Tab)" disabled={!hasTranscription}>
+    <button on:click|stopPropagation={onToggleEditMode} aria-label="Edit Mode" title="Edit Mode (Tab)" disabled={!hasTranscription} class:active={statusBarMode === 'EDIT'}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={onToggleCommandMode} aria-label="Command Mode" title="Command Mode (Space)">
+    <button on:click|stopPropagation={onToggleCommandMode} aria-label="Command Mode" title="Command Mode (Space)" class:active={showCommand}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
         </svg>
@@ -195,19 +211,19 @@
 
     <div class="separator"></div>
     
-    <button on:click|stopPropagation={onToggleMovesPanel} aria-label="Toggle Moves Panel" title="Toggle Moves Panel (Ctrl-P)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={onToggleMovesPanel} aria-label="Toggle Moves Panel" title="Toggle Moves Panel (Ctrl-P)" disabled={statusBarMode === 'EDIT' || !hasTranscription} class:active={showMovesTable}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={onShowCandidateMoves} aria-label="Show Candidate Moves" title="Show Candidate Moves (Ctrl-L)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={onShowCandidateMoves} aria-label="Show Candidate Moves" title="Show Candidate Moves (Ctrl-L)" disabled={statusBarMode === 'EDIT' || !hasTranscription} class:active={showCandidateMoves}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8.242 5.992h12m-12 6.003H20.24m-12 5.999h12M4.117 7.495v-3.75H2.99m1.125 3.75H2.99m1.125 0H5.24m-1.92 2.577a1.125 1.125 0 1 1 1.591 1.59l-1.83 1.83h2.16M2.99 15.745h1.125a1.125 1.125 0 0 1 0 2.25H3.74m0-.002h.375a1.125 1.125 0 0 1 0 2.25H2.99" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={onShowMoveSearch} aria-label="Search Moves" title="Search Moves (Ctrl-F)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={onShowMoveSearch} aria-label="Search Moves" title="Search Moves (Ctrl-F)" disabled={statusBarMode === 'EDIT' || !hasTranscription} class:active={showMoveSearchModal}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
         </svg>
