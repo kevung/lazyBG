@@ -1,42 +1,39 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
+    import { slide } from 'svelte/transition';
     import { get } from 'svelte/store';
     import { 
         transcriptionStore, 
         selectedMoveStore,
         updateMove,
-        invalidatePositionsCacheFrom,
-        validateGameInconsistencies
+        invalidatePositionsCacheFrom
     } from '../stores/transcriptionStore.js';
     import { 
         statusBarModeStore,
         statusBarTextStore
     } from '../stores/uiStore.js';
-    import {
-        applyMove,
-        createInitialPosition,
-        addHitMarker,
-        removeHitMarker
-    } from '../utils/positionCalculator.js';
+
+    export let visible = false;
+    export let onClose;
 
     // State for editing
     let diceInput = '';
     let moveInput = '';
     let originalDice = '';
     let originalMove = '';
-    let isEditing = false;
     
     let diceInputElement;
     let moveInputElement;
+    let panelEl;
 
-    // NOTE: This modal is now deprecated in favor of EditPanel and inline editing in MovesTable
-    // Kept for backward compatibility but disabled
-    // Subscribe to mode changes - DISABLED
-    // $: if ($statusBarModeStore === 'EDIT' && !isEditing) {
-    //     startEditing();
-    // } else if ($statusBarModeStore !== 'EDIT' && isEditing) {
-    //     cancelEditing();
-    // }
+    let hasAutoFocused = false;
+
+    // Initialize when panel becomes visible
+    $: if (visible && !hasAutoFocused) {
+        startEditing();
+    } else if (!visible) {
+        hasAutoFocused = false;
+    }
 
     function startEditing() {
         const transcription = get(transcriptionStore);
@@ -68,22 +65,21 @@
             moveInput = '';
         }
 
-        isEditing = true;
-
         // Focus on dice input
         setTimeout(() => {
             if (diceInputElement) {
                 diceInputElement.focus();
+                hasAutoFocused = true;
             }
         }, 100);
 
-        statusBarTextStore.set('EDIT MODE: Enter dice (2 digits 1-6), then move notation. Enter=validate, Esc/Tab=cancel');
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass) or 2 digits 1-6, then move. Enter=validate, Esc=cancel');
     }
 
     function cancelEditing() {
         diceInput = '';
         moveInput = '';
-        isEditing = false;
+        onClose();
     }
 
     async function validateEditing() {
@@ -115,78 +111,76 @@
             updateMove(gameIndex, move.moveNumber, player, diceInput, moveInput, isIllegal, isGala);
             
             // Invalidate position cache from this move onwards
-            // This will automatically:
-            // 1. Auto-correct hit markers (*) for all subsequent moves
-            // 2. Validate game positions to detect inconsistencies
             await invalidatePositionsCacheFrom(gameIndex, moveIndex);
             
             // Force recalculation of all positions after this move
             selectedMoveStore.set({ ...selectedMove });
             
-            statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber} (auto-correcting subsequent moves...)`);
+            statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber}`);
         } else {
             statusBarTextStore.set('No changes made');
         }
 
-        // Exit edit mode
-        statusBarModeStore.set('NORMAL');
-        isEditing = false;
+        // Close panel
+        cancelEditing();
     }
 
     function handleKeyDown(event) {
-        if (!isEditing) return;
+        if (!visible) return;
 
-        // Allow normal text editing keys when inside input fields
-        const isInInputField = document.activeElement === diceInputElement || 
-                              document.activeElement === moveInputElement;
-        
-        if (isInInputField) {
-            // Allow arrow keys, space, and other navigation keys in input fields
-            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || 
-                event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
-                event.key === 'Home' || event.key === 'End' ||
-                event.key === 'Delete' || event.key === 'Backspace' ||
-                event.key === ' ') {
-                // Don't prevent default or stop propagation - allow normal editing
-                return;
-            }
-        }
+        event.stopPropagation();
 
         if (event.key === 'Escape') {
             event.preventDefault();
-            event.stopPropagation();
             cancelEditing();
-            statusBarModeStore.set('NORMAL');
         } else if (event.key === 'Enter') {
             event.preventDefault();
-            event.stopPropagation();
             
-            // If dice input is focused and valid, move to move input
+            // If dice input is focused
             if (document.activeElement === diceInputElement) {
-                if (validateDiceInput(diceInput)) {
+                const dice = diceInput.toLowerCase();
+                // Check for cube decisions
+                if (dice === 'd' || dice === 't' || dice === 'p') {
+                    // Validate immediately for cube decisions
+                    validateEditing();
+                } else if (validateDiceInput(diceInput)) {
+                    // Valid dice, move to move input
                     moveInputElement?.focus();
                 } else {
-                    statusBarTextStore.set('Invalid dice: enter 2 digits between 1 and 6');
+                    statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
                 }
             } else if (document.activeElement === moveInputElement) {
                 // Validate and save
-                if (validateDiceInput(diceInput)) {
+                const dice = diceInput.toLowerCase();
+                if (dice === 'd' || dice === 't' || dice === 'p' || validateDiceInput(diceInput)) {
                     validateEditing();
                 } else {
-                    statusBarTextStore.set('Invalid dice: enter 2 digits between 1 and 6');
+                    statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
                 }
             }
-        } else if (event.key === 'Tab') {
-            // Tab cancels editing
-            event.preventDefault();
-            event.stopPropagation();
-            cancelEditing();
-            statusBarModeStore.set('NORMAL');
+        } else if (event.key === 'Backspace') {
+            // If in move input and it's empty, focus on dice input
+            if (document.activeElement === moveInputElement && moveInput === '') {
+                event.preventDefault();
+                diceInputElement?.focus();
+                // Select all text in dice input for easy editing
+                if (diceInputElement) {
+                    diceInputElement.select();
+                }
+            }
         }
     }
 
     function handleDiceInput(event) {
-        let value = event.target.value;
+        let value = event.target.value.toLowerCase();
+        
+        // Check for cube decisions first
+        if (value === 'd' || value === 't' || value === 'p') {
+            diceInput = value;
+            // Disable move input for cube decisions
+            moveInput = '';
+            return;
+        }
         
         // Only allow digits
         value = value.replace(/[^1-6]/g, '');
@@ -213,25 +207,29 @@
         return d1 >= 1 && d1 <= 6 && d2 >= 1 && d2 <= 6;
     }
 
-    onDestroy(() => {
-        if (isEditing) {
-            cancelEditing();
+    function handleClickOutside(event) {
+        if (panelEl && !panelEl.contains(event.target)) {
+            // Click outside the panel - blur the input
+            diceInputElement?.blur();
+            moveInputElement?.blur();
         }
+    }
+
+    onMount(() => {
+        document.addEventListener('mousedown', handleClickOutside);
     });
+
+    onDestroy(() => {
+        document.removeEventListener('mousedown', handleClickOutside);
+    });
+
+    // Check if dice is a cube decision
+    $: isCubeDecision = diceInput.toLowerCase() === 'd' || diceInput.toLowerCase() === 't' || diceInput.toLowerCase() === 'p';
 </script>
 
-{#if false}
-<!-- This modal is now deprecated - using EditPanel and inline editing instead -->
-<div class="edit-move-panel">
-    <div class="edit-container">
-        <div class="edit-header">
-            <h3>Edit Move</h3>
-            <div class="edit-instructions">
-                Enter dice (2 digits 1-6), then move notation
-            </div>
-        </div>
-        
-        <div class="edit-fields">
+{#if visible}
+    <div class="edit-panel" transition:slide={{ duration: 200 }} bind:this={panelEl}>
+        <div class="panel-content">
             <div class="field-group">
                 <label for="dice-input">Dice:</label>
                 <input
@@ -242,7 +240,7 @@
                     on:input={handleDiceInput}
                     on:keydown={handleKeyDown}
                     maxlength="2"
-                    placeholder="e.g., 54"
+                    placeholder="54 or d/t/p"
                     class="dice-input"
                 />
             </div>
@@ -255,139 +253,123 @@
                     bind:this={moveInputElement}
                     bind:value={moveInput}
                     on:keydown={handleKeyDown}
-                    placeholder="e.g., 24/20 13/8"
+                    placeholder="24/20 13/8"
                     class="move-input"
+                    disabled={isCubeDecision}
                 />
             </div>
-        </div>
-        
-        <div class="edit-actions">
-            <button on:click={validateEditing} class="btn-validate">
-                ✓ Validate (Enter)
+
+            <button on:click={validateEditing} class="validate-button" title="Validate (Enter)" aria-label="Validate">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="button-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
             </button>
-            <button on:click={() => { cancelEditing(); statusBarModeStore.set('NORMAL'); }} class="btn-cancel">
-                ✗ Cancel (Esc/Tab)
-            </button>
+
+            <button class="close-button" on:click={cancelEditing} title="Close (Esc)" aria-label="Close">×</button>
         </div>
     </div>
-</div>
 {/if}
 
-<svelte:window on:keydown={handleKeyDown} />
-
 <style>
-    .edit-move-panel {
+    .edit-panel {
         position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 1000;
-        background: rgba(30, 30, 30, 0.98);
-        border: 2px solid #4a9eff;
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        min-width: 400px;
+        bottom: 32px; /* Above status bar */
+        left: 0;
+        right: 0;
+        background-color: white;
+        border-top: 1px solid #ccc;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 100;
     }
 
-    .edit-container {
+    .panel-content {
         display: flex;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    .edit-header h3 {
-        margin: 0 0 5px 0;
-        color: #4a9eff;
-        font-size: 18px;
-    }
-
-    .edit-instructions {
-        color: #aaa;
-        font-size: 12px;
-    }
-
-    .edit-fields {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 15px;
     }
 
     .field-group {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 6px;
     }
 
     .field-group label {
-        color: #ccc;
-        min-width: 60px;
-        font-weight: bold;
+        color: #333;
+        font-size: 14px;
+        font-weight: 500;
     }
 
     .dice-input {
-        width: 80px;
-        padding: 8px;
-        font-size: 16px;
+        width: 100px;
+        padding: 6px 10px;
+        font-size: 14px;
         font-weight: bold;
         text-align: center;
-        background: #2a2a2a;
-        border: 1px solid #555;
+        border: 1px solid #ccc;
         border-radius: 4px;
-        color: #fff;
+        outline: none;
         font-family: 'Courier New', monospace;
     }
 
     .move-input {
-        flex: 1;
-        padding: 8px;
+        width: 200px;
+        padding: 6px 10px;
         font-size: 14px;
-        background: #2a2a2a;
-        border: 1px solid #555;
+        border: 1px solid #ccc;
         border-radius: 4px;
-        color: #fff;
+        outline: none;
         font-family: 'Courier New', monospace;
+    }
+
+    .move-input:disabled {
+        background-color: #f0f0f0;
+        color: #999;
+        cursor: not-allowed;
     }
 
     .dice-input:focus,
     .move-input:focus {
-        outline: none;
-        border-color: #4a9eff;
-        background: #353535;
+        border-color: #999;
+        box-shadow: none;
     }
 
-    .edit-actions {
+    .validate-button {
         display: flex;
-        gap: 10px;
-        justify-content: flex-end;
-        margin-top: 10px;
-    }
-
-    .btn-validate,
-    .btn-cancel {
-        padding: 8px 16px;
+        align-items: center;
+        justify-content: center;
+        padding: 6px;
+        background-color: #888;
+        color: white;
         border: none;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 14px;
-        transition: all 0.2s;
+        transition: background-color 0.2s;
     }
 
-    .btn-validate {
-        background: #4a9eff;
-        color: white;
+    .validate-button:hover {
+        background-color: #777;
     }
 
-    .btn-validate:hover {
-        background: #3a8eef;
+    .close-button {
+        background: none;
+        border: none;
+        font-size: 20px;
+        font-weight: bold;
+        color: #666;
+        cursor: pointer;
+        padding: 0 6px;
+        line-height: 1;
+        margin-left: 8px;
     }
 
-    .btn-cancel {
-        background: #666;
-        color: white;
+    .close-button:hover {
+        color: #000;
     }
 
-    .btn-cancel:hover {
-        background: #555;
+    .button-icon {
+        width: 16px;
+        height: 16px;
     }
 </style>

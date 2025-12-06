@@ -7,8 +7,10 @@
         insertMoveBefore,
         insertMoveAfter,
         deleteMove,
-        updateMove
+        updateMove,
+        invalidatePositionsCacheFrom
     } from '../stores/transcriptionStore.js';
+    import { statusBarModeStore, statusBarTextStore } from '../stores/uiStore.js';
     
     export let visible = true;
 
@@ -17,6 +19,12 @@
     let editingField = null;
     let tableWrapper;
     let previousGameIndex = 0;
+    
+    // Inline edit mode state
+    let inlineEditDice = '';
+    let inlineEditMove = '';
+    let diceInputElement;
+    let moveInputElement;
 
     $: games = $transcriptionStore?.games || [];
     $: selectedGameIndex = $selectedMoveStore?.gameIndex ?? 0;
@@ -99,6 +107,12 @@
     function handleKeyDown(event) {
         if (!$selectedMoveStore) return;
         
+        // If in EDIT mode with inline editing, handle edit-specific keys
+        if ($statusBarModeStore === 'EDIT' && editingMove) {
+            handleInlineEditKeyDown(event);
+            return;
+        }
+        
         const { gameIndex, moveIndex, player } = $selectedMoveStore;
         const currentMoves = games[gameIndex]?.moves || [];
         const currentRowIndex = playerRows.findIndex(r => 
@@ -174,6 +188,160 @@
                 break;
         }
     }
+    
+    function handleInlineEditKeyDown(event) {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            cancelInlineEdit();
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // If dice input is focused
+            if (document.activeElement === diceInputElement) {
+                const dice = inlineEditDice.toLowerCase();
+                // Check for cube decisions
+                if (dice === 'd' || dice === 't' || dice === 'p') {
+                    // Validate immediately for cube decisions
+                    validateInlineEdit();
+                } else if (validateDiceInput(inlineEditDice)) {
+                    // Valid dice, move to move input
+                    moveInputElement?.focus();
+                } else {
+                    statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
+                }
+            } else if (document.activeElement === moveInputElement) {
+                // Validate and save
+                const dice = inlineEditDice.toLowerCase();
+                if (dice === 'd' || dice === 't' || dice === 'p' || validateDiceInput(inlineEditDice)) {
+                    validateInlineEdit();
+                } else {
+                    statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
+                }
+            }
+        } else if (event.key === 'Backspace') {
+            // If in move input and it's empty, focus on dice input
+            if (document.activeElement === moveInputElement && inlineEditMove === '') {
+                event.preventDefault();
+                diceInputElement?.focus();
+                // Select all text in dice input for easy editing
+                if (diceInputElement) {
+                    diceInputElement.select();
+                }
+            }
+        }
+    }
+    
+    function startInlineEdit(gameIndex, moveIndex, player) {
+        const game = games[gameIndex];
+        if (!game || !game.moves[moveIndex]) return;
+        
+        const move = game.moves[moveIndex];
+        const playerMove = player === 1 ? move.player1Move : move.player2Move;
+        
+        editingMove = { gameIndex, moveIndex, player };
+        
+        if (playerMove) {
+            inlineEditDice = playerMove.dice || '';
+            inlineEditMove = playerMove.move || '';
+        } else {
+            inlineEditDice = '';
+            inlineEditMove = '';
+        }
+        
+        // Focus on dice input after render
+        setTimeout(() => {
+            if (diceInputElement) {
+                diceInputElement.focus();
+                diceInputElement.select();
+            }
+        }, 50);
+        
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass) or 2 digits 1-6, then move. Enter=validate, Esc=cancel');
+    }
+    
+    function cancelInlineEdit() {
+        editingMove = null;
+        inlineEditDice = '';
+        inlineEditMove = '';
+        statusBarModeStore.set('NORMAL');
+    }
+    
+    async function validateInlineEdit() {
+        if (!editingMove) return;
+        
+        const { gameIndex, moveIndex, player } = editingMove;
+        const game = games[gameIndex];
+        if (!game || !game.moves[moveIndex]) return;
+        
+        const move = game.moves[moveIndex];
+        const playerMove = player === 1 ? move.player1Move : move.player2Move;
+        const isIllegal = playerMove?.isIllegal || false;
+        const isGala = playerMove?.isGala || false;
+        
+        updateMove(gameIndex, move.moveNumber, player, inlineEditDice, inlineEditMove, isIllegal, isGala);
+        
+        // Invalidate position cache from this move onwards
+        await invalidatePositionsCacheFrom(gameIndex, moveIndex);
+        
+        // Force recalculation
+        selectedMoveStore.set({ gameIndex, moveIndex, player });
+        
+        statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber}`);
+        
+        cancelInlineEdit();
+    }
+    
+    function handleDiceInput(event) {
+        let value = event.target.value.toLowerCase();
+        
+        // Check for cube decisions first
+        if (value === 'd' || value === 't' || value === 'p') {
+            inlineEditDice = value;
+            // Clear move input for cube decisions
+            inlineEditMove = '';
+            return;
+        }
+        
+        // Only allow digits
+        value = value.replace(/[^1-6]/g, '');
+        
+        // Limit to 2 characters
+        if (value.length > 2) {
+            value = value.slice(0, 2);
+        }
+        
+        inlineEditDice = value;
+        
+        // Auto-advance to move input when 2 valid digits are entered
+        if (value.length === 2 && validateDiceInput(value)) {
+            setTimeout(() => {
+                moveInputElement?.focus();
+            }, 50);
+        }
+    }
+    
+    function validateDiceInput(dice) {
+        if (dice.length !== 2) return false;
+        const d1 = parseInt(dice[0]);
+        const d2 = parseInt(dice[1]);
+        return d1 >= 1 && d1 <= 6 && d2 >= 1 && d2 <= 6;
+    }
+    
+    // Watch for EDIT mode changes - start inline editing when entering EDIT mode
+    $: if ($statusBarModeStore === 'EDIT' && $selectedMoveStore && !editingMove && visible) {
+        const { gameIndex, moveIndex, player } = $selectedMoveStore;
+        startInlineEdit(gameIndex, moveIndex, player);
+    } else if ($statusBarModeStore !== 'EDIT' && editingMove) {
+        // Exit edit mode if mode changes
+        editingMove = null;
+        inlineEditDice = '';
+        inlineEditMove = '';
+    }
+    
+    // Check if dice is a cube decision
+    $: isCubeDecision = inlineEditDice.toLowerCase() === 'd' || inlineEditDice.toLowerCase() === 't' || inlineEditDice.toLowerCase() === 'p';
 
     function isSelected(gIdx, mIdx) {
         return $selectedMoveStore?.gameIndex === gIdx && 
@@ -237,7 +405,18 @@
             >
                 <td class="move-number">{row.player === 1 ? row.moveNumber : ''}</td>
                 <td class="dice-cell">
-                    {#if row.cubeAction && row.cubeAction.player === row.player}
+                    {#if editingMove?.gameIndex === row.gameIndex && editingMove?.moveIndex === row.moveIndex && editingMove?.player === row.player && $statusBarModeStore === 'EDIT'}
+                    <input
+                        type="text"
+                        bind:this={diceInputElement}
+                        bind:value={inlineEditDice}
+                        on:input={handleDiceInput}
+                        on:keydown={handleInlineEditKeyDown}
+                        maxlength="2"
+                        class="inline-dice-input"
+                        placeholder="54"
+                    />
+                    {:else if row.cubeAction && row.cubeAction.player === row.player}
                     <span class="empty"></span>
                     {:else if row.moveData?.dice}
                     {row.moveData.dice}
@@ -246,7 +425,17 @@
                     {/if}
                 </td>
                 <td class="move-cell">
-                    {#if row.cubeAction && row.cubeAction.player === row.player}
+                    {#if editingMove?.gameIndex === row.gameIndex && editingMove?.moveIndex === row.moveIndex && editingMove?.player === row.player && $statusBarModeStore === 'EDIT'}
+                    <input
+                        type="text"
+                        bind:this={moveInputElement}
+                        bind:value={inlineEditMove}
+                        on:keydown={handleInlineEditKeyDown}
+                        class="inline-move-input"
+                        placeholder="24/20 13/8"
+                        disabled={isCubeDecision}
+                    />
+                    {:else if row.cubeAction && row.cubeAction.player === row.player}
                         {#if row.cubeAction.action === 'doubles'}
                         <span class="cube-action">Doubles → {row.cubeAction.value}</span>
                         {:else if row.cubeAction.action === 'takes'}
@@ -263,6 +452,7 @@
                     {:else if row.moveData}
                     <span 
                         role="textbox"
+                        tabindex="0"
                         contenteditable={editingMove?.gameIndex === row.gameIndex && editingMove?.moveIndex === row.moveIndex && editingMove?.player === row.player}
                         on:dblclick={() => { editingMove = { gameIndex: row.gameIndex, moveIndex: row.moveIndex, player: row.player }; }}
                         on:blur={(e) => finishEdit(e, row.gameIndex, row.moveIndex, row.player)}
@@ -453,5 +643,42 @@
     .empty-state p {
         font-size: 14px;
         text-align: center;
+    }
+    
+    .inline-dice-input {
+        width: 100%;
+        padding: 2px 3px;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+        border: 1px solid #4a90e2;
+        border-radius: 2px;
+        outline: none;
+        font-family: monospace;
+        background-color: #fff;
+        color: #2c5aa0;
+    }
+    
+    .inline-move-input {
+        width: 100%;
+        padding: 2px 4px;
+        font-size: 13px;
+        border: 1px solid #4a90e2;
+        border-radius: 2px;
+        outline: none;
+        font-family: monospace;
+        background-color: #fff;
+    }
+    
+    .inline-move-input:disabled {
+        background-color: #f0f0f0;
+        color: #999;
+        cursor: not-allowed;
+    }
+    
+    .inline-dice-input:focus,
+    .inline-move-input:focus {
+        border-color: #2c5aa0;
+        box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
     }
 </style>

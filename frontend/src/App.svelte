@@ -94,6 +94,7 @@
     import MovesTable from './components/MovesTable.svelte';
     import CandidateMovesPanel from './components/CandidateMovesPanel.svelte';
     import EditMovePanel from './components/EditMovePanel.svelte';
+    import EditPanel from './components/EditPanel.svelte';
     import MoveSearchPanel from './components/MoveSearchPanel.svelte';
 
     // Debug logging
@@ -111,6 +112,7 @@
     let isAnyModalOpen = false;
     let showCandidateMoves = false;
     let showMovesTable = true;
+    let showEditPanel = false;
     
     console.log('App.svelte: Variables initialized');
     
@@ -1075,9 +1077,16 @@
             }
             previousModeStore.set($statusBarModeStore);
             statusBarModeStore.set('EDIT');
+            
+            // If moves table is NOT open, show the edit panel
+            if (!showMovesTable) {
+                showEditPanel = true;
+            }
+            // If moves table IS open, inline editing will be handled by MovesTable component
         } else {
             previousModeStore.set($statusBarModeStore);
             statusBarModeStore.set('NORMAL');
+            showEditPanel = false;
             // Refresh board and display position associated with currentPositionIndexStore
             const currentIndex = $currentPositionIndexStore;
             currentPositionIndexStore.set(-1); // Temporarily set to a different value to force redraw
@@ -1260,6 +1269,14 @@
     />
 
     <EditMovePanel />
+
+    <EditPanel
+        visible={showEditPanel}
+        onClose={() => {
+            showEditPanel = false;
+            statusBarModeStore.set('NORMAL');
+        }}
+    />
 
     <MoveSearchPanel
         visible={showMoveSearchModal}
