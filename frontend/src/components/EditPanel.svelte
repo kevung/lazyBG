@@ -53,7 +53,19 @@
         const move = game.moves[moveIndex];
         const playerMove = player === 1 ? move.player1Move : move.player2Move;
 
-        if (playerMove) {
+        // Check if this is a cube action
+        if (playerMove?.cubeAction) {
+            if (playerMove.cubeAction === 'doubles') {
+                originalDice = 'd';
+            } else if (playerMove.cubeAction === 'takes') {
+                originalDice = 't';
+            } else if (playerMove.cubeAction === 'drops') {
+                originalDice = 'p';
+            }
+            originalMove = '';
+            diceInput = originalDice;
+            moveInput = '';
+        } else if (playerMove) {
             originalDice = playerMove.dice || '';
             originalMove = playerMove.move || '';
             diceInput = originalDice;
@@ -108,7 +120,12 @@
             const isIllegal = playerMove?.isIllegal || false;
             const isGala = playerMove?.isGala || false;
             
-            updateMove(gameIndex, move.moveNumber, player, diceInput, moveInput, isIllegal, isGala);
+            // For cube decisions (d/t/p), pass empty string as move
+            const diceStr = diceInput.toLowerCase();
+            const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
+            const moveToSave = isCubeDecision ? '' : moveInput;
+            
+            updateMove(gameIndex, move.moveNumber, player, diceInput, moveToSave, isIllegal, isGala);
             
             // Invalidate position cache from this move onwards
             await invalidatePositionsCacheFrom(gameIndex, moveIndex);

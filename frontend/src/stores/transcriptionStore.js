@@ -3,6 +3,48 @@ import { writable, derived, get } from 'svelte/store';
 // LazyBG file format version
 export const LAZYBG_VERSION = '1.0.0';
 
+/**
+ * Migrates old cube action structure to new format
+ * Old: move.cubeAction = { player, action, value, response }
+ * New: player1Move.cubeAction = 'doubles'|'takes'|'drops', player1Move.cubeValue = number
+ */
+export function migrateCubeActions(transcription) {
+    if (!transcription || !transcription.games) return transcription;
+    
+    for (const game of transcription.games) {
+        if (!game.moves) continue;
+        
+        for (const move of game.moves) {
+            if (!move.cubeAction) continue;
+            
+            const { player, action, value, response } = move.cubeAction;
+            
+            // Migrate the action to the appropriate player's move
+            const playerMove = player === 1 ? 'player1Move' : 'player2Move';
+            if (!move[playerMove]) {
+                move[playerMove] = { dice: '', move: '', isIllegal: false, isGala: false };
+            }
+            move[playerMove].cubeAction = action;
+            move[playerMove].cubeValue = value;
+            
+            // If there's a response, migrate it to the other player's move
+            if (response) {
+                const otherPlayerMove = player === 1 ? 'player2Move' : 'player1Move';
+                if (!move[otherPlayerMove]) {
+                    move[otherPlayerMove] = { dice: '', move: '', isIllegal: false, isGala: false };
+                }
+                move[otherPlayerMove].cubeAction = response;
+                move[otherPlayerMove].cubeValue = value;
+            }
+            
+            // Clear the old structure
+            move.cubeAction = null;
+        }
+    }
+    
+    return transcription;
+}
+
 // Structure d'une transcription complète
 export const transcriptionStore = writable({
     version: LAZYBG_VERSION,
@@ -192,11 +234,69 @@ export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal =
         const moveEntry = game.moves.find(m => m.moveNumber === moveIndex);
         if (!moveEntry) return t;
         
-        const moveData = { dice, move, isIllegal, isGala };
-        if (player === 1) {
-            moveEntry.player1Move = moveData;
+        // Check if this is a cube decision (d/t/p)
+        const diceStr = dice.toLowerCase();
+        if (diceStr === 'd' || diceStr === 't' || diceStr === 'p') {
+            // Handle cube decision independently for this player
+            // Calculate cube value by looking at previous cube actions
+            let cubeValue = 1;
+            
+            // Look through all previous moves and both players' actions
+            for (let i = 0; i < game.moves.length; i++) {
+                const mv = game.moves[i];
+                if (!mv || mv.moveNumber >= moveIndex) break;
+                
+                // Check player1's cube action
+                if (mv.player1Move?.cubeAction === 'doubles') {
+                    cubeValue = mv.player1Move.cubeValue || (cubeValue * 2);
+                }
+                // Check player2's cube action
+                if (mv.player2Move?.cubeAction === 'doubles') {
+                    cubeValue = mv.player2Move.cubeValue || (cubeValue * 2);
+                }
+            }
+            
+            // Determine action and cube value
+            let action, value;
+            if (diceStr === 'd') {
+                action = 'doubles';
+                value = cubeValue * 2;
+            } else if (diceStr === 't') {
+                action = 'takes';
+                value = cubeValue;
+            } else { // 'p'
+                action = 'drops';
+                value = cubeValue;
+            }
+            
+            // Store cube action in the player's move data
+            const moveData = { 
+                dice: '', 
+                move: '', 
+                isIllegal: false, 
+                isGala: false,
+                cubeAction: action,
+                cubeValue: value
+            };
+            
+            if (player === 1) {
+                moveEntry.player1Move = moveData;
+            } else {
+                moveEntry.player2Move = moveData;
+            }
+            
+            // Clear old cubeAction structure if it exists for this player
+            if (moveEntry.cubeAction && moveEntry.cubeAction.player === player) {
+                moveEntry.cubeAction = null;
+            }
         } else {
-            moveEntry.player2Move = moveData;
+            // Regular move with dice
+            const moveData = { dice, move, isIllegal, isGala };
+            if (player === 1) {
+                moveEntry.player1Move = moveData;
+            } else {
+                moveEntry.player2Move = moveData;
+            }
         }
         
         return t;
@@ -260,7 +360,8 @@ export async function autoCorrectHitMarkers(gameIndex, startMoveIndex = 0) {
         for (let i = 0; i < startMoveIndex && i < game.moves.length; i++) {
             const move = game.moves[i];
             
-            if (move.player1Move && move.player1Move.move && 
+            // Skip cube decisions (they don't have move property or have empty move)
+            if (move.player1Move && !move.player1Move.cubeAction && move.player1Move.move && 
                 move.player1Move.move !== 'Cannot Move' && 
                 move.player1Move.move !== '????') {
                 const cleanMove = removeHitMarker(move.player1Move.move);
@@ -268,7 +369,7 @@ export async function autoCorrectHitMarkers(gameIndex, startMoveIndex = 0) {
                 position = result.position;
             }
             
-            if (move.player2Move && move.player2Move.move &&
+            if (move.player2Move && !move.player2Move.cubeAction && move.player2Move.move &&
                 move.player2Move.move !== 'Cannot Move' && 
                 move.player2Move.move !== '????') {
                 const cleanMove = removeHitMarker(move.player2Move.move);
@@ -284,8 +385,8 @@ export async function autoCorrectHitMarkers(gameIndex, startMoveIndex = 0) {
             for (let i = startMoveIndex; i < currentGame.moves.length; i++) {
                 const move = currentGame.moves[i];
                 
-                // Check and correct player1's move
-                if (move.player1Move && move.player1Move.move && 
+                // Check and correct player1's move (skip cube decisions)
+                if (move.player1Move && !move.player1Move.cubeAction && move.player1Move.move && 
                     move.player1Move.move !== 'Cannot Move' && 
                     move.player1Move.move !== '????') {
                     
@@ -303,8 +404,8 @@ export async function autoCorrectHitMarkers(gameIndex, startMoveIndex = 0) {
                     position = result.position;
                 }
                 
-                // Check and correct player2's move
-                if (move.player2Move && move.player2Move.move &&
+                // Check and correct player2's move (skip cube decisions)
+                if (move.player2Move && !move.player2Move.cubeAction && move.player2Move.move &&
                     move.player2Move.move !== 'Cannot Move' && 
                     move.player2Move.move !== '????') {
                     
@@ -406,11 +507,6 @@ export function swapPlayers() {
                 const tempMove = move.player1Move;
                 move.player1Move = move.player2Move;
                 move.player2Move = tempMove;
-                
-                // Swap cube action player
-                if (move.cubeAction) {
-                    move.cubeAction.player = move.cubeAction.player === 1 ? 2 : 1;
-                }
             }
         }
         

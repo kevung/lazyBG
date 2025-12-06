@@ -551,10 +551,19 @@ export function validateGamePositions(game, startMoveIndex = 0) {
   let firstError = null;
   
   // Build position up to startMoveIndex without validation
+  // Also check for drops in earlier moves
+  let gameEndedAtMove = null;
   for (let i = 0; i < startMoveIndex && i < game.moves.length; i++) {
     const move = game.moves[i];
     
-    if (move.player1Move && move.player1Move.move && 
+    // Check for drops (game ends)
+    if (move.player1Move?.cubeAction === 'drops' || move.player2Move?.cubeAction === 'drops' ||
+        (move.cubeAction?.action === 'drops') || (move.cubeAction?.response === 'drops')) {
+      gameEndedAtMove = i;
+      break;
+    }
+    
+    if (move.player1Move && !move.player1Move.cubeAction && move.player1Move.move && 
         move.player1Move.move !== 'Cannot Move' && 
         move.player1Move.move !== '????') {
       const cleanMove = removeHitMarker(move.player1Move.move);
@@ -562,7 +571,7 @@ export function validateGamePositions(game, startMoveIndex = 0) {
       position = result.position;
     }
     
-    if (move.player2Move && move.player2Move.move &&
+    if (move.player2Move && !move.player2Move.cubeAction && move.player2Move.move &&
         move.player2Move.move !== 'Cannot Move' && 
         move.player2Move.move !== '????') {
       const cleanMove = removeHitMarker(move.player2Move.move);
@@ -571,24 +580,288 @@ export function validateGamePositions(game, startMoveIndex = 0) {
     }
   }
   
+  // Track cube ownership: -1 = center, 0 = player 1, 1 = player 2
+  let cubeOwner = -1; // Start in center
+  let cubeValue = 1;
+  
+  // Track if there's an unanswered double (blocks all future cube actions)
+  let unansweredDoubleAt = null; // move index where unanswered double occurred
+  
+  // Build cube state up to startMoveIndex
+  for (let i = 0; i < startMoveIndex && i < game.moves.length; i++) {
+    const move = game.moves[i];
+    
+    // Process player 1's cube actions
+    if (move.player1Move?.cubeAction) {
+      if (move.player1Move.cubeAction === 'doubles') {
+        cubeValue = move.player1Move.cubeValue || (cubeValue * 2);
+        cubeOwner = -1; // Center when doubled
+      } else if (move.player1Move.cubeAction === 'takes') {
+        cubeOwner = 0; // Player 1 owns after taking
+      }
+    }
+    
+    // Process player 2's cube actions
+    if (move.player2Move?.cubeAction) {
+      if (move.player2Move.cubeAction === 'doubles') {
+        cubeValue = move.player2Move.cubeValue || (cubeValue * 2);
+        cubeOwner = -1; // Center when doubled
+      } else if (move.player2Move.cubeAction === 'takes') {
+        cubeOwner = 1; // Player 2 owns after taking
+      }
+    }
+  }
+  
+  // Helper function to find next cube action after a given player's cube action
+  // skipPlayer1AtIndex: if true, skip player1's action at fromIndex (because we already saw it)
+  // skipPlayer2AtIndex: if true, skip player2's action at fromIndex (because we already saw it)
+  function findNextCubeAction(fromIndex, skipPlayer1AtIndex = false, skipPlayer2AtIndex = false) {
+    for (let j = fromIndex; j < game.moves.length; j++) {
+      const m = game.moves[j];
+      
+      // Check player 1's action (skip if we're told to)
+      if (!(j === fromIndex && skipPlayer1AtIndex) && m.player1Move?.cubeAction) {
+        return { moveIndex: j, player: 1, action: m.player1Move.cubeAction };
+      }
+      
+      // Check player 2's action (skip if we're told to)
+      if (!(j === fromIndex && skipPlayer2AtIndex) && m.player2Move?.cubeAction) {
+        return { moveIndex: j, player: 2, action: m.player2Move.cubeAction };
+      }
+    }
+    return null;
+  }
+  
   // Validate from startMoveIndex onwards
   for (let i = startMoveIndex; i < game.moves.length; i++) {
     const move = game.moves[i];
     
-    // If we've already encountered an error, mark all subsequent moves as inconsistent
-    if (firstError !== null) {
-      if (move.player1Move && move.player1Move.move) {
-        inconsistentMoves.push({ moveIndex: i, player: 1, reason: 'Previous move caused inconsistency' });
+    // If there's an unanswered double, mark ALL actions (cube and regular moves) as invalid
+    // and skip further processing of this move
+    if (unansweredDoubleAt !== null && unansweredDoubleAt < i) {
+      console.log(`[Move ${i+1}] Unanswered double at move ${unansweredDoubleAt + 1} blocks this move`);
+      if (move.player1Move && (move.player1Move.cubeAction || move.player1Move.move)) {
+        const reason = move.player1Move.cubeAction === 'doubles' 
+          ? `Cannot double: must first respond to opponent's unanswered double at move ${unansweredDoubleAt + 1}`
+          : `Must respond to opponent's double at move ${unansweredDoubleAt + 1}`;
+        console.log(`[Move ${i+1}] Marking player 1 invalid: ${reason}`);
+        inconsistentMoves.push({ moveIndex: i, player: 1, reason });
+        if (firstError === null) firstError = i;
       }
-      if (move.player2Move && move.player2Move.move) {
-        inconsistentMoves.push({ moveIndex: i, player: 2, reason: 'Previous move caused inconsistency' });
+      if (move.player2Move && (move.player2Move.cubeAction || move.player2Move.move)) {
+        const reason = move.player2Move.cubeAction === 'doubles' 
+          ? `Cannot double: must first respond to opponent's unanswered double at move ${unansweredDoubleAt + 1}`
+          : `Must respond to opponent's double at move ${unansweredDoubleAt + 1}`;
+        console.log(`[Move ${i+1}] Marking player 2 invalid: ${reason}`);
+        inconsistentMoves.push({ moveIndex: i, player: 2, reason });
+        if (firstError === null) firstError = i;
+      }
+      // Skip further processing since everything is invalid
+      continue;
+    }
+    
+    // Player 1 doubles - check if player 2 responds properly
+    if (move.player1Move?.cubeAction === 'doubles') {
+      
+      console.log(`[Move ${i+1}] Player 1 doubles, cubeOwner=${cubeOwner}`);
+      
+      // Validate: can only double if cube is in center or on their side
+      if (cubeOwner !== -1 && cubeOwner !== 0) {
+        console.log(`[Move ${i+1}] Player 1 cannot double - cube owned by opponent`);
+        inconsistentMoves.push({ moveIndex: i, player: 1, reason: `Cannot double: cube is owned by opponent` });
+        if (firstError === null) firstError = i;
+      } else {
+        // Update cube state
+        cubeValue = move.player1Move?.cubeValue || (cubeValue * 2);
+        cubeOwner = -1; // Center when doubled
+        
+        // Check if player 2 responds with take/pass at the right position
+        const nextCube = findNextCubeAction(i, true, false);
+        console.log(`[Move ${i+1}] Looking for player 2 response, found:`, nextCube);
+        
+        // Check if player 2 responds with another double (invalid)
+        if (nextCube && 
+            nextCube.player === 2 && 
+            nextCube.action === 'doubles' &&
+            nextCube.moveIndex <= i + 1) {
+          // Invalid: cannot double in response to a double
+          console.log(`[Move ${i+1}] Player 2 cannot double in response to player 1's double`);
+          inconsistentMoves.push({ 
+            moveIndex: nextCube.moveIndex, 
+            player: 2, 
+            reason: `Cannot double: must respond to player 1's double with take or pass`
+          });
+          if (firstError === null) firstError = nextCube.moveIndex;
+          unansweredDoubleAt = i;
+        } else if (nextCube && 
+            nextCube.player === 2 && 
+            (nextCube.action === 'takes' || nextCube.action === 'drops') &&
+            nextCube.moveIndex <= i + 1) {
+          console.log(`[Move ${i+1}] Valid response found at move ${nextCube.moveIndex + 1}`);
+          // Valid response found
+          if (nextCube.action === 'drops') {
+            gameEndedAtMove = nextCube.moveIndex;
+          } else if (nextCube.action === 'takes') {
+            cubeOwner = 1; // Player 2 owns after taking
+          }
+        } else if (nextCube && nextCube.player === 2 && nextCube.moveIndex > i + 1) {
+          // Player 2 has a cube action but it's too far away (more than next move)
+          // This means they didn't respond immediately - mark as unanswered
+          console.log(`[Move ${i+1}] Player 2's cube action at move ${nextCube.moveIndex + 1} is too late`);
+          unansweredDoubleAt = i;
+          // Don't mark the double as invalid - just note it's unanswered
+        } else {
+          // No immediate cube response found
+          // Check if player 2 has a regular move at the same move entry
+          if (move.player2Move && move.player2Move.move && 
+              move.player2Move.move !== 'Cannot Move' && 
+              move.player2Move.move !== '????' &&
+              !move.player2Move.cubeAction) {
+            // Player 2 has a regular move but should respond to the double
+            console.log(`[Move ${i+1}] Player 2 has a regular move but should respond to player 1's double`);
+            inconsistentMoves.push({ 
+              moveIndex: i, 
+              player: 2, 
+              reason: `Must respond to player 1's double with take or pass`
+            });
+            if (firstError === null) firstError = i;
+            unansweredDoubleAt = i;
+          } else {
+            // No response found yet - this is OK, just note it as unanswered
+            // Don't mark the double as invalid - it's just waiting for a response
+            console.log(`[Move ${i+1}] No response yet - setting unansweredDoubleAt = ${i}`);
+            unansweredDoubleAt = i;
+            // Don't add to inconsistentMoves - the double itself is not invalid
+          }
+        }
+      }
+    }
+    
+    // Player 2 doubles - check if player 1 responds properly
+    if (move.player2Move?.cubeAction === 'doubles') {
+      
+      console.log(`[Move ${i+1}] Player 2 doubles, cubeOwner=${cubeOwner}`);
+      
+      // Check if player 1 also doubled at the same move (invalid - both can't double)
+      if (move.player1Move?.cubeAction === 'doubles') {
+        console.log(`[Move ${i+1}] Both players doubled at same move - marking player 2 invalid`);
+        inconsistentMoves.push({ 
+          moveIndex: i, 
+          player: 2, 
+          reason: `Cannot double: player 1 already doubled at this move`
+        });
+        if (firstError === null) firstError = i;
+        continue; // Skip further processing
+      }
+      
+      // Validate: can only double if cube is in center or on their side
+      if (cubeOwner !== -1 && cubeOwner !== 1) {
+        console.log(`[Move ${i+1}] Player 2 cannot double - cube owned by opponent`);
+        inconsistentMoves.push({ moveIndex: i, player: 2, reason: `Cannot double: cube is owned by opponent` });
+        if (firstError === null) firstError = i;
+      } else {
+        // Update cube state
+        cubeValue = move.player2Move?.cubeValue || (cubeValue * 2);
+        cubeOwner = -1; // Center when doubled
+        
+        // Check if player 1 responds with take/pass at the right position
+        // Response can be at next move (i+1) where player 1 acts
+        const nextCube = findNextCubeAction(i, false, true);
+        console.log(`[Move ${i+1}] Looking for player 1 response to player 2's double, found:`, nextCube);
+        
+        // Check if player 1 responds with another double (invalid)
+        // Allow response at i+1 only (player 1 acts at next move after player 2's double)
+        if (nextCube && 
+            nextCube.player === 1 && 
+            nextCube.action === 'doubles' &&
+            (nextCube.moveIndex === i + 1 || nextCube.moveIndex === i)) {
+          // Invalid: cannot double in response to a double
+          console.log(`[Move ${i+1}] Player 1 cannot double in response to player 2's double`);
+          inconsistentMoves.push({ 
+            moveIndex: nextCube.moveIndex, 
+            player: 1, 
+            reason: `Cannot double: must respond to player 2's double with take or pass`
+          });
+          if (firstError === null) firstError = nextCube.moveIndex;
+          unansweredDoubleAt = i;
+        } else if (nextCube && 
+            nextCube.player === 1 && 
+            (nextCube.action === 'takes' || nextCube.action === 'drops') &&
+            (nextCube.moveIndex === i + 1 || nextCube.moveIndex === i)) {
+          // Valid response found
+          console.log(`[Move ${i+1}] Valid take/pass response found at move ${nextCube.moveIndex + 1}`);
+          if (nextCube.action === 'drops') {
+            gameEndedAtMove = nextCube.moveIndex;
+          } else if (nextCube.action === 'takes') {
+            cubeOwner = 0; // Player 1 owns after taking
+          }
+        } else if (nextCube && nextCube.player === 1 && nextCube.moveIndex > i + 1) {
+          // Player 1 has a cube action but it's too far away (more than next move)
+          // This means they didn't respond immediately - mark as unanswered
+          console.log(`[Move ${i+1}] Player 1's cube action at move ${nextCube.moveIndex + 1} is too late`);
+          unansweredDoubleAt = i;
+          // Don't mark the double as invalid - just note it's unanswered
+        } else {
+          // No immediate cube response found
+          // Player 1's regular move at move i is OK (it happened before player 2's double)
+          // Check if there's a regular move at i+1 (which would be invalid - should respond to double)
+          const nextMoveEntry = i + 1 < game.moves.length ? game.moves[i + 1] : null;
+          if (nextMoveEntry && nextMoveEntry.player1Move && 
+              nextMoveEntry.player1Move.move && 
+              nextMoveEntry.player1Move.move !== 'Cannot Move' && 
+              nextMoveEntry.player1Move.move !== '????' &&
+              !nextMoveEntry.player1Move.cubeAction) {
+            // Player 1 made a regular move at i+1 without responding to the double
+            console.log(`[Move ${i+2}] Player 1 has a regular move but should respond to player 2's double`);
+            inconsistentMoves.push({ 
+              moveIndex: i + 1, 
+              player: 1, 
+              reason: `Must respond to player 2's double with take or pass`
+            });
+            if (firstError === null) firstError = i + 1;
+            unansweredDoubleAt = i;
+          } else {
+            // No response found yet - this is OK, just note it as unanswered
+            // Don't mark the double as invalid - it's just waiting for a response
+            console.log(`[Move ${i+1}] No response yet - setting unansweredDoubleAt = ${i}`);
+            unansweredDoubleAt = i;
+            // Don't add to inconsistentMoves - the double itself is not invalid
+          }
+        }
+      }
+    }
+    
+    // If we've already encountered an error or drop from previous move, mark all moves as inconsistent
+    if (firstError !== null && i > firstError) {
+      if (move.player1Move && (move.player1Move.move || move.player1Move.cubeAction)) {
+        inconsistentMoves.push({ moveIndex: i, player: 1, reason: gameEndedAtMove !== null ? 'Game ended after drop' : 'Previous move caused inconsistency' });
+      }
+      if (move.player2Move && (move.player2Move.move || move.player2Move.cubeAction)) {
+        inconsistentMoves.push({ moveIndex: i, player: 2, reason: gameEndedAtMove !== null ? 'Game ended after drop' : 'Previous move caused inconsistency' });
       }
       continue;
     }
     
+    // Check for drops (game ends after a drop)
+    if (move.player1Move?.cubeAction === 'drops' || move.player2Move?.cubeAction === 'drops') {
+      
+      // Only set gameEndedAtMove if not already set (from double handling above)
+      if (gameEndedAtMove === null) {
+        gameEndedAtMove = i;
+      }
+      
+      // DON'T mark moves in the same entry as inconsistent
+      // The drop might be a valid response to a double in the same move
+      // Only mark moves that come chronologically AFTER the drop
+      
+      // Set firstError to mark all subsequent moves in next iterations
+      firstError = i;
+      continue; // Skip further processing of this move
+    }
+    
     try {
-      // Try to apply player1's move
-      if (move.player1Move && move.player1Move.move && 
+      // Try to apply player1's move (skip cube decisions)
+      if (move.player1Move && !move.player1Move.cubeAction && move.player1Move.move && 
           move.player1Move.move !== 'Cannot Move' && 
           move.player1Move.move !== '????') {
         
@@ -635,8 +908,8 @@ export function validateGamePositions(game, startMoveIndex = 0) {
         }
       }
       
-      // Only try player2's move if player1's move was valid (or not present)
-      if (firstError === null && move.player2Move && move.player2Move.move &&
+      // Only try player2's move if player1's move was valid (or not present) (skip cube decisions)
+      if (firstError === null && move.player2Move && !move.player2Move.cubeAction && move.player2Move.move &&
           move.player2Move.move !== 'Cannot Move' && 
           move.player2Move.move !== '????') {
         

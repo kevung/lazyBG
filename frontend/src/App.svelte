@@ -71,7 +71,8 @@
         addGame,
         addMove,
         clearTranscription,
-        swapPlayers
+        swapPlayers,
+        migrateCubeActions
     } from './stores/transcriptionStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
     import { checkCompatibility, migrateTranscription, validateTranscription } from './utils/versionUtils.js';
@@ -376,6 +377,16 @@
                                         position = result.position;
                                     }
                                     // Process cube action if player 1 made it (only if not showing initial position for player 1)
+                                    // New structure: in player move data
+                                    if (!showInitialPosition && move.player1Move?.cubeAction) {
+                                        if (move.player1Move.cubeAction === 'doubles') {
+                                            cubeValue = move.player1Move.cubeValue || (cubeValue * 2);
+                                            cubeOwner = -1; // Center when doubled
+                                        } else if (move.player1Move.cubeAction === 'takes') {
+                                            cubeOwner = 0; // Player 1 owns after taking
+                                        }
+                                    }
+                                    // Old structure: at move level
                                     if (!showInitialPosition && move.cubeAction && move.cubeAction.player === 1) {
                                         if (move.cubeAction.action === 'doubles') {
                                             cubeValue = move.cubeAction.value;
@@ -411,30 +422,15 @@
                                     break; // Stop after the selected player's move
                                 } else if (player === 2) {
                                     // First process any cube action by player 1 (if it has already occurred before player 2's turn)
-                                    // Only process if there's a response (meaning player 2 is responding) OR both players have moves
-                                    if (move.cubeAction && move.cubeAction.player === 1) {
-                                        const hasResponse = move.cubeAction.response;
-                                        const player2HasMove = move.player2Move;
-                                        
-                                        if (hasResponse || player2HasMove) {
-                                            if (move.cubeAction.action === 'doubles') {
-                                                // Always apply the double (player 1 doubled before player 2's decision)
-                                                cubeValue = move.cubeAction.value;
-                                                cubeOwner = -1; // Center when doubled
-                                                // Only process player 2's response if not showing initial position
-                                                if (!showInitialPosition) {
-                                                    if (move.cubeAction.response === 'takes') {
-                                                        cubeOwner = 1; // Player 2 owns after taking
-                                                    } else if (move.cubeAction.response === 'drops') {
-                                                        cubeOwner = -1;
-                                                    }
-                                                }
-                                            } else if (move.cubeAction.action === 'takes') {
-                                                // Player 1's take action happened before player 2's turn
-                                                cubeOwner = 0; // Player 1 owns after taking
-                                            } else if (move.cubeAction.action === 'drops') {
-                                                cubeOwner = -1;
-                                            }
+                                    if (move.player1Move?.cubeAction) {
+                                        if (move.player1Move.cubeAction === 'doubles') {
+                                            cubeValue = move.player1Move.cubeValue || (cubeValue * 2);
+                                            cubeOwner = -1; // Center when doubled
+                                            // Don't process player 2's response here yet - handled below
+                                        } else if (move.player1Move.cubeAction === 'takes') {
+                                            cubeOwner = 0; // Player 1 owns after taking
+                                        } else if (move.player1Move.cubeAction === 'drops') {
+                                            cubeOwner = -1;
                                         }
                                     }
                                     // Then apply player1's move (it happened before player2's move)
@@ -448,6 +444,16 @@
                                         position = result2.position;
                                     }
                                     // Process cube action if player 2 made it (only if not showing initial position)
+                                    // New structure: in player move data
+                                    if (!showInitialPosition && move.player2Move?.cubeAction) {
+                                        if (move.player2Move.cubeAction === 'doubles') {
+                                            cubeValue = move.player2Move.cubeValue || (cubeValue * 2);
+                                            cubeOwner = -1; // Center when doubled
+                                        } else if (move.player2Move.cubeAction === 'takes') {
+                                            cubeOwner = 1; // Player 2 owns after taking
+                                        }
+                                    }
+                                    // Old structure: at move level
                                     if (!showInitialPosition && move.cubeAction && move.cubeAction.player === 2) {
                                         if (move.cubeAction.action === 'doubles') {
                                             cubeValue = move.cubeAction.value;
@@ -477,19 +483,43 @@
                             }
                             
                             // Process cube actions from completed moves (before the selected move)
-                            if (i < moveIndex && move.cubeAction) {
-                                if (move.cubeAction.action === 'doubles') {
-                                    cubeValue = move.cubeAction.value;
-                                    // After doubling, check if there's a response
-                                    if (move.cubeAction.response === 'takes' || move.cubeAction.action === 'takes') {
-                                        cubeOwner = move.cubeAction.player === 1 ? 1 : 0; // Opponent owns after taking
-                                    } else if (move.cubeAction.response === 'drops') {
-                                        cubeOwner = -1;
-                                    } else {
-                                        cubeOwner = -1; // Still at center if no response yet
+                            // Handle both old structure (move.cubeAction) and new structure (playerMove.cubeAction)
+                            if (i < moveIndex) {
+                                // New structure: player1's cube action
+                                if (move.player1Move?.cubeAction) {
+                                    if (move.player1Move.cubeAction === 'doubles') {
+                                        cubeValue = move.player1Move.cubeValue || (cubeValue * 2);
+                                        cubeOwner = -1; // Center when doubled
+                                    } else if (move.player1Move.cubeAction === 'takes') {
+                                        cubeOwner = 0; // Player 1 owns after taking
                                     }
-                                } else if (move.cubeAction.action === 'takes') {
-                                    cubeOwner = move.cubeAction.player - 1; // Convert 1/2 to 0/1
+                                }
+                                
+                                // New structure: player2's cube action
+                                if (move.player2Move?.cubeAction) {
+                                    if (move.player2Move.cubeAction === 'doubles') {
+                                        cubeValue = move.player2Move.cubeValue || (cubeValue * 2);
+                                        cubeOwner = -1; // Center when doubled
+                                    } else if (move.player2Move.cubeAction === 'takes') {
+                                        cubeOwner = 1; // Player 2 owns after taking
+                                    }
+                                }
+                                
+                                // Old structure: move-level cube action
+                                if (move.cubeAction) {
+                                    if (move.cubeAction.action === 'doubles') {
+                                        cubeValue = move.cubeAction.value;
+                                        // After doubling, check if there's a response
+                                        if (move.cubeAction.response === 'takes' || move.cubeAction.action === 'takes') {
+                                            cubeOwner = move.cubeAction.player === 1 ? 1 : 0; // Opponent owns after taking
+                                        } else if (move.cubeAction.response === 'drops') {
+                                            cubeOwner = -1;
+                                        } else {
+                                            cubeOwner = -1; // Still at center if no response yet
+                                        }
+                                    } else if (move.cubeAction.action === 'takes') {
+                                        cubeOwner = move.cubeAction.player - 1; // Convert 1/2 to 0/1
+                                    }
                                 }
                             }
                         }
@@ -677,8 +707,11 @@
             }
             showCandidateMovesStore.update(v => !v);
         } else if (!event.ctrlKey && event.key === 'p') {
-            event.preventDefault();
-            togglePositionDisplay();
+            // Don't intercept if in EDIT mode (allow typing 'p' for pass)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                togglePositionDisplay();
+            }
         } else if (event.ctrlKey && event.code === 'KeyF') {
             event.preventDefault();
             if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
@@ -832,7 +865,10 @@
             if (filePath.endsWith('.txt')) {
                 // Load .txt match file using backend
                 const content = await ReadTextFile(filePath);
-                const transcription = parseMatchFile(content);
+                let transcription = parseMatchFile(content);
+                
+                // Migrate old cube action structure if present
+                transcription = migrateCubeActions(transcription);
                 
                 // Update the transcription store with the complete transcription
                 clearTranscription();
@@ -852,6 +888,9 @@
                 // Load .lbg JSON file using backend
                 const jsonContent = await ReadTextFile(filePath);
                 let transcription = JSON.parse(jsonContent);
+                
+                // Migrate old cube action structure if present
+                transcription = migrateCubeActions(transcription);
                 
                 // Handle version compatibility
                 const fileVersion = transcription.version || '1.0.0';
@@ -984,8 +1023,8 @@
             } else if (moveIndex > 0) {
                 // Move to previous move (player 2 if available)
                 const prevMove = $transcriptionStore.games[gameIndex].moves[moveIndex - 1];
-                // Check if player 2 has something to show (move, cube action by player 2, or response to player 1's action)
-                const hasPlayer2Action = prevMove && (prevMove.player2Move || (prevMove.cubeAction && (prevMove.cubeAction.player === 2 || prevMove.cubeAction.response)));
+                // Check if player 2 has something to show (move or cube action by player 2)
+                const hasPlayer2Action = prevMove && prevMove.player2Move;
                 if (hasPlayer2Action) {
                     selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 2 });
                 } else {
@@ -1008,8 +1047,8 @@
             const game = $transcriptionStore.games[gameIndex];
             const move = game.moves[moveIndex];
             
-            // Check if player 2 has something to show (move, cube action by player 2, or response to player 1's action)
-            const hasPlayer2Action = move && (move.player2Move || (move.cubeAction && (move.cubeAction.player === 2 || move.cubeAction.response)));
+            // Check if player 2 has something to show (move or cube action by player 2)
+            const hasPlayer2Action = move && move.player2Move;
             
             if (player === 1 && hasPlayer2Action) {
                 // Move from player 1 to player 2 of same move

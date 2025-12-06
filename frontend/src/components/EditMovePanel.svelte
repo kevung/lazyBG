@@ -112,7 +112,12 @@
             const isIllegal = playerMove?.isIllegal || false;
             const isGala = playerMove?.isGala || false;
             
-            updateMove(gameIndex, move.moveNumber, player, diceInput, moveInput, isIllegal, isGala);
+            // For cube decisions (d/t/p), pass empty string as move
+            const diceStr = diceInput.toLowerCase();
+            const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
+            const moveToSave = isCubeDecision ? '' : moveInput;
+            
+            updateMove(gameIndex, move.moveNumber, player, diceInput, moveToSave, isIllegal, isGala);
             
             // Invalidate position cache from this move onwards
             // This will automatically:

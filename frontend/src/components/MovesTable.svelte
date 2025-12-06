@@ -98,7 +98,12 @@
         const isIllegal = existingMove?.isIllegal || false;
         const isGala = existingMove?.isGala || false;
         
-        updateMove(gameIndex, move.moveNumber, player, dice, moveStr, isIllegal, isGala);
+        // For cube decisions (d/t/p), pass empty string as move
+        const diceStr = dice.toLowerCase();
+        const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
+        const moveToSave = isCubeDecision ? '' : moveStr;
+        
+        updateMove(gameIndex, move.moveNumber, player, dice, moveToSave, isIllegal, isGala);
         
         editingMove = null;
         editingField = null;
@@ -242,7 +247,28 @@
         
         editingMove = { gameIndex, moveIndex, player };
         
-        if (playerMove) {
+        // Check for cube action in player move (new structure) or move level (old structure)
+        if (playerMove?.cubeAction) {
+            // New structure: cube action in player's move data
+            if (playerMove.cubeAction === 'doubles') {
+                inlineEditDice = 'd';
+            } else if (playerMove.cubeAction === 'takes') {
+                inlineEditDice = 't';
+            } else if (playerMove.cubeAction === 'drops') {
+                inlineEditDice = 'p';
+            }
+            inlineEditMove = '';
+        } else if (move.cubeAction && move.cubeAction.player === player) {
+            // Old structure: cube action at move level
+            if (move.cubeAction.action === 'doubles') {
+                inlineEditDice = 'd';
+            } else if (move.cubeAction.action === 'takes') {
+                inlineEditDice = 't';
+            } else if (move.cubeAction.action === 'drops') {
+                inlineEditDice = 'p';
+            }
+            inlineEditMove = '';
+        } else if (playerMove) {
             inlineEditDice = playerMove.dice || '';
             inlineEditMove = playerMove.move || '';
         } else {
@@ -280,7 +306,12 @@
         const isIllegal = playerMove?.isIllegal || false;
         const isGala = playerMove?.isGala || false;
         
-        updateMove(gameIndex, move.moveNumber, player, inlineEditDice, inlineEditMove, isIllegal, isGala);
+        // For cube decisions (d/t/p), pass empty string as move
+        const diceStr = inlineEditDice.toLowerCase();
+        const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
+        const moveToSave = isCubeDecision ? '' : inlineEditMove;
+        
+        updateMove(gameIndex, move.moveNumber, player, inlineEditDice, moveToSave, isIllegal, isGala);
         
         // Invalidate position cache from this move onwards
         await invalidatePositionsCacheFrom(gameIndex, moveIndex);
@@ -363,14 +394,15 @@
     }
 
     function getMoveClass(moveData, moveIndex, player) {
-        if (!moveData) return '';
         const classes = [];
         
-        // Check for inconsistencies first (highest priority)
+        // Check for inconsistencies first (highest priority) - applies to all moves including cube actions
         const inconsistencyKey = `${moveIndex}-${player}`;
         if (gameInconsistencies[inconsistencyKey]) {
             classes.push('inconsistent');
         }
+        
+        if (!moveData) return classes.join(' ');
         
         // Don't highlight "Cannot Move"
         if (moveData.move === 'Cannot Move') return classes.join(' ');
@@ -416,7 +448,7 @@
                         class="inline-dice-input"
                         placeholder="54"
                     />
-                    {:else if row.cubeAction && row.cubeAction.player === row.player}
+                    {:else if row.moveData?.cubeAction || (row.cubeAction && row.cubeAction.player === row.player)}
                     <span class="empty"></span>
                     {:else if row.moveData?.dice}
                     {row.moveData.dice}
@@ -435,18 +467,20 @@
                         placeholder="24/20 13/8"
                         disabled={isCubeDecision}
                     />
+                    {:else if row.moveData?.cubeAction}
+                        {#if row.moveData.cubeAction === 'doubles'}
+                        <span class="cube-action">Doubles → {row.moveData.cubeValue || 2}</span>
+                        {:else if row.moveData.cubeAction === 'takes'}
+                        <span class="cube-response">Takes</span>
+                        {:else if row.moveData.cubeAction === 'drops'}
+                        <span class="cube-response">Drops</span>
+                        {/if}
                     {:else if row.cubeAction && row.cubeAction.player === row.player}
                         {#if row.cubeAction.action === 'doubles'}
                         <span class="cube-action">Doubles → {row.cubeAction.value}</span>
                         {:else if row.cubeAction.action === 'takes'}
                         <span class="cube-response">Takes</span>
                         {:else if row.cubeAction.action === 'drops'}
-                        <span class="cube-response">Drops</span>
-                        {/if}
-                    {:else if row.cubeAction && row.cubeAction.player !== row.player && row.cubeAction.response}
-                        {#if row.cubeAction.response === 'takes'}
-                        <span class="cube-response">Takes</span>
-                        {:else if row.cubeAction.response === 'drops'}
                         <span class="cube-response">Drops</span>
                         {/if}
                     {:else if row.moveData}
