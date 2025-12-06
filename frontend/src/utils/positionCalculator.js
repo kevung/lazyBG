@@ -636,6 +636,53 @@ export function validateGamePositions(game, startMoveIndex = 0) {
   for (let i = startMoveIndex; i < game.moves.length; i++) {
     const move = game.moves[i];
     
+    // NEW: Check if player 1 takes/drops without a preceding double
+    // Player 1 takes/passes should only occur after player 2 doubles in the previous move
+    if (move.player1Move?.cubeAction === 'takes' || move.player1Move?.cubeAction === 'drops') {
+      let hasValidPrecedingDouble = false;
+      
+      // Check if previous move (i-1) has player 2 doubling
+      if (i > 0) {
+        const prevMove = game.moves[i - 1];
+        if (prevMove.player2Move?.cubeAction === 'doubles') {
+          hasValidPrecedingDouble = true;
+        }
+      }
+      
+      if (!hasValidPrecedingDouble) {
+        const action = move.player1Move.cubeAction === 'takes' ? 'take' : 'pass';
+        console.log(`[Move ${i+1}] Player 1 cannot ${action} - no preceding double from player 2`);
+        inconsistentMoves.push({ 
+          moveIndex: i, 
+          player: 1, 
+          reason: `Cannot ${action}: no preceding double from opponent` 
+        });
+        if (firstError === null) firstError = i;
+      }
+    }
+    
+    // NEW: Check if player 2 takes/drops without a preceding double
+    // Player 2 takes/passes should only occur after player 1 doubles in the same move
+    if (move.player2Move?.cubeAction === 'takes' || move.player2Move?.cubeAction === 'drops') {
+      let hasValidPrecedingDouble = false;
+      
+      // Check if player 1 doubled in the same move entry
+      if (move.player1Move?.cubeAction === 'doubles') {
+        hasValidPrecedingDouble = true;
+      }
+      
+      if (!hasValidPrecedingDouble) {
+        const action = move.player2Move.cubeAction === 'takes' ? 'take' : 'pass';
+        console.log(`[Move ${i+1}] Player 2 cannot ${action} - no preceding double from player 1`);
+        inconsistentMoves.push({ 
+          moveIndex: i, 
+          player: 2, 
+          reason: `Cannot ${action}: no preceding double from opponent` 
+        });
+        if (firstError === null) firstError = i;
+      }
+    }
+    
     // If there's an unanswered double, mark ALL actions (cube and regular moves) as invalid
     // and skip further processing of this move
     if (unansweredDoubleAt !== null && unansweredDoubleAt < i) {
