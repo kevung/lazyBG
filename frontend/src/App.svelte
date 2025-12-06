@@ -2,7 +2,7 @@
 
     // svelte functions
     import { onMount, onDestroy } from 'svelte';
-    import { fade } from 'svelte/transition';
+    import { fade, slide } from 'svelte/transition';
     import { get } from 'svelte/store';
 
     // import backend functions
@@ -1220,7 +1220,7 @@
 
     <div class="transcription-layout">
         {#if showMovesTable}
-        <div class="moves-table-column">
+        <div class="moves-table-column" transition:slide={{ duration: 50, axis: 'x' }}>
             <MovesTable />
         </div>
         {/if}
@@ -1240,7 +1240,7 @@
         </div>
 
         {#if showCandidateMoves}
-        <div class="candidate-moves-column">
+        <div class="candidate-moves-column" transition:slide={{ duration: 50, axis: 'x' }}>
             <CandidateMovesPanel />
         </div>
         {/if}

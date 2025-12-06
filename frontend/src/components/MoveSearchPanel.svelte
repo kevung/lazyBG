@@ -136,7 +136,7 @@
 </script>
 
 {#if visible}
-    <div class="search-panel" transition:slide={{ duration: 200 }} bind:this={panelEl}>
+    <div class="search-panel" transition:slide={{ duration: 50 }} bind:this={panelEl}>
         <div class="panel-content">
             <input
                 type="text"

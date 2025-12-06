@@ -228,7 +228,7 @@
 </script>
 
 {#if visible}
-    <div class="edit-panel" transition:slide={{ duration: 200 }} bind:this={panelEl}>
+    <div class="edit-panel" transition:slide={{ duration: 50 }} bind:this={panelEl}>
         <div class="panel-content">
             <div class="field-group">
                 <label for="dice-input">Dice:</label>
