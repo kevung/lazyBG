@@ -441,6 +441,16 @@
         if (success) {
             // Clear the entire position cache
             positionsCacheStore.set({});
+            
+            // Revalidate all games to update inconsistencies
+            const transcription = $transcriptionStore;
+            if (transcription && transcription.games) {
+                const { validateGameInconsistencies } = await import('../stores/transcriptionStore.js');
+                for (let gameIndex = 0; gameIndex < transcription.games.length; gameIndex++) {
+                    await validateGameInconsistencies(gameIndex, 0);
+                }
+            }
+            
             statusBarTextStore.set('Undo completed');
             
             // Force board update
@@ -457,6 +467,16 @@
         if (success) {
             // Clear the entire position cache
             positionsCacheStore.set({});
+            
+            // Revalidate all games to update inconsistencies
+            const transcription = $transcriptionStore;
+            if (transcription && transcription.games) {
+                const { validateGameInconsistencies } = await import('../stores/transcriptionStore.js');
+                for (let gameIndex = 0; gameIndex < transcription.games.length; gameIndex++) {
+                    await validateGameInconsistencies(gameIndex, 0);
+                }
+            }
+            
             statusBarTextStore.set('Redo completed');
             
             // Force board update

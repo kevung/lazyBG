@@ -72,7 +72,8 @@
         addMove,
         clearTranscription,
         swapPlayers,
-        migrateCubeActions
+        migrateCubeActions,
+        validateGameInconsistencies
     } from './stores/transcriptionStore.js';
     import { undoRedoStore } from './stores/undoRedoStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
@@ -1238,6 +1239,14 @@
             // Clear the entire position cache since transcription structure may have changed
             positionsCacheStore.set({});
             
+            // Revalidate all games to update inconsistencies
+            const transcription = get(transcriptionStore);
+            if (transcription && transcription.games) {
+                for (let gameIndex = 0; gameIndex < transcription.games.length; gameIndex++) {
+                    await validateGameInconsistencies(gameIndex, 0);
+                }
+            }
+            
             setStatusBarMessage('Undo completed');
             
             // Force board update by updating the selectedMoveStore
@@ -1254,6 +1263,14 @@
         if (success) {
             // Clear the entire position cache since transcription structure may have changed
             positionsCacheStore.set({});
+            
+            // Revalidate all games to update inconsistencies
+            const transcription = get(transcriptionStore);
+            if (transcription && transcription.games) {
+                for (let gameIndex = 0; gameIndex < transcription.games.length; gameIndex++) {
+                    await validateGameInconsistencies(gameIndex, 0);
+                }
+            }
             
             setStatusBarMessage('Redo completed');
             
