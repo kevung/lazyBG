@@ -128,6 +128,12 @@
     // Vim-like navigation state
     let lastGKeyTime = 0;
     const GG_TIMEOUT = 500; // milliseconds to wait for second 'g'
+    
+    // Vim-like 'dd' state for deletion
+    let lastDKeyTime = 0;
+    const DD_TIMEOUT = 500; // milliseconds to wait for second 'd'
+    let pendingDeleteCommand = false; // Track if 'd' was pressed and waiting for second 'd'
+    let movesTableRef = null; // Reference to MovesTable component
 
     // Declare functions before subscriptions that use them
     export function setStatusBarMessage(message) {
@@ -637,16 +643,12 @@
                 event.preventDefault();
                 previousPosition();
             }
-        } else if (!event.ctrlKey && event.key === 'k') {
-            previousPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowRight') {
             // Don't intercept if in EDIT mode (allow cursor movement in input fields)
             if ($statusBarModeStore !== 'EDIT') {
                 event.preventDefault();
                 nextPosition();
             }
-        } else if (!event.ctrlKey && event.key === 'j') {
-            nextPosition();
         } else if (!event.ctrlKey && event.key === 'PageDown') {
             event.preventDefault();
             nextGame();
@@ -751,6 +753,63 @@
         } else if (event.ctrlKey && event.key === '[') {
             event.preventDefault();
             previousSearchResult();
+        } else if (!event.ctrlKey && !event.shiftKey && event.key === 'd') {
+            // Don't intercept if in EDIT mode (allow typing 'd' for double/drop)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                const currentTime = Date.now();
+                
+                if (pendingDeleteCommand) {
+                    // Second 'd' pressed - execute dd
+                    console.log('[App.handleKeyDown] dd detected');
+                    if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                        setStatusBarMessage('No transcription opened');
+                        pendingDeleteCommand = false;
+                        return;
+                    }
+                    deleteCurrentDecision();
+                    pendingDeleteCommand = false;
+                } else {
+                    // First 'd' pressed - wait for next key
+                    console.log('[App.handleKeyDown] First d pressed, waiting for next key');
+                    pendingDeleteCommand = true;
+                    lastDKeyTime = currentTime;
+                    setTimeout(() => {
+                        if (pendingDeleteCommand && Date.now() - lastDKeyTime >= DD_TIMEOUT) {
+                            console.log('[App.handleKeyDown] Delete command timed out');
+                            pendingDeleteCommand = false;
+                        }
+                    }, DD_TIMEOUT);
+                }
+            }
+        } else if (!event.ctrlKey && event.key === 'Delete') {
+            // Delete key - delete current decision
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            deleteCurrentDecision();
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'K') {
+            // Shift+k - extend selection upward
+            console.log('[App.handleKeyDown] Shift+K detected - extend selection up');
+            event.preventDefault();
+            extendSelectionUp();
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'J') {
+            // Shift+j - extend selection downward
+            console.log('[App.handleKeyDown] Shift+J detected - extend selection down');
+            event.preventDefault();
+            extendSelectionDown();
+        } else if (!event.ctrlKey && event.key === 'k') {
+            // k for up navigation (delete mode handled earlier)
+            previousPosition();
+        } else if (!event.ctrlKey && event.key === 'j') {
+            // j for down navigation (delete mode handled earlier)
+            nextPosition();
+        } else if (pendingDeleteCommand) {
+            // Any other key pressed while waiting for delete command - cancel
+            console.log(`[App.handleKeyDown] Canceling delete mode on other key: ${event.key}`);
+            pendingDeleteCommand = false;
         }
     }
 
@@ -1033,6 +1092,9 @@
             return;
         }
         
+        // Clear multi-selection when navigating
+        clearMultiSelection();
+        
         // Navigate in transcription mode
         if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
             const { gameIndex, moveIndex, player } = $selectedMoveStore;
@@ -1054,6 +1116,9 @@
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
         }
+        
+        // Clear multi-selection when navigating
+        clearMultiSelection();
         
         // Navigate in transcription mode
         if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
@@ -1199,6 +1264,44 @@
         setStatusBarMessage(`Empty decision inserted ${posText} at game ${gameIndex + 1}, move ${newMoveIndex + 1}. Use Tab to edit.`);
     }
 
+    async function deleteCurrentDecision() {
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        
+        // Delegate to MovesTable to handle both single and multi-selection deletion
+        if (movesTableRef && movesTableRef.deleteSelectedDecisions) {
+            await movesTableRef.deleteSelectedDecisions();
+        } else {
+            console.error('[deleteCurrentDecision] MovesTable reference not available');
+        }
+    }
+
+    function clearMultiSelection() {
+        if (movesTableRef && movesTableRef.clearSelection) {
+            movesTableRef.clearSelection();
+        }
+    }
+
+    function extendSelectionUp() {
+        console.log('[App.extendSelectionUp] Delegating to MovesTable');
+        if (movesTableRef && movesTableRef.extendSelectionUp) {
+            movesTableRef.extendSelectionUp();
+        } else {
+            console.error('[App.extendSelectionUp] MovesTable reference not available');
+        }
+    }
+
+    function extendSelectionDown() {
+        console.log('[App.extendSelectionDown] Delegating to MovesTable');
+        if (movesTableRef && movesTableRef.extendSelectionDown) {
+            movesTableRef.extendSelectionDown();
+        } else {
+            console.error('[App.extendSelectionDown] MovesTable reference not available');
+        }
+    }
+
     function toggleMetadataModal() {
         if (mode === 'EDIT') {
             setStatusBarMessage('Cannot show metadata modal in edit mode');
@@ -1322,12 +1425,13 @@
         onShowMetadata={toggleMetadataModal}
         onShowMoveSearch={() => showMoveSearchModalStore.update(v => !v)}
         onShowInsertPanel={showInsertDecisionPanel}
+        onDeleteDecision={deleteCurrentDecision}
     />
 
     <div class="transcription-layout">
         {#if showMovesTable}
         <div class="moves-table-column" transition:slide={{ duration: 50, axis: 'x' }}>
-            <MovesTable />
+            <MovesTable bind:this={movesTableRef} />
         </div>
         {/if}
         

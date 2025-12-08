@@ -19,6 +19,7 @@
     export let onToggleMovesPanel;
     export let onShowMoveSearch;
     export let onShowInsertPanel;
+    export let onDeleteDecision;
 
     import { statusBarModeStore, statusBarTextStore, showInitialPositionStore, showMovesTableStore, showCandidateMovesStore, showCommandStore, showMoveSearchModalStore } from '../stores/uiStore';
     import { transcriptionStore } from '../stores/transcriptionStore';
@@ -192,6 +193,12 @@
     <button on:click|stopPropagation={onShowInsertPanel} aria-label="Insert Decision" title="Insert Decision (o, O)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onDeleteDecision} aria-label="Delete Decision" title="Delete Decision (dd, Del)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
         </svg>
     </button>
 

@@ -10,7 +10,9 @@
         updateMove,
         invalidatePositionsCacheFrom,
         insertDecisionBefore,
-        insertDecisionAfter
+        insertDecisionAfter,
+        deleteDecision,
+        deleteDecisions
     } from '../stores/transcriptionStore.js';
     import { statusBarModeStore, statusBarTextStore } from '../stores/uiStore.js';
     
@@ -35,6 +37,14 @@
     let contextMenuGameIndex = 0;
     let contextMenuMoveIndex = 0;
     let contextMenuPlayer = 1;
+
+    // Multi-select state
+    let selectionStart = null; // { gameIndex, moveIndex, player }
+    let selectionEnd = null; // { gameIndex, moveIndex, player }
+    let isDragging = false; // Track if user is dragging for selection
+    
+    // Force reactive update when selection changes
+    $: selectionRange = { start: selectionStart, end: selectionEnd };
 
     $: games = $transcriptionStore?.games || [];
     $: selectedGameIndex = $selectedMoveStore?.gameIndex ?? 0;
@@ -79,15 +89,259 @@
         }
     }
 
-    function selectMove(gameIndex, moveIndex, player) {
-        console.log(`[MovesTable.selectMove] Selecting gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+    function selectMove(gameIndex, moveIndex, player, isShiftClick = false) {
+        console.log(`[MovesTable.selectMove] Called with gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}, isShiftClick=${isShiftClick}`);
+        console.log(`[MovesTable.selectMove] Current selectionStart:`, selectionStart, `selectionEnd:`, selectionEnd);
         const game = games[gameIndex];
         if (game) {
             const move = game.moves[moveIndex];
             const moveData = player === 1 ? move?.player1Move : move?.player2Move;
             console.log(`[MovesTable.selectMove] moveData:`, JSON.stringify(moveData));
         }
+        
+        if (isShiftClick && selectionStart) {
+            // Extend selection from start to current position
+            selectionEnd = { gameIndex, moveIndex, player };
+            console.log(`[MovesTable.selectMove] ✓ Extended selection to:`, selectionEnd);
+        } else {
+            // Start new selection
+            selectionStart = { gameIndex, moveIndex, player };
+            selectionEnd = null;
+            console.log(`[MovesTable.selectMove] ✓ Started new selection at:`, selectionStart);
+        }
+        
         selectedMoveStore.set({ gameIndex, moveIndex, player });
+    }
+
+    function handleMouseDown(gameIndex, moveIndex, player, event) {
+        if (event.button !== 0) return; // Only left mouse button
+        if (event.shiftKey) {
+            // Shift-click extends selection
+            selectMove(gameIndex, moveIndex, player, true);
+        } else {
+            // Start new selection and begin drag
+            selectMove(gameIndex, moveIndex, player, false);
+            isDragging = true;
+        }
+    }
+
+    function handleMouseEnter(gameIndex, moveIndex, player) {
+        if (isDragging && selectionStart) {
+            // Extend selection while dragging
+            selectionEnd = { gameIndex, moveIndex, player };
+            selectedMoveStore.set({ gameIndex, moveIndex, player });
+        }
+    }
+
+    function handleMouseUp() {
+        isDragging = false;
+    }
+
+    // Helper to check if a decision is currently selected (single or in range)
+    function isDecisionSelected(gameIndex, moveIndex, player) {
+        const start = selectionRange.start;
+        const end = selectionRange.end;
+        
+        if (!start) return false;
+        
+        // Check if this is the start decision
+        if (start.gameIndex === gameIndex && start.moveIndex === moveIndex && start.player === player) {
+            return true;
+        }
+        
+        // If no range, only the start is selected
+        if (!end) return false;
+        
+        // Check if in multi-selection range
+        if (gameIndex !== start.gameIndex) return false;
+        
+        const startRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === start.gameIndex && 
+            r.moveIndex === start.moveIndex && 
+            r.player === start.player
+        );
+        const endRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === end.gameIndex && 
+            r.moveIndex === end.moveIndex && 
+            r.player === end.player
+        );
+        const currentRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === gameIndex && 
+            r.moveIndex === moveIndex && 
+            r.player === player
+        );
+        
+        if (startRowIdx === -1 || endRowIdx === -1 || currentRowIdx === -1) return false;
+        
+        const minIdx = Math.min(startRowIdx, endRowIdx);
+        const maxIdx = Math.max(startRowIdx, endRowIdx);
+        
+        return currentRowIdx >= minIdx && currentRowIdx <= maxIdx;
+    }
+
+    // Helper to check if a decision is in the selected range (for visual highlighting)
+    function isInSelectedRange(gameIndex, moveIndex, player) {
+        // Use selectionRange to ensure reactivity
+        const start = selectionRange.start;
+        const end = selectionRange.end;
+        
+        if (!start) return false;
+        
+        // Single selection (no range) - don't highlight as range
+        if (!end) {
+            return false;
+        }
+        
+        // Multi-selection range (only within same game)
+        if (gameIndex !== start.gameIndex) return false;
+        
+        // Find row indices for start and end
+        const startRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === start.gameIndex && 
+            r.moveIndex === start.moveIndex && 
+            r.player === start.player
+        );
+        const endRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === end.gameIndex && 
+            r.moveIndex === end.moveIndex && 
+            r.player === end.player
+        );
+        const currentRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === gameIndex && 
+            r.moveIndex === moveIndex && 
+            r.player === player
+        );
+        
+        if (startRowIdx === -1 || endRowIdx === -1 || currentRowIdx === -1) return false;
+        
+        const minIdx = Math.min(startRowIdx, endRowIdx);
+        const maxIdx = Math.max(startRowIdx, endRowIdx);
+        
+        const inRange = currentRowIdx >= minIdx && currentRowIdx <= maxIdx;
+        
+        // Debug logging for visual highlighting
+        if (inRange) {
+            console.log(`[isInSelectedRange] Decision at ${gameIndex},${moveIndex},${player} IS in range [${minIdx}-${maxIdx}], currentIdx=${currentRowIdx}`);
+        }
+        
+        return inRange;
+    }
+
+    // Check if multi-selection is active (more than one decision selected)
+    function isMultiSelectionActive() {
+        return selectionStart !== null && selectionEnd !== null;
+    }
+
+    // Get array of all decisions in the selected range
+    function getSelectedDecisions() {
+        console.log(`[getSelectedDecisions] selectionStart:`, selectionStart, `selectionEnd:`, selectionEnd);
+        
+        // If no selection state, fall back to selectedMoveStore (for keyboard navigation)
+        if (!selectionStart) {
+            if ($selectedMoveStore) {
+                const result = [{ 
+                    gameIndex: $selectedMoveStore.gameIndex, 
+                    moveIndex: $selectedMoveStore.moveIndex, 
+                    player: $selectedMoveStore.player 
+                }];
+                console.log(`[getSelectedDecisions] Using selectedMoveStore:`, result);
+                return result;
+            }
+            return [];
+        }
+        
+        if (!selectionEnd) {
+            // Single selection
+            const result = [{ gameIndex: selectionStart.gameIndex, moveIndex: selectionStart.moveIndex, player: selectionStart.player }];
+            console.log(`[getSelectedDecisions] Single selection:`, result);
+            return result;
+        }
+        
+        // Multi-selection - get all decisions in range
+        const startRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === selectionStart.gameIndex && 
+            r.moveIndex === selectionStart.moveIndex && 
+            r.player === selectionStart.player
+        );
+        const endRowIdx = playerRows.findIndex(r => 
+            r.gameIndex === selectionEnd.gameIndex && 
+            r.moveIndex === selectionEnd.moveIndex && 
+            r.player === selectionEnd.player
+        );
+        
+        if (startRowIdx === -1 || endRowIdx === -1) return [];
+        
+        const minIdx = Math.min(startRowIdx, endRowIdx);
+        const maxIdx = Math.max(startRowIdx, endRowIdx);
+        
+        const decisions = [];
+        for (let i = minIdx; i <= maxIdx; i++) {
+            const row = playerRows[i];
+            decisions.push({ gameIndex: row.gameIndex, moveIndex: row.moveIndex, player: row.player });
+        }
+        
+        console.log(`[getSelectedDecisions] Multi-selection: ${decisions.length} decisions`);
+        return decisions;
+    }
+
+    // Clear multi-selection
+    export function clearSelection() {
+        selectionStart = null;
+        selectionEnd = null;
+    }
+
+    // Extend selection upward (shift+k)
+    export function extendSelectionUp() {
+        console.log('[MovesTable.extendSelectionUp] Called');
+        if (!$selectedMoveStore) return;
+        
+        // Find current selection in playerRows
+        const currentIdx = playerRows.findIndex(r => 
+            r.gameIndex === $selectedMoveStore.gameIndex && 
+            r.moveIndex === $selectedMoveStore.moveIndex && 
+            r.player === $selectedMoveStore.player
+        );
+        
+        if (currentIdx === -1 || currentIdx === 0) return;
+        
+        // If no range selection yet, start one
+        if (!selectionStart) {
+            selectionStart = { ...$selectedMoveStore };
+        }
+        
+        // Move to previous row
+        const prevRow = playerRows[currentIdx - 1];
+        selectionEnd = { gameIndex: prevRow.gameIndex, moveIndex: prevRow.moveIndex, player: prevRow.player };
+        selectedMoveStore.set(selectionEnd);
+        
+        console.log('[MovesTable.extendSelectionUp] Extended to:', selectionEnd);
+    }
+
+    // Extend selection downward (shift+j)
+    export function extendSelectionDown() {
+        console.log('[MovesTable.extendSelectionDown] Called');
+        if (!$selectedMoveStore) return;
+        
+        // Find current selection in playerRows
+        const currentIdx = playerRows.findIndex(r => 
+            r.gameIndex === $selectedMoveStore.gameIndex && 
+            r.moveIndex === $selectedMoveStore.moveIndex && 
+            r.player === $selectedMoveStore.player
+        );
+        
+        if (currentIdx === -1 || currentIdx >= playerRows.length - 1) return;
+        
+        // If no range selection yet, start one
+        if (!selectionStart) {
+            selectionStart = { ...$selectedMoveStore };
+        }
+        
+        // Move to next row
+        const nextRow = playerRows[currentIdx + 1];
+        selectionEnd = { gameIndex: nextRow.gameIndex, moveIndex: nextRow.moveIndex, player: nextRow.player };
+        selectedMoveStore.set(selectionEnd);
+        
+        console.log('[MovesTable.extendSelectionDown] Extended to:', selectionEnd);
     }
 
     function handleContextMenu(event, gameIndex, moveIndex, player) {
@@ -101,8 +355,10 @@
             contextMenuPlayer = player;
             showContextMenu = true;
             
-            // Select the move
-            selectMove(gameIndex, moveIndex, player);
+            // Only select the move if not already selected (single or in range)
+            if (!isDecisionSelected(gameIndex, moveIndex, player)) {
+                selectMove(gameIndex, moveIndex, player);
+            }
         }
     }
 
@@ -146,6 +402,37 @@
             moveIndex: newMoveIndex, 
             player: newPlayer 
         });
+        
+        closeContextMenu();
+    }
+
+    // Export this function so App.svelte can call it for dd/Del key
+    export async function deleteSelectedDecisions() {
+        await handleDeleteDecision();
+    }
+
+    async function handleDeleteDecision() {
+        const decisions = getSelectedDecisions();
+        console.log('[handleDeleteDecision] Deleting decisions:', decisions);
+        
+        if (decisions.length === 0) return;
+        
+        if (decisions.length === 1) {
+            const { gameIndex, moveIndex, player } = decisions[0];
+            deleteDecision(gameIndex, moveIndex, player);
+            await invalidatePositionsCacheFrom(gameIndex, moveIndex);
+            statusBarTextStore.set(`Decision deleted at game ${gameIndex + 1}, move ${moveIndex + 1}, player ${player}`);
+        } else {
+            deleteDecisions(decisions);
+            statusBarTextStore.set(`${decisions.length} decisions deleted`);
+        }
+        
+        // Clear selection range completely
+        selectionStart = null;
+        selectionEnd = null;
+        
+        // Force board update
+        selectedMoveStore.update(current => ({ ...current }));
         
         closeContextMenu();
     }
@@ -270,11 +557,6 @@
                         !playerMoveG.isGala
                     );
                 }
-                break;
-                
-            case 'Delete':
-                event.preventDefault();
-                deleteMove(gameIndex, currentMoves[moveIndex].moveNumber);
                 break;
         }
     }
@@ -564,7 +846,7 @@
     }
 </script>
 
-<svelte:window on:keydown={handleKeyDown} on:click={closeContextMenu} />
+<svelte:window on:keydown={handleKeyDown} on:click={closeContextMenu} on:mouseup={handleMouseUp} />
 
 {#if visible}
 <div class="moves-table">
@@ -576,10 +858,12 @@
             {#each playerRows as row, rowIdx}
             <tr 
                 class:selected={$selectedMoveStore?.gameIndex === row.gameIndex && $selectedMoveStore?.moveIndex === row.moveIndex && $selectedMoveStore?.player === row.player}
+                class:in-selection={isInSelectedRange(row.gameIndex, row.moveIndex, row.player)}
                 class:player1={row.player === 1}
                 class:player2={row.player === 2}
                 class={getMoveClass(row.moveData, row.moveIndex, row.player)}
-                on:click={() => selectMove(row.gameIndex, row.moveIndex, row.player)}
+                on:mousedown={(e) => handleMouseDown(row.gameIndex, row.moveIndex, row.player, e)}
+                on:mouseenter={() => handleMouseEnter(row.gameIndex, row.moveIndex, row.player)}
                 on:contextmenu|preventDefault={(e) => handleContextMenu(e, row.gameIndex, row.moveIndex, row.player)}
                 title={getTooltipMessage(row.moveIndex, row.player)}
             >
@@ -678,19 +962,27 @@
     >
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <div class="context-menu-item" on:click={handleInsertBefore} role="menuitem" tabindex="0">
+        <div class="context-menu-item" class:disabled={isMultiSelectionActive()} on:click={isMultiSelectionActive() ? null : handleInsertBefore} role="menuitem" tabindex="0">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Insert Before
+            Before
         </div>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <div class="context-menu-item" on:click={handleInsertAfter} role="menuitem" tabindex="0">
+        <div class="context-menu-item" class:disabled={isMultiSelectionActive()} on:click={isMultiSelectionActive() ? null : handleInsertAfter} role="menuitem" tabindex="0">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Insert After
+            After
+        </div>
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="context-menu-item" on:click={handleDeleteDecision} role="menuitem" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+            </svg>
+            Delete
         </div>
     </div>
 </div>
@@ -759,6 +1051,10 @@
     tbody tr {
         cursor: pointer;
         transition: background-color 0.15s;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
     }
 
     tbody tr:hover {
@@ -766,6 +1062,16 @@
     }
 
     tbody tr.selected {
+        background-color: #d4e6f8 !important;
+        outline: 2px solid #4a90e2;
+    }
+
+    tbody tr.in-selection {
+        background-color: #e8f4fd !important;
+        outline: 1px solid #7ab8f0;
+    }
+
+    tbody tr.selected.in-selection {
         background-color: #d4e6f8 !important;
         outline: 2px solid #4a90e2;
     }
@@ -965,6 +1271,12 @@
 
     .context-menu-item:hover {
         background-color: #f0f0f0;
+    }
+
+    .context-menu-item.disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: none;
     }
 
     .context-icon {

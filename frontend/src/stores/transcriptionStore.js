@@ -447,6 +447,137 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
 }
 
+/**
+ * Delete a decision (player-specific move) and shift subsequent decisions
+ * @param {number} gameIndex - Game index
+ * @param {number} moveIndex - Move index
+ * @param {number} player - Player (1 or 2)
+ */
+export function deleteDecision(gameIndex, moveIndex, player) {
+    console.log(`[deleteDecision] gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+    transcriptionStore.update(t => {
+        const game = t.games[gameIndex];
+        if (!game) return t;
+        
+        console.log(`[deleteDecision] Before deletion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
+        
+        const currentMove = game.moves[moveIndex];
+        if (!currentMove) return t;
+        
+        // Collect all decisions after the deletion point in sequence
+        const decisionsToShift = [];
+        
+        for (let i = moveIndex; i < game.moves.length; i++) {
+            const move = game.moves[i];
+            
+            // For the current move, skip the decision being deleted
+            if (i === moveIndex) {
+                if (player === 1) {
+                    // Skip player1Move, collect player2Move
+                    if (move.player2Move) {
+                        decisionsToShift.push({ decision: JSON.parse(JSON.stringify(move.player2Move)) });
+                    }
+                }
+                // If player === 2, skip player2Move but there's nothing after in this move
+            } else {
+                // Collect all decisions from subsequent moves
+                if (move.player1Move) {
+                    decisionsToShift.push({ decision: JSON.parse(JSON.stringify(move.player1Move)) });
+                }
+                if (move.player2Move) {
+                    decisionsToShift.push({ decision: JSON.parse(JSON.stringify(move.player2Move)) });
+                }
+            }
+        }
+        
+        console.log(`[deleteDecision] Decisions to shift:`, decisionsToShift.length);
+        
+        // Clear all affected slots starting from the deletion point
+        for (let i = moveIndex; i < game.moves.length; i++) {
+            if (i === moveIndex) {
+                if (player === 1) {
+                    game.moves[i].player1Move = null;
+                    game.moves[i].player2Move = null;
+                } else {
+                    game.moves[i].player2Move = null;
+                }
+            } else {
+                game.moves[i].player1Move = null;
+                game.moves[i].player2Move = null;
+            }
+        }
+        
+        // Redistribute shifted decisions starting from the deletion point
+        let decisionIndex = 0;
+        let targetMoveIndex = moveIndex;
+        let targetPlayer = player;
+        
+        while (decisionIndex < decisionsToShift.length) {
+            // Ensure target move exists
+            if (targetMoveIndex >= game.moves.length) {
+                break; // No more moves to fill
+            }
+            
+            const targetMove = game.moves[targetMoveIndex];
+            const decisionToPlace = decisionsToShift[decisionIndex].decision;
+            console.log(`[deleteDecision] Placing decision ${decisionIndex} at move ${targetMoveIndex} player ${targetPlayer}`);
+            
+            if (targetPlayer === 1) {
+                targetMove.player1Move = decisionToPlace;
+                targetPlayer = 2;
+            } else {
+                targetMove.player2Move = decisionToPlace;
+                targetPlayer = 1;
+                targetMoveIndex++;
+            }
+            
+            decisionIndex++;
+        }
+        
+        game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
+        console.log(`[deleteDecision] After deletion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
+        
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
+    });
+    
+    invalidatePositionsCacheFrom(gameIndex, moveIndex);
+}
+
+/**
+ * Delete multiple decisions at once
+ * @param {Array} decisions - Array of {gameIndex, moveIndex, player} objects
+ */
+export function deleteDecisions(decisions) {
+    if (!decisions || decisions.length === 0) return;
+    
+    console.log(`[deleteDecisions] Deleting ${decisions.length} decisions`);
+    
+    // Sort decisions in reverse order (from last to first) to avoid index shifting issues
+    const sortedDecisions = [...decisions].sort((a, b) => {
+        if (a.gameIndex !== b.gameIndex) return b.gameIndex - a.gameIndex;
+        if (a.moveIndex !== b.moveIndex) return b.moveIndex - a.moveIndex;
+        return b.player - a.player; // player 2 before player 1
+    });
+    
+    // Delete each decision
+    sortedDecisions.forEach(({ gameIndex, moveIndex, player }) => {
+        deleteDecision(gameIndex, moveIndex, player);
+    });
+    
+    // Invalidate cache from the earliest affected position
+    const earliestDecision = decisions.reduce((earliest, current) => {
+        if (!earliest) return current;
+        if (current.gameIndex < earliest.gameIndex) return current;
+        if (current.gameIndex === earliest.gameIndex && current.moveIndex < earliest.moveIndex) return current;
+        return earliest;
+    }, null);
+    
+    if (earliestDecision) {
+        invalidatePositionsCacheFrom(earliestDecision.gameIndex, earliestDecision.moveIndex);
+    }
+}
+
 export function deleteMove(gameIndex, moveIndex) {
     transcriptionStore.update(t => {
         const game = t.games[gameIndex];

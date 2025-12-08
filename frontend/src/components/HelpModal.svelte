@@ -212,6 +212,34 @@
                     <p>In the insert panel, choose whether to insert before or after the current decision, then press Enter. The new decision will be empty and flagged by validation. Use Tab to enter edit mode and fill in the move details.</p>
                     <p>The insertion respects whether you're on a player 1 or player 2 decision, ensuring the game flow remains consistent.</p>
                     
+                    <h3>Deleting Decisions</h3>
+                    <p>You can delete one or multiple decisions using various methods:</p>
+                    
+                    <h4>Single Decision Deletion</h4>
+                    <ul>
+                        <li>Press <strong>dd</strong> (vim-like) to delete the current decision</li>
+                        <li>Press <strong>Del</strong> or <strong>Delete</strong> to delete the current decision</li>
+                        <li>Right-click on a move in the moves table to show a context menu with delete option</li>
+                        <li>Click the <strong>−</strong> (minus) button in the toolbar to delete the current decision</li>
+                    </ul>
+                    
+                    <h4>Multi-Decision Selection and Deletion</h4>
+                    <p>You can select multiple consecutive decisions using any of these methods:</p>
+                    <ul>
+                        <li><strong>Click and drag</strong> - Click on a decision and drag down or up to select a range</li>
+                        <li><strong>Shift+Click</strong> - Click one decision, then hold <strong>Shift</strong> and click another to select everything in between</li>
+                        <li><strong>Shift+J/K</strong> - Hold <strong>Shift</strong> and press <strong>J</strong> (down) or <strong>K</strong> (up) to extend the selection</li>
+                    </ul>
+                    <p>Selected decisions are highlighted with a light blue background. Once multiple decisions are selected, you can delete them all at once using:</p>
+                    <ul>
+                        <li>Press <strong>dd</strong> or <strong>Del</strong> to delete all selected decisions</li>
+                        <li>Right-click anywhere in the selection and choose "Delete" from the context menu</li>
+                        <li>Click the <strong>−</strong> button in the toolbar</li>
+                    </ul>
+                    <p><strong>Note:</strong> Navigating to a different decision (j/k/arrows) will automatically clear any multi-selection.</p>
+                    
+                    <p>When decisions are deleted, all subsequent decisions are shifted up to fill the gap, maintaining the game flow. The position cache is automatically invalidated and recalculated from the deletion point onwards.</p>
+                    
                     <h3>COMMAND Mode</h3>
                     <p>COMMAND mode provides quick access to common operations via a command line interface. Press <strong>SPACE</strong> to enter COMMAND mode, type your command, and press <strong>ENTER</strong> to execute it.</p>
                 {/if}
@@ -321,7 +349,7 @@
                         </tbody>
                     </table>
 
-                    <h3>Move Insertion</h3>
+                    <h3>Decision Manipulation</h3>
                     <table>
                         <thead>
                             <tr>
@@ -339,12 +367,36 @@
                                 <td>Insert Empty Decision Before current</td>
                             </tr>
                             <tr>
+                                <td>dd</td>
+                                <td>Delete Current Decision or Selection</td>
+                            </tr>
+                            <tr>
+                                <td>Del, Delete</td>
+                                <td>Delete Current Decision or Selection</td>
+                            </tr>
+                            <tr>
+                                <td>Click+Drag</td>
+                                <td>Select Multiple Decisions (range)</td>
+                            </tr>
+                            <tr>
+                                <td>Shift+Click</td>
+                                <td>Extend Selection to Clicked Decision</td>
+                            </tr>
+                            <tr>
+                                <td>Shift+J / Shift+K</td>
+                                <td>Extend Selection Down / Up</td>
+                            </tr>
+                            <tr>
                                 <td>+ Button (Toolbar)</td>
                                 <td>Open Insert Decision Panel</td>
                             </tr>
                             <tr>
-                                <td>Right-click (Edit Mode)</td>
-                                <td>Show Context Menu with Insert Options</td>
+                                <td>− Button (Toolbar)</td>
+                                <td>Delete Current Decision or Selection</td>
+                            </tr>
+                            <tr>
+                                <td>Right-click (Normal Mode)</td>
+                                <td>Show Context Menu with Insert/Delete Options</td>
                             </tr>
                         </tbody>
                     </table>
@@ -574,9 +626,15 @@
         height: calc(100% - 50px); /* Adjust height to ensure uniform tab size */
     }
 
-    .tab-content p, .tab-content ul, .tab-content h2, .tab-content h3 {
+    .tab-content p, .tab-content ul, .tab-content h2, .tab-content h3, .tab-content h4 {
         margin: 0 20px 20px 20px; /* Add bottom margin for spacing */
         text-align: justify;
+    }
+    
+    .tab-content h4 {
+        font-size: 1.1em;
+        margin-top: 15px;
+        margin-bottom: 10px;
     }
 
     table {
