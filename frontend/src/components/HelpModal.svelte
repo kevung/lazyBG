@@ -200,6 +200,17 @@
                     
                     <h3>EDIT Mode</h3>
                     <p>EDIT mode allows you to modify board positions using the mouse. Activate it by pressing <strong>TAB</strong>. You can adjust checker positions, cube ownership, dice, and score.</p>
+                    <p>When in EDIT mode with the moves panel open, you can right-click on any move to access a context menu with options to insert new decisions before or after the selected move.</p>
+                    
+                    <h3>Inserting Decisions</h3>
+                    <p>You can insert new empty decisions (player-specific moves) into the transcription:</p>
+                    <ul>
+                        <li>Press <strong>o</strong> or <strong>O</strong> to open the insert panel</li>
+                        <li>In EDIT mode, right-click on a move in the moves table to show a context menu with insert options</li>
+                        <li>Click the <strong>+</strong> button in the toolbar to open the insert panel</li>
+                    </ul>
+                    <p>In the insert panel, choose whether to insert before or after the current decision, then press Enter. The new decision will be empty and flagged by validation. Use Tab to enter edit mode and fill in the move details.</p>
+                    <p>The insertion respects whether you're on a player 1 or player 2 decision, ensuring the game flow remains consistent.</p>
                     
                     <h3>COMMAND Mode</h3>
                     <p>COMMAND mode provides quick access to common operations via a command line interface. Press <strong>SPACE</strong> to enter COMMAND mode, type your command, and press <strong>ENTER</strong> to execute it.</p>
@@ -306,6 +317,34 @@
                             <tr>
                                 <td>Ctrl + H, ?</td>
                                 <td>Open Help</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Move Insertion</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Shortcut</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>o</td>
+                                <td>Insert Empty Decision After current</td>
+                            </tr>
+                            <tr>
+                                <td>O (Shift+o)</td>
+                                <td>Insert Empty Decision Before current</td>
+                            </tr>
+                            <tr>
+                                <td>+ Button (Toolbar)</td>
+                                <td>Open Insert Decision Panel</td>
+                            </tr>
+                            <tr>
+                                <td>Right-click (Edit Mode)</td>
+                                <td>Show Context Menu with Insert Options</td>
                             </tr>
                         </tbody>
                     </table>

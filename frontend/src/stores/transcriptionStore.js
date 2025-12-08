@@ -139,7 +139,8 @@ export function addGame(gameNumber, player1Score, player2Score) {
             moves: [],
             winner: null
         });
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
 }
 
@@ -168,7 +169,8 @@ export function addMove(gameIndex, moveNumber, player, dice, move, isIllegal = f
             moveEntry.player2Move = moveData;
         }
         
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
     
     // Invalider le cache des positions après ce coup
@@ -196,7 +198,8 @@ export function insertMoveBefore(gameIndex, moveIndex) {
         });
         game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
         
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
     
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
@@ -204,6 +207,244 @@ export function insertMoveBefore(gameIndex, moveIndex) {
 
 export function insertMoveAfter(gameIndex, moveIndex) {
     insertMoveBefore(gameIndex, moveIndex + 1);
+}
+
+/**
+ * Insert a decision (player-specific move) before the current selected decision
+ * @param {number} gameIndex - Game index
+ * @param {number} moveIndex - Move index
+ * @param {number} player - Player (1 or 2)
+ */
+export function insertDecisionBefore(gameIndex, moveIndex, player) {
+    console.log(`[insertDecisionBefore] gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+    transcriptionStore.update(t => {
+        const game = t.games[gameIndex];
+        if (!game) return t;
+        
+        console.log(`[insertDecisionBefore] Before insertion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
+        
+        const currentMove = game.moves[moveIndex];
+        if (!currentMove) return t;
+        
+        const currentMoveNumber = currentMove.moveNumber;
+        
+        // Collect all decisions from the insertion point onwards
+        // Use deep copies to avoid reference sharing issues
+        const decisionsToShift = [];
+        
+        for (let i = moveIndex; i < game.moves.length; i++) {
+            const move = game.moves[i];
+            
+            // For the current move, collect decisions from insertion point onwards
+            if (i === moveIndex) {
+                if (player === 1) {
+                    // Collect player1Move (even if null/empty)
+                    decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
+                }
+                // Always collect player2Move (even if null/empty)
+                decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+            } else {
+                // All decisions from subsequent moves (even if null/empty)
+                decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
+                decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+            }
+        }
+        
+        console.log(`[insertDecisionBefore] Decisions to shift:`, decisionsToShift.length);
+        
+        // Determine where empty slot goes and where redistribution starts
+        let emptyMoveIndex, emptyPlayer;
+        let redistributeStartMoveIndex, redistributeStartPlayer;
+        
+        if (player === 1) {
+            // Inserting before player1 of current move
+            // Empty slot goes to player1 of current move
+            emptyMoveIndex = moveIndex;
+            emptyPlayer = 1;
+            // Redistribution starts at player2 of current move
+            redistributeStartMoveIndex = moveIndex;
+            redistributeStartPlayer = 2;
+        } else {
+            // Inserting before player2 of current move
+            // Empty slot goes to player2 of current move
+            emptyMoveIndex = moveIndex;
+            emptyPlayer = 2;
+            // Redistribution starts at player1 of next move
+            redistributeStartMoveIndex = moveIndex + 1;
+            redistributeStartPlayer = 1;
+        }
+        
+        // Clear all affected slots from the empty slot position onward
+        for (let i = emptyMoveIndex; i < game.moves.length; i++) {
+            if (i === emptyMoveIndex && emptyPlayer === 1) {
+                game.moves[i].player1Move = null;
+                game.moves[i].player2Move = null;
+            } else if (i === emptyMoveIndex && emptyPlayer === 2) {
+                game.moves[i].player2Move = null;
+            } else {
+                game.moves[i].player1Move = null;
+                game.moves[i].player2Move = null;
+            }
+        }
+        
+        // Place shifted decisions starting from redistribution point
+        let decisionIndex = 0;
+        let targetMoveIndex = redistributeStartMoveIndex;
+        let targetPlayer = redistributeStartPlayer;
+        
+        while (decisionIndex < decisionsToShift.length) {
+            // Ensure target move exists
+            if (targetMoveIndex >= game.moves.length) {
+                const newMoveNumber = game.moves.length > 0 ? game.moves[game.moves.length - 1].moveNumber + 1 : 1;
+                game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
+            }
+            
+            const targetMove = game.moves[targetMoveIndex];
+            const decisionToPlace = decisionsToShift[decisionIndex].decision;
+            console.log(`[insertDecisionBefore] Placing decision ${decisionIndex} at move ${targetMoveIndex} player ${targetPlayer}: dice="${decisionToPlace?.dice}", move="${decisionToPlace?.move?.substring(0, 20)}"`);
+            
+            if (targetPlayer === 1) {
+                targetMove.player1Move = decisionToPlace;
+                targetPlayer = 2;
+            } else {
+                targetMove.player2Move = decisionToPlace;
+                targetPlayer = 1;
+                targetMoveIndex++;
+            }
+            
+            decisionIndex++;
+        }
+        
+        game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
+        console.log(`[insertDecisionBefore] After insertion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
+        
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
+    });
+    
+    invalidatePositionsCacheFrom(gameIndex, moveIndex);
+}
+
+/**
+ * Insert a decision (player-specific move) after the current selected decision
+ * @param {number} gameIndex - Game index
+ * @param {number} moveIndex - Move index
+ * @param {number} player - Player (1 or 2)
+ */
+export function insertDecisionAfter(gameIndex, moveIndex, player) {
+    console.log(`[insertDecisionAfter] gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+    transcriptionStore.update(t => {
+        const game = t.games[gameIndex];
+        if (!game) return t;
+        
+        console.log(`[insertDecisionAfter] Before insertion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
+        
+        const currentMove = game.moves[moveIndex];
+        if (!currentMove) return t;
+        
+        const currentMoveNumber = currentMove.moveNumber;
+        
+        // Collect all decisions after the insertion point in sequence
+        // Use deep copies to avoid reference sharing issues
+        const decisionsToShift = [];
+        
+        for (let i = moveIndex; i < game.moves.length; i++) {
+            const move = game.moves[i];
+            
+            // For the current move, only collect decisions after the insertion point
+            if (i === moveIndex) {
+                if (player === 1) {
+                    // Collect player2Move (even if null/empty)
+                    decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+                }
+                // If player === 2, we don't collect anything from current move
+            } else {
+                // All decisions from subsequent moves (even if null/empty)
+                decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
+                decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+            }
+        }
+        
+        console.log(`[insertDecisionAfter] Decisions to shift:`, decisionsToShift.length);
+        console.log(`[insertDecisionAfter] Collected decisions:`, JSON.stringify(decisionsToShift.map(d => ({dice: d.decision?.dice || null, move: d.decision?.move?.substring(0, 20) || null})), null, 2));
+        
+        // Determine where the empty slot goes and where redistribution starts
+        let emptyMoveIndex, emptyPlayer;
+        let redistributeStartMoveIndex, redistributeStartPlayer;
+        
+        if (player === 1) {
+            // Inserting after player1 of current move
+            // Empty slot goes to player2 of current move
+            emptyMoveIndex = moveIndex;
+            emptyPlayer = 2;
+            // Redistribution starts at player1 of next move
+            redistributeStartMoveIndex = moveIndex + 1;
+            redistributeStartPlayer = 1;
+        } else {
+            // Inserting after player2 of current move
+            // Empty slot goes to player1 of next move
+            emptyMoveIndex = moveIndex + 1;
+            emptyPlayer = 1;
+            // Redistribution starts at player2 of next move (after the empty slot)
+            redistributeStartMoveIndex = moveIndex + 1;
+            redistributeStartPlayer = 2;
+            
+            // Ensure next move exists for the empty slot
+            if (moveIndex + 1 >= game.moves.length) {
+                const newMoveNumber = game.moves.length > 0 ? game.moves[game.moves.length - 1].moveNumber + 1 : 1;
+                game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
+            }
+        }
+        
+        // Clear all affected slots (from where empty slot goes onward)
+        for (let i = emptyMoveIndex; i < game.moves.length; i++) {
+            if (i === emptyMoveIndex && emptyPlayer === 2) {
+                game.moves[i].player2Move = null;
+            } else if (i === emptyMoveIndex && emptyPlayer === 1) {
+                game.moves[i].player1Move = null;
+                game.moves[i].player2Move = null;
+            } else {
+                game.moves[i].player1Move = null;
+                game.moves[i].player2Move = null;
+            }
+        }
+        
+        // Place shifted decisions starting from the redistribution point
+        let decisionIndex = 0;
+        let targetMoveIndex = redistributeStartMoveIndex;
+        let targetPlayer = redistributeStartPlayer;
+        
+        while (decisionIndex < decisionsToShift.length) {
+            // Ensure target move exists
+            if (targetMoveIndex >= game.moves.length) {
+                const newMoveNumber = game.moves.length > 0 ? game.moves[game.moves.length - 1].moveNumber + 1 : 1;
+                game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
+            }
+            
+            const targetMove = game.moves[targetMoveIndex];
+            const decisionToPlace = decisionsToShift[decisionIndex].decision;
+            console.log(`[insertDecisionAfter] Placing decision ${decisionIndex} at move ${targetMoveIndex} player ${targetPlayer}: dice="${decisionToPlace?.dice}", move="${decisionToPlace?.move?.substring(0, 20)}"`);
+            
+            if (targetPlayer === 1) {
+                targetMove.player1Move = decisionToPlace;
+                targetPlayer = 2;
+            } else {
+                targetMove.player2Move = decisionToPlace;
+                targetPlayer = 1;
+                targetMoveIndex++;
+            }
+            
+            decisionIndex++;
+        }
+        
+        game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
+        console.log(`[insertDecisionAfter] After insertion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
+        
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
+    });
+    
+    invalidatePositionsCacheFrom(gameIndex, moveIndex);
 }
 
 export function deleteMove(gameIndex, moveIndex) {
@@ -220,7 +461,8 @@ export function deleteMove(gameIndex, moveIndex) {
             }
         });
         
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
     
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
@@ -299,7 +541,8 @@ export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal =
             }
         }
         
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
     
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
@@ -311,7 +554,8 @@ export function setGameWinner(gameIndex, player, points) {
         if (!game) return t;
         
         game.winner = { player, points };
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
 }
 
@@ -424,7 +668,8 @@ export async function autoCorrectHitMarkers(gameIndex, startMoveIndex = 0) {
                 }
             }
             
-            return t;
+            // Return a deep copy to prevent reference sharing issues with subscribers
+            return JSON.parse(JSON.stringify(t));
         });
     } catch (error) {
         console.error('Error auto-correcting hit markers:', error);
@@ -479,7 +724,8 @@ export async function validateGameInconsistencies(gameIndex, startMoveIndex = 0)
 export function updateMetadata(metadata) {
     transcriptionStore.update(t => {
         t.metadata = { ...t.metadata, ...metadata };
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
 }
 
@@ -510,7 +756,8 @@ export function swapPlayers() {
             }
         }
         
-        return t;
+        // Return a deep copy to prevent reference sharing issues with subscribers
+        return JSON.parse(JSON.stringify(t));
     });
 }
 

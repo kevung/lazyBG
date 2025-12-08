@@ -97,6 +97,7 @@
     import EditMovePanel from './components/EditMovePanel.svelte';
     import EditPanel from './components/EditPanel.svelte';
     import MoveSearchPanel from './components/MoveSearchPanel.svelte';
+    import MoveInsertPanel from './components/MoveInsertPanel.svelte';
 
     // Debug logging
     console.log('App.svelte: Script starting to execute');
@@ -114,6 +115,7 @@
     let showCandidateMoves = false;
     let showMovesTable = true;
     let showEditPanel = false;
+    let showInsertPanel = false;
     
     console.log('App.svelte: Variables initialized');
     
@@ -712,6 +714,22 @@
                 event.preventDefault();
                 togglePositionDisplay();
             }
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'O') {
+            // Vim-like 'O' - insert empty decision BEFORE current
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            insertDecisionDirectly('before');
+        } else if (!event.ctrlKey && !event.shiftKey && event.key === 'o') {
+            // Vim-like 'o' - insert empty decision AFTER current
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            insertDecisionDirectly('after');
         } else if (event.ctrlKey && event.code === 'KeyF') {
             event.preventDefault();
             if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
@@ -800,6 +818,8 @@
                 return;
             }
 
+            console.log('[saveTranscription] First 3 moves:', JSON.stringify(transcription.games[0]?.moves.slice(0, 3), null, 2));
+            
             // Convert transcription to JSON string
             const jsonContent = JSON.stringify(transcription, null, 2);
             
@@ -1021,15 +1041,9 @@
                 // Move from player 2 to player 1 of same move
                 selectedMoveStore.set({ gameIndex, moveIndex, player: 1 });
             } else if (moveIndex > 0) {
-                // Move to previous move (player 2 if available)
-                const prevMove = $transcriptionStore.games[gameIndex].moves[moveIndex - 1];
-                // Check if player 2 has something to show (move or cube action by player 2)
-                const hasPlayer2Action = prevMove && prevMove.player2Move;
-                if (hasPlayer2Action) {
-                    selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 2 });
-                } else {
-                    selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 1 });
-                }
+                // Move to previous move (player 2)
+                // Always navigate to player 2 slot, even if empty (null)
+                selectedMoveStore.set({ gameIndex, moveIndex: moveIndex - 1, player: 2 });
             }
             // Stop at first move of current game - do not go to previous game
         }
@@ -1045,13 +1059,10 @@
         if ($transcriptionStore && $transcriptionStore.games && $transcriptionStore.games.length > 0) {
             const { gameIndex, moveIndex, player } = $selectedMoveStore;
             const game = $transcriptionStore.games[gameIndex];
-            const move = game.moves[moveIndex];
             
-            // Check if player 2 has something to show (move or cube action by player 2)
-            const hasPlayer2Action = move && move.player2Move;
-            
-            if (player === 1 && hasPlayer2Action) {
+            if (player === 1) {
                 // Move from player 1 to player 2 of same move
+                // Navigate to player 2 slot even if empty (null)
                 selectedMoveStore.set({ gameIndex, moveIndex, player: 2 });
             } else if (moveIndex < game.moves.length - 1) {
                 // Move to next move (player 1)
@@ -1131,6 +1142,61 @@
             currentPositionIndexStore.set(-1); // Temporarily set to a different value to force redraw
             currentPositionIndexStore.set(currentIndex); // Set back to the original value
         }
+    }
+
+    function showInsertDecisionPanel() {
+        console.log('showInsertDecisionPanel');
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        showInsertPanel = true;
+    }
+
+    async function insertDecisionDirectly(position) {
+        const { insertDecisionBefore, insertDecisionAfter, invalidatePositionsCacheFrom } = await import('./stores/transcriptionStore.js');
+        const selectedMove = get(selectedMoveStore);
+        
+        if (!selectedMove) return;
+        
+        const { gameIndex, moveIndex, player } = selectedMove;
+        
+        console.log(`[insertDecisionDirectly] BEFORE - position=${position}, gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+        
+        // Insert empty decision
+        if (position === 'before') {
+            insertDecisionBefore(gameIndex, moveIndex, player);
+        } else {
+            insertDecisionAfter(gameIndex, moveIndex, player);
+        }
+        
+        // Calculate new move index and player
+        // When inserting before player1, it stays in same move as player1
+        // When inserting before player2, it stays in same move as player2
+        // When inserting after player1, it becomes player2 in same move
+        // When inserting after player2, it becomes player1 in next move
+        let newMoveIndex = moveIndex;
+        let newPlayer = player;
+        
+        if (position === 'after') {
+            if (player === 1) {
+                // After player1 -> becomes player2 in same move
+                newPlayer = 2;
+            } else {
+                // After player2 -> becomes player1 in next move
+                newMoveIndex = moveIndex + 1;
+                newPlayer = 1;
+            }
+        }
+        // For 'before', newMoveIndex and newPlayer stay the same
+        
+        console.log(`[insertDecisionDirectly] AFTER - Selecting newMoveIndex=${newMoveIndex}, newPlayer=${newPlayer}`);
+        
+        // Update selection to point to the newly inserted empty decision
+        selectedMoveStore.set({ gameIndex, moveIndex: newMoveIndex, player: newPlayer });
+        
+        const posText = position === 'before' ? 'before' : 'after';
+        setStatusBarMessage(`Empty decision inserted ${posText} at game ${gameIndex + 1}, move ${newMoveIndex + 1}. Use Tab to edit.`);
     }
 
     function toggleMetadataModal() {
@@ -1255,6 +1321,7 @@
         onToggleHelp={toggleHelpModal}
         onShowMetadata={toggleMetadataModal}
         onShowMoveSearch={() => showMoveSearchModalStore.update(v => !v)}
+        onShowInsertPanel={showInsertDecisionPanel}
     />
 
     <div class="transcription-layout">
@@ -1317,9 +1384,21 @@
         }}
     />
 
+    <MoveInsertPanel
+        visible={showInsertPanel}
+        onClose={() => {
+            showInsertPanel = false;
+        }}
+    />
+
     <MoveSearchPanel
         visible={showMoveSearchModal}
         onClose={() => showMoveSearchModalStore.set(false)}
+    />
+
+    <MoveInsertPanel
+        visible={showInsertPanel}
+        onClose={() => showInsertPanel = false}
     />
 
     <StatusBar />

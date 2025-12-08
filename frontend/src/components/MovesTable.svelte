@@ -8,7 +8,9 @@
         insertMoveAfter,
         deleteMove,
         updateMove,
-        invalidatePositionsCacheFrom
+        invalidatePositionsCacheFrom,
+        insertDecisionBefore,
+        insertDecisionAfter
     } from '../stores/transcriptionStore.js';
     import { statusBarModeStore, statusBarTextStore } from '../stores/uiStore.js';
     
@@ -25,6 +27,14 @@
     let inlineEditMove = '';
     let diceInputElement;
     let moveInputElement;
+
+    // Context menu state
+    let showContextMenu = false;
+    let contextMenuX = 0;
+    let contextMenuY = 0;
+    let contextMenuGameIndex = 0;
+    let contextMenuMoveIndex = 0;
+    let contextMenuPlayer = 1;
 
     $: games = $transcriptionStore?.games || [];
     $: selectedGameIndex = $selectedMoveStore?.gameIndex ?? 0;
@@ -70,7 +80,74 @@
     }
 
     function selectMove(gameIndex, moveIndex, player) {
+        console.log(`[MovesTable.selectMove] Selecting gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+        const game = games[gameIndex];
+        if (game) {
+            const move = game.moves[moveIndex];
+            const moveData = player === 1 ? move?.player1Move : move?.player2Move;
+            console.log(`[MovesTable.selectMove] moveData:`, JSON.stringify(moveData));
+        }
         selectedMoveStore.set({ gameIndex, moveIndex, player });
+    }
+
+    function handleContextMenu(event, gameIndex, moveIndex, player) {
+        // Only show context menu in NORMAL mode (not in EDIT or INSERT modes)
+        if ($statusBarModeStore === 'NORMAL') {
+            event.preventDefault();
+            contextMenuX = event.clientX;
+            contextMenuY = event.clientY;
+            contextMenuGameIndex = gameIndex;
+            contextMenuMoveIndex = moveIndex;
+            contextMenuPlayer = player;
+            showContextMenu = true;
+            
+            // Select the move
+            selectMove(gameIndex, moveIndex, player);
+        }
+    }
+
+    function closeContextMenu() {
+        showContextMenu = false;
+    }
+
+    async function handleInsertBefore() {
+        insertDecisionBefore(contextMenuGameIndex, contextMenuMoveIndex, contextMenuPlayer);
+        
+        // Invalidate position cache from this move onwards
+        await invalidatePositionsCacheFrom(contextMenuGameIndex, contextMenuMoveIndex);
+        
+        statusBarTextStore.set(`Decision inserted before at game ${contextMenuGameIndex + 1}, move ${contextMenuMoveIndex}`);
+        
+        // Select the newly inserted decision
+        selectedMoveStore.set({ 
+            gameIndex: contextMenuGameIndex, 
+            moveIndex: contextMenuMoveIndex, 
+            player: contextMenuPlayer 
+        });
+        
+        closeContextMenu();
+    }
+
+    async function handleInsertAfter() {
+        insertDecisionAfter(contextMenuGameIndex, contextMenuMoveIndex, contextMenuPlayer);
+        
+        // Calculate the new move index after insertion
+        const newMoveIndex = contextMenuPlayer === 2 ? contextMenuMoveIndex + 1 : contextMenuMoveIndex;
+        const newPlayer = contextMenuPlayer === 2 ? 1 : 2;
+        
+        // Invalidate position cache from the new move onwards
+        await invalidatePositionsCacheFrom(contextMenuGameIndex, newMoveIndex);
+        
+        statusBarTextStore.set(`Decision inserted after at game ${contextMenuGameIndex + 1}, move ${newMoveIndex}`);
+        
+        // Select the newly inserted decision
+        selectedMoveStore.set({ 
+            gameIndex: contextMenuGameIndex, 
+            moveIndex: newMoveIndex, 
+            player: newPlayer 
+        });
+        
+        closeContextMenu();
     }
 
     function startEdit(gameIndex, moveIndex, field, player) {
@@ -80,6 +157,14 @@
     }
 
     function finishEdit(event, gameIndex, moveIndex, player) {
+        // Only update if this cell was actually being edited
+        if (!editingMove || 
+            editingMove.gameIndex !== gameIndex || 
+            editingMove.moveIndex !== moveIndex || 
+            editingMove.player !== player) {
+            return;
+        }
+        
         const newValue = event.target.textContent.trim();
         const move = games[gameIndex].moves[moveIndex];
         
@@ -402,7 +487,31 @@
             classes.push('inconsistent');
         }
         
-        if (!moveData) return classes.join(' ');
+        // Check if moveData is null (empty decision that needs to be filled in)
+        // Exception: If player2 starts (moveIndex 0, player 1 is null, player 2 has a move), 
+        // player1's first decision is legitimately null
+        if (!moveData) {
+            // Check if this is player1's first decision when player2 starts
+            const firstMove = moves[0];
+            const player2Starts = moveIndex === 0 && player === 1 && firstMove && 
+                                  (!firstMove.player1Move || firstMove.player1Move === null) && 
+                                  firstMove.player2Move;
+            
+            // Only mark as inconsistent if it's NOT the legitimate empty first decision when player2 starts
+            if (!player2Starts) {
+                classes.push('inconsistent'); // Mark null decision as inconsistent/incomplete
+            }
+            return classes.join(' ');
+        }
+        
+        // Check if this is an empty decision object (needs to be filled in)
+        // Empty decision = no dice value and no move (but not a cube action)
+        const isEmpty = !moveData.cubeAction && (!moveData.dice || moveData.dice === '') && (!moveData.move || moveData.move === '');
+        
+        if (isEmpty) {
+            // Empty decision object with empty strings should always be marked as inconsistent
+            classes.push('inconsistent');
+        }
         
         // Don't highlight "Cannot Move"
         if (moveData.move === 'Cannot Move') return classes.join(' ');
@@ -415,9 +524,47 @@
         const inconsistencyKey = `${moveIndex}-${player}`;
         return gameInconsistencies[inconsistencyKey];
     }
+    
+    function getTooltipMessage(moveIndex, player) {
+        // Check for inconsistency first
+        const inconsistency = hasInconsistency(moveIndex, player);
+        if (inconsistency) {
+            return inconsistency.reason;
+        }
+        
+        // Check for empty decision
+        const move = moves[moveIndex];
+        if (!move) return '';
+        
+        const moveData = player === 1 ? move.player1Move : move.player2Move;
+        
+        // Check if it's null (empty slot)
+        if (!moveData) {
+            // Check if this is player1's first decision when player2 starts (legitimate)
+            const firstMove = moves[0];
+            const player2Starts = moveIndex === 0 && player === 1 && firstMove && 
+                                  (!firstMove.player1Move || firstMove.player1Move === null) && 
+                                  firstMove.player2Move;
+            
+            if (!player2Starts) {
+                return 'Empty decision needs to be defined';
+            }
+        }
+        
+        // Check if it's an empty object
+        const isEmpty = moveData && !moveData.cubeAction && 
+                       (!moveData.dice || moveData.dice === '') && 
+                       (!moveData.move || moveData.move === '');
+        
+        if (isEmpty) {
+            return 'Empty decision needs to be defined';
+        }
+        
+        return '';
+    }
 </script>
 
-<svelte:window on:keydown={handleKeyDown} />
+<svelte:window on:keydown={handleKeyDown} on:click={closeContextMenu} />
 
 {#if visible}
 <div class="moves-table">
@@ -433,7 +580,8 @@
                 class:player2={row.player === 2}
                 class={getMoveClass(row.moveData, row.moveIndex, row.player)}
                 on:click={() => selectMove(row.gameIndex, row.moveIndex, row.player)}
-                title={hasInconsistency(row.moveIndex, row.player) ? hasInconsistency(row.moveIndex, row.player).reason : ''}
+                on:contextmenu|preventDefault={(e) => handleContextMenu(e, row.gameIndex, row.moveIndex, row.player)}
+                title={getTooltipMessage(row.moveIndex, row.player)}
             >
                 <td class="move-number">{row.player === 1 ? row.moveNumber : ''}</td>
                 <td class="dice-cell">
@@ -510,6 +658,46 @@
 </div>
 {/if}
 
+<!-- Context Menu -->
+{#if showContextMenu}
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div 
+    class="context-menu-overlay" 
+    on:click={closeContextMenu}
+    on:contextmenu|preventDefault={closeContextMenu}
+    role="presentation"
+>
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div 
+        class="context-menu" 
+        style="left: {contextMenuX}px; top: {contextMenuY}px;"
+        on:click|stopPropagation
+        role="menu"
+        tabindex="-1"
+    >
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="context-menu-item" on:click={handleInsertBefore} role="menuitem" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Insert Before
+        </div>
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="context-menu-item" on:click={handleInsertAfter} role="menuitem" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Insert After
+        </div>
+    </div>
+</div>
+{/if}
+
+
+
 <style>
     .moves-table {
         display: flex;
@@ -517,6 +705,7 @@
         height: 100%;
         background-color: #f9f9f9;
         overflow: hidden;
+        isolation: isolate;
     }
 
 
@@ -524,6 +713,29 @@
     .table-wrapper {
         overflow-y: auto;
         flex: 1;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Remove scrollbar transitions and ensure it stays below context menu */
+    .table-wrapper::-webkit-scrollbar {
+        width: 8px;
+        transition: none;
+    }
+
+    .table-wrapper::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        transition: none;
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+        transition: none;
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #555;
     }
 
     table {
@@ -714,5 +926,51 @@
     .inline-move-input:focus {
         border-color: #2c5aa0;
         box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+    }
+
+    /* Context Menu */
+    .context-menu-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+        background: transparent;
+    }
+
+    .context-menu {
+        position: fixed;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 10000;
+        min-width: 140px;
+        padding: 2px 0;
+        font-size: 13px;
+    }
+
+    .context-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #333;
+        transition: background-color 0.1s;
+        line-height: 1.4;
+    }
+
+    .context-menu-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    .context-icon {
+        width: 13px;
+        height: 13px;
+        color: #666;
+        flex-shrink: 0;
     }
 </style>

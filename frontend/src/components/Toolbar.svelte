@@ -18,6 +18,7 @@
     // export let onSwapPlayers; // Temporarily disabled
     export let onToggleMovesPanel;
     export let onShowMoveSearch;
+    export let onShowInsertPanel;
 
     import { statusBarModeStore, statusBarTextStore, showInitialPositionStore, showMovesTableStore, showCandidateMovesStore, showCommandStore, showMoveSearchModalStore } from '../stores/uiStore';
     import { transcriptionStore } from '../stores/transcriptionStore';
@@ -180,13 +181,19 @@
         </svg>
     </button>  
 
-    <button on:click|stopPropagation={handleGoToMove} aria-label="Go To Move" title="Go To Move (Ctrl-K)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+    <button on:click|stopPropagation={onGoToMove} aria-label="Go To Move" title="Go To Move (Ctrl-K)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
         </svg>
     </button>
 
     <div class="separator"></div>
+
+    <button on:click|stopPropagation={onShowInsertPanel} aria-label="Insert Decision" title="Insert Decision (o, O)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+    </button>
 
     <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (p)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={!showInitialPosition}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
