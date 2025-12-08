@@ -74,6 +74,7 @@
         swapPlayers,
         migrateCubeActions
     } from './stores/transcriptionStore.js';
+    import { undoRedoStore } from './stores/undoRedoStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
     import { checkCompatibility, migrateTranscription, validateTranscription } from './utils/versionUtils.js';
     import { 
@@ -732,6 +733,18 @@
                 return;
             }
             insertDecisionDirectly('after');
+        } else if (event.ctrlKey && event.code === 'KeyZ') {
+            event.preventDefault();
+            handleUndo();
+        } else if (event.ctrlKey && (event.code === 'KeyY' || event.code === 'KeyR')) {
+            event.preventDefault();
+            handleRedo();
+        } else if (!event.ctrlKey && event.key === 'u') {
+            // Vim-like 'u' for undo
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                handleUndo();
+            }
         } else if (event.ctrlKey && event.code === 'KeyF') {
             event.preventDefault();
             if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
@@ -849,6 +862,9 @@
             // Store the file path
             transcriptionFilePathStore.set(finalPath);
             
+            // Clear undo/redo history for new transcription
+            undoRedoStore.clear();
+            
             // Update window title with filename
             const filename = finalPath.split('/').pop();
             WindowSetTitle(`lazyBG - ${filename}`);
@@ -953,6 +969,9 @@
                 clearTranscription();
                 transcriptionStore.set(transcription);
                 
+                // Clear undo/redo history for loaded transcription
+                undoRedoStore.clear();
+                
                 // Save as .lbg file with all the parsed information
                 const lbgPath = filePath.replace('.txt', '.lbg');
                 const jsonContent = JSON.stringify(transcription, null, 2);
@@ -1005,6 +1024,9 @@
                 clearTranscription();
                 transcriptionStore.set(transcription);
                 transcriptionFilePathStore.set(filePath);
+                
+                // Clear undo/redo history for loaded transcription
+                undoRedoStore.clear();
                 
                 WindowSetTitle(`lazyBG - ${getFilenameFromPath(filePath)}`);
                 const versionMsg = compatibility.needsMigration ? 
@@ -1209,6 +1231,46 @@
         }
     }
 
+    async function handleUndo() {
+        console.log('handleUndo');
+        const success = undoRedoStore.undo();
+        if (success) {
+            // Clear the entire position cache since transcription structure may have changed
+            positionsCacheStore.set({});
+            
+            setStatusBarMessage('Undo completed');
+            
+            // Force board update by updating the selectedMoveStore
+            const currentMove = get(selectedMoveStore);
+            selectedMoveStore.set({ ...currentMove });
+        } else {
+            setStatusBarMessage('Nothing to undo');
+        }
+    }
+
+    async function handleRedo() {
+        console.log('handleRedo');
+        const success = undoRedoStore.redo();
+        if (success) {
+            // Clear the entire position cache since transcription structure may have changed
+            positionsCacheStore.set({});
+            
+            setStatusBarMessage('Redo completed');
+            
+            // Force board update by updating the selectedMoveStore
+            const currentMove = get(selectedMoveStore);
+            selectedMoveStore.set({ ...currentMove });
+        } else {
+            setStatusBarMessage('Nothing to redo');
+        }
+    }
+    
+    // Helper function to save snapshot AFTER an operation
+    function saveSnapshotBeforeOperation() {
+        console.log('[App.svelte] saveSnapshotBeforeOperation called');
+        undoRedoStore.saveSnapshot();
+    }
+
     function showInsertDecisionPanel() {
         console.log('showInsertDecisionPanel');
         if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
@@ -1219,6 +1281,8 @@
     }
 
     async function insertDecisionDirectly(position) {
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
         const { insertDecisionBefore, insertDecisionAfter, invalidatePositionsCacheFrom } = await import('./stores/transcriptionStore.js');
         const selectedMove = get(selectedMoveStore);
         
@@ -1424,6 +1488,8 @@
         onToggleHelp={toggleHelpModal}
         onShowMetadata={toggleMetadataModal}
         onShowMoveSearch={() => showMoveSearchModalStore.update(v => !v)}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
         onShowInsertPanel={showInsertDecisionPanel}
         onDeleteDecision={deleteCurrentDecision}
     />

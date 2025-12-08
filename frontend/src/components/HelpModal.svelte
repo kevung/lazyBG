@@ -240,6 +240,22 @@
                     
                     <p>When decisions are deleted, all subsequent decisions are shifted up to fill the gap, maintaining the game flow. The position cache is automatically invalidated and recalculated from the deletion point onwards.</p>
                     
+                    <h3>Undo/Redo</h3>
+                    <p>lazyBG includes a comprehensive undo/redo system that tracks all changes to your transcription:</p>
+                    <ul>
+                        <li><strong>Undo</strong> - Press <strong>Ctrl+Z</strong> or <strong>u</strong> (vim-like, when not in EDIT mode) to undo the last change</li>
+                        <li><strong>Redo</strong> - Press <strong>Ctrl+Y</strong> or <strong>Ctrl+R</strong> to redo a previously undone change</li>
+                        <li>Click the <strong>undo</strong> or <strong>redo</strong> buttons in the toolbar (located before the insert decision button)</li>
+                        <li>Right-click on any move to access undo/redo from the context menu</li>
+                    </ul>
+                    <p>The undo/redo system maintains a history of up to 100 states and tracks all modifications including:</p>
+                    <ul>
+                        <li>Inserting and deleting decisions</li>
+                        <li>Editing move details (dice, moves, cube actions)</li>
+                        <li>Modifying game metadata</li>
+                    </ul>
+                    <p>When you undo or redo, the position cache is automatically cleared and recalculated to ensure accurate board positions. The undo/redo buttons are disabled when no undo or redo actions are available.</p>
+                    
                     <h3>COMMAND Mode</h3>
                     <p>COMMAND mode provides quick access to common operations via a command line interface. Press <strong>SPACE</strong> to enter COMMAND mode, type your command, and press <strong>ENTER</strong> to execute it.</p>
                 {/if}
@@ -375,6 +391,14 @@
                                 <td>Delete Current Decision or Selection</td>
                             </tr>
                             <tr>
+                                <td>Ctrl+Z, u</td>
+                                <td>Undo Last Change</td>
+                            </tr>
+                            <tr>
+                                <td>Ctrl+Y, Ctrl+R</td>
+                                <td>Redo Last Undone Change</td>
+                            </tr>
+                            <tr>
                                 <td>Click+Drag</td>
                                 <td>Select Multiple Decisions (range)</td>
                             </tr>
@@ -396,7 +420,7 @@
                             </tr>
                             <tr>
                                 <td>Right-click (Normal Mode)</td>
-                                <td>Show Context Menu with Insert/Delete Options</td>
+                                <td>Show Context Menu with Insert/Delete/Undo/Redo Options</td>
                             </tr>
                         </tbody>
                     </table>

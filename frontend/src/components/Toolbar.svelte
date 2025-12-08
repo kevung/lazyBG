@@ -20,9 +20,12 @@
     export let onShowMoveSearch;
     export let onShowInsertPanel;
     export let onDeleteDecision;
+    export let onUndo;
+    export let onRedo;
 
     import { statusBarModeStore, statusBarTextStore, showInitialPositionStore, showMovesTableStore, showCandidateMovesStore, showCommandStore, showMoveSearchModalStore } from '../stores/uiStore';
     import { transcriptionStore } from '../stores/transcriptionStore';
+    import { undoRedoStore } from '../stores/undoRedoStore';
     
     let statusBarMode;
     let hasTranscription = false;
@@ -31,6 +34,8 @@
     let showCandidateMoves = false;
     let showCommand = false;
     let showMoveSearchModal = false;
+    let canUndo = false;
+    let canRedo = false;
     
     statusBarModeStore.subscribe(value => {
         statusBarMode = value;
@@ -52,6 +57,10 @@
     });
     showMoveSearchModalStore.subscribe(value => {
         showMoveSearchModal = value;
+    });
+    undoRedoStore.subscribe(() => {
+        canUndo = undoRedoStore.canUndo();
+        canRedo = undoRedoStore.canRedo();
     });
 
     function setStatusBarMessage(message) {
@@ -189,6 +198,18 @@
     </button>
 
     <div class="separator"></div>
+
+    <button on:click|stopPropagation={onUndo} aria-label="Undo" title="Undo (Ctrl-Z, u)" disabled={!canUndo}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onRedo} aria-label="Redo" title="Redo (Ctrl-Y, Ctrl-R)" disabled={!canRedo}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
+        </svg>
+    </button>
 
     <button on:click|stopPropagation={onShowInsertPanel} aria-label="Insert Decision" title="Insert Decision (o, O)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">

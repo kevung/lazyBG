@@ -15,6 +15,8 @@
         deleteDecisions
     } from '../stores/transcriptionStore.js';
     import { statusBarModeStore, statusBarTextStore } from '../stores/uiStore.js';
+    import { undoRedoStore } from '../stores/undoRedoStore.js';
+    import { positionsCacheStore } from '../stores/transcriptionStore.js';
     
     export let visible = true;
 
@@ -43,11 +45,21 @@
     let selectionEnd = null; // { gameIndex, moveIndex, player }
     let isDragging = false; // Track if user is dragging for selection
     
+    // Undo/redo state
+    let canUndo = false;
+    let canRedo = false;
+    
     // Force reactive update when selection changes
     $: selectionRange = { start: selectionStart, end: selectionEnd };
 
     $: games = $transcriptionStore?.games || [];
     $: selectedGameIndex = $selectedMoveStore?.gameIndex ?? 0;
+    
+    // Subscribe to undo/redo store for menu state
+    undoRedoStore.subscribe(() => {
+        canUndo = undoRedoStore.canUndo();
+        canRedo = undoRedoStore.canRedo();
+    });
     $: currentGame = games[selectedGameIndex];
     $: moves = currentGame?.moves || [];
     $: validation = $matchValidationStore;
@@ -365,8 +377,18 @@
     function closeContextMenu() {
         showContextMenu = false;
     }
+    
+    // Helper function to save state before an operation
+    function saveSnapshotBeforeOperation() {
+        console.log('[MovesTable.svelte] saveSnapshotBeforeOperation called');
+        // Save current state BEFORE operation
+        undoRedoStore.saveSnapshot();
+    }
 
     async function handleInsertBefore() {
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
+        
         insertDecisionBefore(contextMenuGameIndex, contextMenuMoveIndex, contextMenuPlayer);
         
         // Invalidate position cache from this move onwards
@@ -385,6 +407,9 @@
     }
 
     async function handleInsertAfter() {
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
+        
         insertDecisionAfter(contextMenuGameIndex, contextMenuMoveIndex, contextMenuPlayer);
         
         // Calculate the new move index after insertion
@@ -410,12 +435,47 @@
     export async function deleteSelectedDecisions() {
         await handleDeleteDecision();
     }
+    
+    async function handleUndo() {
+        const success = undoRedoStore.undo();
+        if (success) {
+            // Clear the entire position cache
+            positionsCacheStore.set({});
+            statusBarTextStore.set('Undo completed');
+            
+            // Force board update
+            const currentMove = $selectedMoveStore;
+            selectedMoveStore.set({ ...currentMove });
+        } else {
+            statusBarTextStore.set('Nothing to undo');
+        }
+        closeContextMenu();
+    }
+    
+    async function handleRedo() {
+        const success = undoRedoStore.redo();
+        if (success) {
+            // Clear the entire position cache
+            positionsCacheStore.set({});
+            statusBarTextStore.set('Redo completed');
+            
+            // Force board update
+            const currentMove = $selectedMoveStore;
+            selectedMoveStore.set({ ...currentMove });
+        } else {
+            statusBarTextStore.set('Nothing to redo');
+        }
+        closeContextMenu();
+    }
 
     async function handleDeleteDecision() {
         const decisions = getSelectedDecisions();
         console.log('[handleDeleteDecision] Deleting decisions:', decisions);
         
         if (decisions.length === 0) return;
+        
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
         
         if (decisions.length === 1) {
             const { gameIndex, moveIndex, player } = decisions[0];
@@ -475,6 +535,9 @@
         const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
         const moveToSave = isCubeDecision ? '' : moveStr;
         
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
+        
         updateMove(gameIndex, move.moveNumber, player, dice, moveToSave, isIllegal, isGala);
         
         editingMove = null;
@@ -530,6 +593,7 @@
                 const moveEntry = currentMoves[moveIndex];
                 const playerMove = player === 1 ? moveEntry.player1Move : moveEntry.player2Move;
                 if (playerMove) {
+                    saveSnapshotBeforeOperation();
                     updateMove(
                         gameIndex, 
                         moveEntry.moveNumber, 
@@ -547,6 +611,7 @@
                 const moveEntryG = currentMoves[moveIndex];
                 const playerMoveG = player === 1 ? moveEntryG.player1Move : moveEntryG.player2Move;
                 if (playerMoveG) {
+                    saveSnapshotBeforeOperation();
                     updateMove(
                         gameIndex, 
                         moveEntryG.moveNumber, 
@@ -677,6 +742,9 @@
         const diceStr = inlineEditDice.toLowerCase();
         const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
         const moveToSave = isCubeDecision ? '' : inlineEditMove;
+        
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
         
         updateMove(gameIndex, move.moveNumber, player, inlineEditDice, moveToSave, isIllegal, isGala);
         
@@ -984,6 +1052,23 @@
             </svg>
             Delete
         </div>
+        <div class="context-menu-separator"></div>
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="context-menu-item" class:disabled={!canUndo} on:click={canUndo ? handleUndo : null} role="menuitem" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+            </svg>
+            Undo
+        </div>
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="context-menu-item" class:disabled={!canRedo} on:click={canRedo ? handleRedo : null} role="menuitem" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="context-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
+            </svg>
+            Redo
+        </div>
     </div>
 </div>
 {/if}
@@ -1277,6 +1362,12 @@
         opacity: 0.4;
         cursor: not-allowed;
         pointer-events: none;
+    }
+    
+    .context-menu-separator {
+        height: 1px;
+        background-color: #ddd;
+        margin: 4px 0;
     }
 
     .context-icon {
