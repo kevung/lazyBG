@@ -1190,23 +1190,31 @@
     }
 
     tr.inconsistent {
-        background-color: #ff6b6b !important;
-        color: white !important;
+        background-color: #ffcccc !important;
+        color: #333333 !important;
     }
     
     tr.inconsistent:hover {
-        background-color: #ff5252 !important;
+        background-color: #ffaaaa !important;
+        color: #333333 !important;
     }
     
     tr.inconsistent.selected {
-        background-color: #ff4444 !important;
-        outline: 2px solid #cc0000;
+        background-color: #ff8888 !important;
+        color: #333333 !important;
+        outline: 2px solid #ff6666;
     }
     
     tr.inconsistent .dice-cell,
     tr.inconsistent .move-number,
     tr.inconsistent .empty {
-        color: white !important;
+        color: inherit !important;
+    }
+    
+    tr.inconsistent.selected .dice-cell,
+    tr.inconsistent.selected .move-number,
+    tr.inconsistent.selected .empty {
+        color: inherit !important;
     }
     
     tr.player1 {
