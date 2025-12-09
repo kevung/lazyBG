@@ -24,10 +24,14 @@
     export let onDeleteDecision;
     export let onUndo;
     export let onRedo;
+    export let onCopyDecisions;
+    export let onCutDecisions;
+    export let onPasteDecisions;
 
     import { statusBarModeStore, statusBarTextStore, showInitialPositionStore, showMovesTableStore, showCandidateMovesStore, showCommandStore, showMoveSearchModalStore } from '../stores/uiStore';
     import { transcriptionStore } from '../stores/transcriptionStore';
     import { undoRedoStore } from '../stores/undoRedoStore';
+    import { clipboardStore } from '../stores/clipboardStore';
     
     let statusBarMode;
     let hasTranscription = false;
@@ -38,6 +42,7 @@
     let showMoveSearchModal = false;
     let canUndo = false;
     let canRedo = false;
+    let hasClipboard = false;
     
     statusBarModeStore.subscribe(value => {
         statusBarMode = value;
@@ -63,6 +68,9 @@
     undoRedoStore.subscribe(() => {
         canUndo = undoRedoStore.canUndo();
         canRedo = undoRedoStore.canRedo();
+    });
+    clipboardStore.subscribe(value => {
+        hasClipboard = value.decisions && value.decisions.length > 0;
     });
 
     function setStatusBarMessage(message) {
@@ -201,18 +209,6 @@
 
     <div class="separator"></div>
 
-    <button on:click|stopPropagation={onUndo} aria-label="Undo" title="Undo (Ctrl-Z, u)" disabled={!canUndo}>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-        </svg>
-    </button>
-
-    <button on:click|stopPropagation={onRedo} aria-label="Redo" title="Redo (Ctrl-Y, Ctrl-R)" disabled={!canRedo}>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
-        </svg>
-    </button>
-
     <button on:click|stopPropagation={onShowInsertGamePanel} aria-label="Insert Game" title="Insert Game (N, n)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -231,13 +227,43 @@
         </svg>
     </button>
 
-    <button on:click|stopPropagation={onDeleteDecision} aria-label="Delete Decision" title="Delete Decision (dd, Del)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+    <button on:click|stopPropagation={onDeleteDecision} aria-label="Delete Decision" title="Delete Decision (Del)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (p)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={!showInitialPosition}>
+    <button on:click|stopPropagation={onCopyDecisions} aria-label="Copy Decisions" title="Copy Decisions (Ctrl-C, y)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onCutDecisions} aria-label="Cut Decisions" title="Cut Decisions (Ctrl-X, dd)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m7.848 8.25 1.536.887M7.848 8.25a3 3 0 1 1-5.196-3 3 3 0 0 1 5.196 3Zm1.536.887a2.165 2.165 0 0 1 1.083 1.839c.005.351.054.695.14 1.024M9.384 9.137l2.077 1.199M7.848 15.75l1.536-.887m-1.536.887a3 3 0 1 1-5.196 3 3 3 0 0 1 5.196-3Zm1.536-.887a2.165 2.165 0 0 0 1.083-1.838c.005-.352.054-.695.14-1.025m-1.223 2.863 2.077-1.199m0-3.328a4.323 4.323 0 0 1 2.068-1.379l5.325-1.628a4.5 4.5 0 0 1 2.48-.044l.803.215-7.794 4.5m-2.882-1.664A4.33 4.33 0 0 0 10.607 12m3.736 0 7.794 4.5-.802.215a4.5 4.5 0 0 1-2.48-.043l-5.326-1.629a4.324 4.324 0 0 1-2.068-1.379M14.343 12l-2.882 1.664" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onPasteDecisions} aria-label="Paste Decisions" title="Paste Decisions (Ctrl-V, p, P)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription || !hasClipboard}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onUndo} aria-label="Undo" title="Undo (Ctrl-Z, u)" disabled={!canUndo}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onRedo} aria-label="Redo" title="Redo (Ctrl-Y, Ctrl-R)" disabled={!canRedo}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
+        </svg>
+    </button>
+
+    <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (t)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={!showInitialPosition}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />

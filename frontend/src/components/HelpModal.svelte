@@ -234,8 +234,8 @@
                     
                     <h4>Single Decision Deletion</h4>
                     <ul>
-                        <li>Press <strong>dd</strong> (vim-like) to delete the current decision</li>
-                        <li>Press <strong>Del</strong> or <strong>Delete</strong> to delete the current decision</li>
+                        <li>Press <strong>dd</strong> (vim-like) to cut/delete the current decision (copies to clipboard then deletes)</li>
+                        <li>Press <strong>Del</strong> or <strong>Delete</strong> to delete the current decision (also copies to clipboard)</li>
                         <li>Right-click on a move in the moves table to show a context menu with delete option</li>
                         <li>Click the <strong>−</strong> (minus) button in the toolbar to delete the current decision</li>
                     </ul>
@@ -256,6 +256,42 @@
                     <p><strong>Note:</strong> Navigating to a different decision (j/k/arrows) will automatically clear any multi-selection.</p>
                     
                     <p>When decisions are deleted, all subsequent decisions are shifted up to fill the gap, maintaining the game flow. The position cache is automatically invalidated and recalculated from the deletion point onwards.</p>
+                    
+                    <h3>Copy, Cut, and Paste Decisions</h3>
+                    <p>lazyBG supports copying, cutting, and pasting decisions, allowing you to efficiently duplicate or reorganize match transcriptions:</p>
+                    
+                    <h4>Copy Decisions</h4>
+                    <p>Copy one or more decisions to the clipboard without removing them from the transcription:</p>
+                    <ul>
+                        <li>Press <strong>Ctrl+C</strong> or <strong>y</strong> (vim-like yank) to copy the currently selected decision(s)</li>
+                        <li>Click the <strong>copy</strong> button in the toolbar (clipboard icon with two documents)</li>
+                        <li>Right-click on a decision and select "Copy" from the context menu</li>
+                    </ul>
+                    <p>You can copy a single decision or a multi-selection range. The copied decisions remain in the clipboard until you copy or cut something else.</p>
+                    
+                    <h4>Cut Decisions</h4>
+                    <p>Cut decisions to move them to another location:</p>
+                    <ul>
+                        <li>Press <strong>Ctrl+X</strong> to cut the currently selected decision(s)</li>
+                        <li>Press <strong>dd</strong> (vim-like) to cut the currently selected decision(s)</li>
+                        <li>Click the <strong>cut</strong> button in the toolbar (scissors icon)</li>
+                        <li>Right-click on a decision and select "Cut" from the context menu</li>
+                    </ul>
+                    <p>Cut decisions are removed from the transcription and placed in the clipboard. All subsequent decisions shift up to fill the gap. The clipboard is automatically cleared after you paste cut decisions.</p>
+                    <p><strong>Note:</strong> The <strong>dd</strong> command is now unified for both cut and delete - it cuts the decision (removes it and places it in the clipboard). The <strong>Del</strong> key also copies decisions to clipboard before deleting.</p>
+                    
+                    <h4>Paste Decisions</h4>
+                    <p>Paste decisions from the clipboard to a new location:</p>
+                    <ul>
+                        <li>Press <strong>Ctrl+V</strong> or <strong>p</strong> to paste after the current decision</li>
+                        <li>Press <strong>P</strong> (Shift+p) to paste before the current decision</li>
+                        <li>Click the <strong>paste</strong> button in the toolbar to open the paste panel (choose before/after)</li>
+                        <li>Right-click on a decision and select "Paste Before" or "Paste After" from the context menu (pastes directly)</li>
+                    </ul>
+                    <p>The keyboard shortcuts <strong>Ctrl+V</strong>, <strong>p</strong>, and <strong>P</strong> paste immediately at the specified position.</p>
+                    <p>When you use the toolbar button, a paste panel appears at the bottom of the screen where you can choose whether to paste before or after the current decision. Press <strong>Enter</strong> to confirm or <strong>Esc</strong> to cancel.</p>
+                    <p>When you use the context menu, the paste operation executes immediately at the selected position.</p>
+                    <p>All decisions in the clipboard are inserted sequentially, preserving their relative order. The position cache is automatically recalculated after pasting.</p>
                     
                     <h3>Undo/Redo</h3>
                     <p>lazyBG includes a comprehensive undo/redo system that tracks all changes to your transcription:</p>
@@ -368,7 +404,7 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>p</td>
+                                <td>t</td>
                                 <td>Toggle Initial/Final Position Display</td>
                             </tr>
                             <tr>
@@ -433,7 +469,7 @@
                             </tr>
                             <tr>
                                 <td>dd</td>
-                                <td>Delete Current Decision or Selection</td>
+                                <td>Cut Current Decision or Selection (deletes and copies to clipboard)</td>
                             </tr>
                             <tr>
                                 <td>Del, Delete</td>
@@ -460,6 +496,22 @@
                                 <td>Extend Selection Down / Up</td>
                             </tr>
                             <tr>
+                                <td>Ctrl+C, y</td>
+                                <td>Copy Selected Decision(s)</td>
+                            </tr>
+                            <tr>
+                                <td>Ctrl+X, dd</td>
+                                <td>Cut Selected Decision(s)</td>
+                            </tr>
+                            <tr>
+                                <td>Ctrl+V, p</td>
+                                <td>Paste After current decision</td>
+                            </tr>
+                            <tr>
+                                <td>P (Shift+p)</td>
+                                <td>Paste Before current decision</td>
+                            </tr>
+                            <tr>
                                 <td>+ Button (Toolbar)</td>
                                 <td>Open Insert Decision Panel</td>
                             </tr>
@@ -468,8 +520,12 @@
                                 <td>Delete Current Decision or Selection</td>
                             </tr>
                             <tr>
+                                <td>Copy/Cut/Paste Buttons (Toolbar)</td>
+                                <td>Copy, Cut, or Paste Selected Decision(s)</td>
+                            </tr>
+                            <tr>
                                 <td>Right-click (Normal Mode)</td>
-                                <td>Show Context Menu with Insert/Delete/Undo/Redo Options</td>
+                                <td>Show Context Menu with Insert/Delete/Copy/Cut/Paste/Undo/Redo Options</td>
                             </tr>
                         </tbody>
                     </table>

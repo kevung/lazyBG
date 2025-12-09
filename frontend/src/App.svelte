@@ -77,6 +77,7 @@
         dumpTranscriptionState
     } from './stores/transcriptionStore.js';
     import { undoRedoStore } from './stores/undoRedoStore.js';
+    import { clipboardStore } from './stores/clipboardStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
     import { checkCompatibility, migrateTranscription, validateTranscription } from './utils/versionUtils.js';
     import { 
@@ -102,6 +103,7 @@
     import MoveSearchPanel from './components/MoveSearchPanel.svelte';
     import MoveInsertPanel from './components/MoveInsertPanel.svelte';
     import GameInsertPanel from './components/GameInsertPanel.svelte';
+    import PastePanel from './components/PastePanel.svelte';
 
     // Debug logging
     console.log('App.svelte: Script starting to execute');
@@ -121,6 +123,7 @@
     let showEditPanel = false;
     let showInsertPanel = false;
     let showInsertGamePanel = false;
+    let showPastePanel = false;
     
     console.log('App.svelte: Variables initialized');
     
@@ -719,11 +722,80 @@
                 return;
             }
             showCandidateMovesStore.update(v => !v);
-        } else if (!event.ctrlKey && event.key === 'p') {
-            // Don't intercept if in EDIT mode (allow typing 'p' for pass)
+        } else if (!event.ctrlKey && event.key === 't') {
+            // 't' - toggle initial/final position display
             if ($statusBarModeStore !== 'EDIT') {
                 event.preventDefault();
                 togglePositionDisplay();
+            }
+        } else if (event.ctrlKey && event.code === 'KeyC') {
+            // Ctrl+C - copy decisions
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            copyDecisions();
+        } else if (!event.ctrlKey && event.key === 'y') {
+            // 'y' (vim-like yank) - copy decisions
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                    setStatusBarMessage('No transcription opened');
+                    return;
+                }
+                copyDecisions();
+            }
+        } else if (event.ctrlKey && event.code === 'KeyX') {
+            // Ctrl+X - cut decisions
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            cutDecisions();
+        } else if (event.ctrlKey && event.code === 'KeyV') {
+            // Ctrl+V - paste decisions after
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            const clipboard = get(clipboardStore);
+            if (!clipboard.decisions || clipboard.decisions.length === 0) {
+                setStatusBarMessage('Clipboard is empty');
+                return;
+            }
+            pasteDecisionsDirectly('after');
+        } else if (!event.ctrlKey && !event.shiftKey && event.key === 'p') {
+            // 'p' - paste decisions after (directly)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                    setStatusBarMessage('No transcription opened');
+                    return;
+                }
+                const clipboard = get(clipboardStore);
+                if (!clipboard.decisions || clipboard.decisions.length === 0) {
+                    setStatusBarMessage('Clipboard is empty');
+                    return;
+                }
+                pasteDecisionsDirectly('after');
+            }
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'P') {
+            // 'P' - paste decisions before (directly)
+            if ($statusBarModeStore !== 'EDIT') {
+                event.preventDefault();
+                if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                    setStatusBarMessage('No transcription opened');
+                    return;
+                }
+                const clipboard = get(clipboardStore);
+                if (!clipboard.decisions || clipboard.decisions.length === 0) {
+                    setStatusBarMessage('Clipboard is empty');
+                    return;
+                }
+                pasteDecisionsDirectly('before');
             }
         } else if (!event.ctrlKey && event.shiftKey && event.key === 'O') {
             // Vim-like 'O' - insert empty decision BEFORE current
@@ -805,14 +877,15 @@
                 const currentTime = Date.now();
                 
                 if (pendingDeleteCommand) {
-                    // Second 'd' pressed - execute dd
-                    console.log('[App.handleKeyDown] dd detected');
+                    // Second 'd' pressed - execute dd (cut/delete)
+                    console.log('[App.handleKeyDown] dd detected - cut/delete');
                     if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
                         setStatusBarMessage('No transcription opened');
                         pendingDeleteCommand = false;
                         return;
                     }
-                    deleteCurrentDecision();
+                    // dd cuts the decision (which also deletes it)
+                    cutDecisions();
                     pendingDeleteCommand = false;
                 } else {
                     // First 'd' pressed - wait for next key
@@ -821,7 +894,8 @@
                     lastDKeyTime = currentTime;
                     setTimeout(() => {
                         if (pendingDeleteCommand && Date.now() - lastDKeyTime >= DD_TIMEOUT) {
-                            console.log('[App.handleKeyDown] Delete command timed out');
+                            console.log('[App.handleKeyDown] d command timed out - ignored');
+                            // Timeout: just clear the pending state
                             pendingDeleteCommand = false;
                         }
                     }, DD_TIMEOUT);
@@ -1492,6 +1566,81 @@
         }
     }
 
+    function copyDecisions() {
+        console.log('[App.copyDecisions] Copy decisions');
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        
+        if (movesTableRef && movesTableRef.copySelectedDecisions) {
+            movesTableRef.copySelectedDecisions();
+        } else {
+            console.error('[copyDecisions] MovesTable reference not available');
+        }
+    }
+
+    function cutDecisions() {
+        console.log('[App.cutDecisions] Cut decisions');
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        
+        if (movesTableRef && movesTableRef.cutSelectedDecisions) {
+            movesTableRef.cutSelectedDecisions();
+        } else {
+            console.error('[cutDecisions] MovesTable reference not available');
+        }
+    }
+
+    function pasteDecisions() {
+        console.log('[App.pasteDecisions] Paste decisions');
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        
+        // Check if clipboard has content
+        const clipboard = get(clipboardStore);
+        if (!clipboard.decisions || clipboard.decisions.length === 0) {
+            setStatusBarMessage('Clipboard is empty');
+            return;
+        }
+        
+        // Open paste panel to choose before/after
+        showPastePanel = true;
+    }
+
+    function pasteDecisionsDirectly(position) {
+        console.log('[App.pasteDecisionsDirectly] Paste decisions', position);
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        
+        // Check if clipboard has content
+        const clipboard = get(clipboardStore);
+        if (!clipboard.decisions || clipboard.decisions.length === 0) {
+            setStatusBarMessage('Clipboard is empty');
+            return;
+        }
+
+        // Get current selection
+        const selectedMove = get(selectedMoveStore);
+        if (!selectedMove) {
+            setStatusBarMessage('No decision selected');
+            return;
+        }
+        
+        // Delegate to MovesTable to paste at current position
+        if (movesTableRef && movesTableRef.pasteDecisionsAt) {
+            movesTableRef.pasteDecisionsAt(selectedMove.gameIndex, selectedMove.moveIndex, selectedMove.player, position);
+        } else {
+            console.error('[pasteDecisionsDirectly] MovesTable reference not available');
+        }
+    }
+
     function extendSelectionUp() {
         console.log('[App.extendSelectionUp] Delegating to MovesTable');
         if (movesTableRef && movesTableRef.extendSelectionUp) {
@@ -1546,6 +1695,10 @@
         }
     }
 
+    function handleShowPastePanel(event) {
+        showPastePanel = true;
+    }
+
     onMount(() => {
         console.log('App.svelte: onMount called');
         // @ts-ignore
@@ -1553,6 +1706,7 @@
         window.addEventListener("keydown", handleKeyDown);
         mainArea.addEventListener("wheel", handleWheel); // Add wheel event listener to main container
         window.addEventListener("resize", handleResize);
+        window.addEventListener("showPastePanel", handleShowPastePanel);
         console.log('App.svelte: Event listeners added');
     });
 
@@ -1560,6 +1714,7 @@
         window.removeEventListener("keydown", handleKeyDown);
         mainArea.removeEventListener("wheel", handleWheel); // Remove wheel event listener from main container
         window.removeEventListener("resize", handleResize);
+        window.removeEventListener("showPastePanel", handleShowPastePanel);
     });
 
     function toggleHelpModal() {
@@ -1632,6 +1787,9 @@
         onToggleHelp={toggleHelpModal}
         onShowMetadata={toggleMetadataModal}
         onShowMoveSearch={() => showMoveSearchModalStore.update(v => !v)}
+        onCopyDecisions={copyDecisions}
+        onCutDecisions={cutDecisions}
+        onPasteDecisions={pasteDecisions}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onShowInsertPanel={showInsertDecisionPanel}
@@ -1714,6 +1872,13 @@
         }}
         onInsertGameBefore={insertGameBefore}
         onInsertGameAfter={insertGameAfter}
+    />
+
+    <PastePanel
+        visible={showPastePanel}
+        onClose={() => {
+            showPastePanel = false;
+        }}
     />
 
     <MoveSearchPanel
