@@ -4,6 +4,37 @@ import { writable, derived, get } from 'svelte/store';
 export const LAZYBG_VERSION = '1.0.0';
 
 /**
+ * Debug helper to dump current transcription state to console
+ */
+export function dumpTranscriptionState() {
+    const t = get(transcriptionStore);
+    console.log('=== TRANSCRIPTION STATE DUMP ===');
+    console.log(`Match length: ${t.metadata?.matchLength}`);
+    console.log(`Total games: ${t.games?.length || 0}`);
+    
+    if (t.games) {
+        t.games.forEach((game, idx) => {
+            console.log(`\nGame ${idx} (number ${game.gameNumber}):`);
+            console.log(`  Scores: ${game.player1Score}-${game.player2Score}`);
+            console.log(`  Moves: ${game.moves?.length || 0}`);
+            console.log(`  Winner: ${game.winner ? `player ${game.winner.player}, ${game.winner.points} pts` : 'none'}`);
+            
+            // Show first few moves with cube actions
+            if (game.moves) {
+                game.moves.slice(0, 3).forEach((move, mIdx) => {
+                    const p1cube = move.player1Move?.cubeAction ? ` [${move.player1Move.cubeAction}@${move.player1Move.cubeValue}]` : '';
+                    const p2cube = move.player2Move?.cubeAction ? ` [${move.player2Move.cubeAction}@${move.player2Move.cubeValue}]` : '';
+                    if (p1cube || p2cube) {
+                        console.log(`    Move ${mIdx}: p1${p1cube} p2${p2cube}`);
+                    }
+                });
+            }
+        });
+    }
+    console.log('=== END DUMP ===\n');
+}
+
+/**
  * Migrates old cube action structure to new format
  * Old: move.cubeAction = { player, action, value, response }
  * New: player1Move.cubeAction = 'doubles'|'takes'|'drops', player1Move.cubeValue = number
@@ -71,9 +102,8 @@ export const transcriptionStore = writable({
     //   player2Score: 0,
     //   moves: [{
     //     moveNumber: 1,
-    //     player1Move: { dice: '54', move: '24/20 13/8', isIllegal: false, isGala: false },
-    //     player2Move: { dice: '31', move: '8/5* 6/5', isIllegal: false, isGala: false },
-    //     cubeAction: null // { player: 1|2, action: 'doubles', value: 2, response: 'takes'|'drops' }
+    //     player1Move: { dice: '54', move: '24/20 13/8', cubeAction: 'doubles'|'takes'|'drops', cubeValue: 2, isIllegal: false, isGala: false },
+    //     player2Move: { dice: '31', move: '8/5* 6/5', cubeAction: 'doubles'|'takes'|'drops', cubeValue: 2, isIllegal: false, isGala: false }
     //   }],
     //   winner: null, // { player: 1|2, points: 1|2 }
     // }]
@@ -535,6 +565,18 @@ export function deleteDecision(gameIndex, moveIndex, player) {
         }
         
         game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
+        
+        // Remove trailing empty moves (moves where both players are null)
+        while (game.moves.length > 0) {
+            const lastMove = game.moves[game.moves.length - 1];
+            if (!lastMove.player1Move && !lastMove.player2Move && !lastMove.cubeAction) {
+                console.log(`[deleteDecision] Removing empty trailing move ${lastMove.moveNumber}`);
+                game.moves.pop();
+            } else {
+                break;
+            }
+        }
+        
         console.log(`[deleteDecision] After deletion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
         
         // Return a deep copy to prevent reference sharing issues with subscribers
@@ -542,6 +584,9 @@ export function deleteDecision(gameIndex, moveIndex, player) {
     });
     
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
+    
+    // If this was a cube action deletion, recalculate scores
+    recalculateScoresFromGame(gameIndex);
 }
 
 /**
@@ -600,6 +645,8 @@ export function deleteMove(gameIndex, moveIndex) {
 }
 
 export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal = false, isGala = false) {
+    let isCubeAction = false;
+    
     transcriptionStore.update(t => {
         const game = t.games[gameIndex];
         if (!game) return t;
@@ -610,6 +657,8 @@ export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal =
         // Check if this is a cube decision (d/t/p)
         const diceStr = dice.toLowerCase();
         if (diceStr === 'd' || diceStr === 't' || diceStr === 'p') {
+            isCubeAction = true;
+            
             // Handle cube decision independently for this player
             // Calculate cube value by looking at previous cube actions
             let cubeValue = 1;
@@ -677,6 +726,12 @@ export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal =
     });
     
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
+    
+    // If this was a cube action, recalculate scores for this game and all subsequent games
+    if (isCubeAction) {
+        console.log(`[updateMove] Cube action detected, recalculating scores from game ${gameIndex}`);
+        recalculateScoresFromGame(gameIndex);
+    }
 }
 
 export function setGameWinner(gameIndex, player, points) {
@@ -819,6 +874,25 @@ export async function validateGameInconsistencies(gameIndex, startMoveIndex = 0)
         const game = transcription.games[gameIndex];
         const inconsistencies = validateGamePositions(game, startMoveIndex);
         
+        // Add score validation for first move (moveIndex 0) if starting from beginning
+        if (startMoveIndex === 0 && transcription.metadata.matchLength) {
+            const scoreValidation = validateGameScores(
+                game.player1Score,
+                game.player2Score,
+                transcription.metadata.matchLength
+            );
+            
+            if (!scoreValidation.valid) {
+                // Add score inconsistency at first move for player 1
+                inconsistencies.push({
+                    moveIndex: 0,
+                    player: 1,
+                    reason: `Score inconsistency: ${scoreValidation.reason}`,
+                    type: 'score'
+                });
+            }
+        }
+        
         moveInconsistenciesStore.update(store => {
             // Keep existing inconsistencies before startMoveIndex
             const existingInconsistencies = store[gameIndex] || {};
@@ -917,4 +991,384 @@ export function clearTranscription() {
     transcriptionFilePathStore.set('');
     positionsCacheStore.set({});
     moveInconsistenciesStore.set({});
+}
+
+/**
+ * Calculate scores after a game based on winner and cube value
+ * @param {Object} game - The game object
+ * @param {number} matchLength - Match length from metadata
+ * @param {number} startingPlayer1Score - Optional starting score for player 1 (if not provided, uses game.player1Score)
+ * @param {number} startingPlayer2Score - Optional starting score for player 2 (if not provided, uses game.player2Score)
+ * @returns {Object} - { player1Score, player2Score }
+ */
+function calculateScoresAfterGame(game, matchLength, startingPlayer1Score = null, startingPlayer2Score = null) {
+    // Use provided starting scores or fall back to game's scores
+    let player1Score = startingPlayer1Score !== null ? startingPlayer1Score : (game.player1Score || 0);
+    let player2Score = startingPlayer2Score !== null ? startingPlayer2Score : (game.player2Score || 0);
+    
+    console.log(`[calculateScoresAfterGame] Game ${game.gameNumber}, starting scores: p1=${player1Score}, p2=${player2Score}`);
+    
+    // Try to determine winner and points from game data
+    let winner = null;
+    let pointsWon = 1;
+    let cubeValue = 1; // Track cube value through the game
+    
+    // First, check if winner is explicitly set
+    if (game.winner && game.winner.player && game.winner.points) {
+        winner = game.winner.player;
+        pointsWon = game.winner.points;
+        console.log(`[calculateScoresAfterGame] Winner explicitly set: player ${winner}, points ${pointsWon}`);
+    } else if (game.moves && game.moves.length > 0) {
+        console.log(`[calculateScoresAfterGame] Analyzing ${game.moves.length} moves...`);
+        // Try to detect winner from cube actions (drops) or resignations
+        // Need to track cube value as we go through moves
+        for (let i = 0; i < game.moves.length; i++) {
+            const move = game.moves[i];
+            
+            console.log(`[calculateScoresAfterGame] Move ${i} (moveNumber ${move.moveNumber}): p1cube=${move.player1Move?.cubeAction}, p2cube=${move.player2Move?.cubeAction}`);
+            
+            // Check for player 1's cube action first
+            if (move.player1Move?.cubeAction === 'doubles') {
+                // Player 1 doubles - check if player 2 drops in response
+                if (move.player2Move?.cubeAction === 'drops') {
+                    // Player 2 dropped, player 1 wins the cube value BEFORE the double
+                    winner = 1;
+                    pointsWon = cubeValue;
+                    console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 doubles, player 2 drops, player 1 wins ${pointsWon} points (cube before double)`);
+                    break;
+                }
+                // Player 2 took or no response yet, update cube value
+                cubeValue = move.player1Move.cubeValue || (cubeValue * 2);
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 doubles, cube now ${cubeValue}`);
+            } else if (move.player1Move?.cubeAction === 'drops') {
+                // Player 1 dropped (responding to player 2's double), player 2 wins
+                winner = 2;
+                pointsWon = cubeValue;
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 drops, player 2 wins ${pointsWon} points (cubeValue=${cubeValue})`);
+                break;
+            }
+            
+            // Check for player 2's cube action
+            if (move.player2Move?.cubeAction === 'doubles') {
+                // Player 2 doubles - check if player 1 drops in the NEXT move
+                // We need to look ahead to see if player 1 drops
+                if (i + 1 < game.moves.length) {
+                    const nextMove = game.moves[i + 1];
+                    if (nextMove.player1Move?.cubeAction === 'drops') {
+                        // Player 1 will drop, player 2 wins the cube value BEFORE the double
+                        winner = 2;
+                        pointsWon = cubeValue;
+                        console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 doubles, player 1 drops in next move, player 2 wins ${pointsWon} points (cube before double)`);
+                        break;
+                    }
+                }
+                // Player 1 took or no response yet, update cube value
+                cubeValue = move.player2Move.cubeValue || (cubeValue * 2);
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 doubles, cube now ${cubeValue}`);
+            } else if (move.player2Move?.cubeAction === 'drops') {
+                // Player 2 dropped (responding to player 1's double), player 1 wins
+                // This should already be caught above when we see player 1's double
+                if (winner === null) {
+                    winner = 1;
+                    pointsWon = cubeValue;
+                    console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 drops (delayed check), player 1 wins ${pointsWon} points`);
+                    break;
+                }
+            }
+            
+            // Check for resignations (moves ending with '-')
+            if (move.player1Move?.move && move.player1Move.move.trim().endsWith('-')) {
+                // Player 1 resigned, player 2 wins
+                winner = 2;
+                pointsWon = cubeValue; // Use current cube value
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 resigned, player 2 wins ${pointsWon} points`);
+                break;
+            }
+            if (move.player2Move?.move && move.player2Move.move.trim().endsWith('-')) {
+                // Player 2 resigned, player 1 wins
+                winner = 1;
+                pointsWon = cubeValue; // Use current cube value
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 resigned, player 1 wins ${pointsWon} points`);
+                break;
+            }
+        }
+        
+        // If no winner detected but game has moves, assume implicit resignation
+        // The last player who made a real move (not cube action only) wins
+        if (winner === null && game.moves.length > 0) {
+            console.log(`[calculateScoresAfterGame] No explicit winner found, checking for implicit resignation...`);
+            
+            // Find the last move with actual play (not just cube actions)
+            for (let i = game.moves.length - 1; i >= 0; i--) {
+                const move = game.moves[i];
+                
+                // Check if player 2 made the last real move
+                if (move.player2Move && move.player2Move.move && move.player2Move.move.trim() !== '') {
+                    // Player 2 made last move, player 2 wins (player 1 implicitly resigned)
+                    winner = 2;
+                    pointsWon = cubeValue; // Single game with current cube value
+                    console.log(`[calculateScoresAfterGame] Implicit resignation detected: Player 2 made last move, player 2 wins ${pointsWon} points`);
+                    break;
+                }
+                
+                // Check if player 1 made the last real move
+                if (move.player1Move && move.player1Move.move && move.player1Move.move.trim() !== '') {
+                    // Player 1 made last move, player 1 wins (player 2 implicitly resigned)
+                    winner = 1;
+                    pointsWon = cubeValue; // Single game with current cube value
+                    console.log(`[calculateScoresAfterGame] Implicit resignation detected: Player 1 made last move, player 1 wins ${pointsWon} points`);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Apply the winner's points to the appropriate score
+    if (winner === 1) {
+        player1Score += pointsWon;
+        console.log(`[calculateScoresAfterGame] Player 1 wins, score: ${player1Score}-${player2Score}`);
+    } else if (winner === 2) {
+        player2Score += pointsWon;
+        console.log(`[calculateScoresAfterGame] Player 2 wins, score: ${player1Score}-${player2Score}`);
+    } else {
+        console.log(`[calculateScoresAfterGame] No winner detected, score unchanged: ${player1Score}-${player2Score}`);
+    }
+    
+    return { player1Score, player2Score };
+}
+
+/**
+ * Validate if scores are possible given match length and previous score
+ * @param {number} player1Score - Current player 1 score
+ * @param {number} player2Score - Current player 2 score
+ * @param {number} matchLength - Match length
+ * @returns {Object} - { valid: boolean, reason: string }
+ */
+function validateGameScores(player1Score, player2Score, matchLength) {
+    // If no match length set, scores can't be validated
+    if (!matchLength || matchLength === 0) {
+        return { valid: true, reason: '' };
+    }
+    
+    // Check if match should already be over
+    if (player1Score >= matchLength) {
+        return { 
+            valid: false, 
+            reason: `Player 1 already won the match (${player1Score}/${matchLength})` 
+        };
+    }
+    
+    if (player2Score >= matchLength) {
+        return { 
+            valid: false, 
+            reason: `Player 2 already won the match (${player2Score}/${matchLength})` 
+        };
+    }
+    
+    return { valid: true, reason: '' };
+}
+
+/**
+ * Recalculate scores from the specified game onwards
+ * @param {number} startGameIndex - Index of the first game to recalculate
+ */
+function recalculateScoresFromGame(startGameIndex) {
+    console.log(`[recalculateScoresFromGame] Starting from game ${startGameIndex}`);
+    
+    transcriptionStore.update(t => {
+        if (!t.games || startGameIndex < 0 || startGameIndex >= t.games.length) return t;
+        
+        // We need to recalculate ALL games from game 0 to ensure scores propagate correctly
+        let currentPlayer1Score = 0;
+        let currentPlayer2Score = 0;
+        
+        // Calculate scores for ALL games starting from game 0
+        for (let i = 0; i < t.games.length; i++) {
+            const currentGame = t.games[i];
+            
+            console.log(`[recalculateScoresFromGame] Game ${i}: starting scores ${currentPlayer1Score}-${currentPlayer2Score}`);
+            
+            // Update current game's starting scores
+            currentGame.player1Score = currentPlayer1Score;
+            currentGame.player2Score = currentPlayer2Score;
+            
+            // Calculate scores after this game (which will be used as starting scores for next game)
+            const newScores = calculateScoresAfterGame(currentGame, t.metadata.matchLength, currentPlayer1Score, currentPlayer2Score);
+            console.log(`[recalculateScoresFromGame] Game ${i}: after game scores ${newScores.player1Score}-${newScores.player2Score}`);
+            
+            // Update current scores for next iteration
+            currentPlayer1Score = newScores.player1Score;
+            currentPlayer2Score = newScores.player2Score;
+        }
+        
+        return JSON.parse(JSON.stringify(t));
+    });
+}
+
+/**
+ * Insert a new empty game before the specified game index
+ * @param {number} gameIndex - Index of the game to insert before
+ */
+export function insertGameBefore(gameIndex) {
+    console.log(`[insertGameBefore] gameIndex=${gameIndex}`);
+    console.log('[insertGameBefore] BEFORE:');
+    dumpTranscriptionState();
+    
+    transcriptionStore.update(t => {
+        if (!t.games || gameIndex < 0 || gameIndex > t.games.length) return t;
+        
+        // Calculate scores from previous game if it exists and is valid
+        let player1Score = 0;
+        let player2Score = 0;
+        
+        if (gameIndex > 0) {
+            const prevGame = t.games[gameIndex - 1];
+            const scores = calculateScoresAfterGame(prevGame, t.metadata.matchLength);
+            player1Score = scores.player1Score;
+            player2Score = scores.player2Score;
+        } else {
+            // If inserting before first game, use current game's scores
+            const currentGame = t.games[gameIndex];
+            player1Score = currentGame ? currentGame.player1Score : 0;
+            player2Score = currentGame ? currentGame.player2Score : 0;
+        }
+        
+        // Create new game with empty first move for player1
+        const newGame = {
+            gameNumber: gameIndex + 1,
+            player1Score: player1Score,
+            player2Score: player2Score,
+            moves: [{
+                moveNumber: 0,
+                player1Move: { dice: '', move: '', isIllegal: false, isGala: false },
+                player2Move: null,
+                cubeAction: null
+            }],
+            winner: null
+        };
+        
+        // Insert the new game at the specified index
+        t.games.splice(gameIndex, 0, newGame);
+        
+        // Update game numbers and recalculate scores for all subsequent games
+        console.log(`[insertGameBefore] Recalculating scores for games ${gameIndex + 1} to ${t.games.length - 1}`);
+        for (let i = gameIndex + 1; i < t.games.length; i++) {
+            t.games[i].gameNumber = i + 1;
+            
+            // Recalculate scores based on previous game
+            const prevGame = t.games[i - 1];
+            console.log(`[insertGameBefore] Recalculating game ${i} (number ${i + 1}) from previous game ${i - 1}`);
+            const scores = calculateScoresAfterGame(prevGame, t.metadata.matchLength);
+            console.log(`[insertGameBefore] Game ${i}: old scores ${t.games[i].player1Score}-${t.games[i].player2Score}, new scores ${scores.player1Score}-${scores.player2Score}`);
+            t.games[i].player1Score = scores.player1Score;
+            t.games[i].player2Score = scores.player2Score;
+        }
+        
+        // Return a deep copy to prevent reference sharing issues
+        return JSON.parse(JSON.stringify(t));
+    });
+    
+    console.log('[insertGameBefore] AFTER:');
+    dumpTranscriptionState();
+    
+    // Invalidate positions cache from the insertion point
+    invalidatePositionsCacheFrom(gameIndex, 0);
+}
+
+/**
+ * Insert a new empty game after the specified game index
+ * @param {number} gameIndex - Index of the game to insert after
+ */
+export function insertGameAfter(gameIndex) {
+    console.log(`[insertGameAfter] gameIndex=${gameIndex}`);
+    console.log('[insertGameAfter] BEFORE:');
+    dumpTranscriptionState();
+    
+    transcriptionStore.update(t => {
+        if (!t.games || gameIndex < 0 || gameIndex >= t.games.length) return t;
+        
+        // Calculate scores from current game if it's valid
+        const currentGame = t.games[gameIndex];
+        const scores = calculateScoresAfterGame(currentGame, t.metadata.matchLength);
+        
+        // Create new game with empty first move for player1
+        const newGame = {
+            gameNumber: gameIndex + 2,
+            player1Score: scores.player1Score,
+            player2Score: scores.player2Score,
+            moves: [{
+                moveNumber: 0,
+                player1Move: { dice: '', move: '', isIllegal: false, isGala: false },
+                player2Move: null,
+                cubeAction: null
+            }],
+            winner: null
+        };
+        
+        // Insert the new game after the specified index
+        t.games.splice(gameIndex + 1, 0, newGame);
+        
+        // Update game numbers and recalculate scores for all subsequent games
+        console.log(`[insertGameAfter] Recalculating scores for games ${gameIndex + 2} to ${t.games.length - 1}`);
+        for (let i = gameIndex + 2; i < t.games.length; i++) {
+            t.games[i].gameNumber = i + 1;
+            
+            // Recalculate scores based on previous game
+            const prevGame = t.games[i - 1];
+            console.log(`[insertGameAfter] Recalculating game ${i} (number ${i + 1}) from previous game ${i - 1}`);
+            const recalcScores = calculateScoresAfterGame(prevGame, t.metadata.matchLength);
+            console.log(`[insertGameAfter] Game ${i}: old scores ${t.games[i].player1Score}-${t.games[i].player2Score}, new scores ${recalcScores.player1Score}-${recalcScores.player2Score}`);
+            t.games[i].player1Score = recalcScores.player1Score;
+            t.games[i].player2Score = recalcScores.player2Score;
+        }
+        
+        // Return a deep copy to prevent reference sharing issues
+        return JSON.parse(JSON.stringify(t));
+    });
+    
+    console.log('[insertGameAfter] AFTER:');
+    dumpTranscriptionState();
+    
+    // Invalidate positions cache from the insertion point
+    invalidatePositionsCacheFrom(gameIndex + 1, 0);
+}
+
+/**
+ * Delete a game at the specified game index
+ * @param {number} gameIndex - Index of the game to delete
+ * @returns {boolean} - Returns true if deletion was successful, false otherwise
+ */
+export function deleteGame(gameIndex) {
+    console.log(`[deleteGame] gameIndex=${gameIndex}`);
+    let deletionSuccessful = false;
+    
+    transcriptionStore.update(t => {
+        if (!t.games || gameIndex < 0 || gameIndex >= t.games.length) return t;
+        
+        // Don't allow deleting the last game
+        if (t.games.length === 1) {
+            console.log('[deleteGame] Cannot delete the last game');
+            return t;
+        }
+        
+        // Remove the game at the specified index
+        t.games.splice(gameIndex, 1);
+        
+        // Update game numbers for all subsequent games
+        for (let i = gameIndex; i < t.games.length; i++) {
+            t.games[i].gameNumber = i + 1;
+        }
+        
+        deletionSuccessful = true;
+        
+        // Return a deep copy to prevent reference sharing issues
+        return JSON.parse(JSON.stringify(t));
+    });
+    
+    if (deletionSuccessful) {
+        // Invalidate positions cache from the deletion point
+        invalidatePositionsCacheFrom(gameIndex, 0);
+    }
+    
+    return deletionSuccessful;
 }

@@ -202,6 +202,23 @@
                     <p>EDIT mode allows you to modify board positions using the mouse. Activate it by pressing <strong>TAB</strong>. You can adjust checker positions, cube ownership, dice, and score.</p>
                     <p>When in EDIT mode with the moves panel open, you can right-click on any move to access a context menu with options to insert new decisions before or after the selected move.</p>
                     
+                    <h3>Inserting Games</h3>
+                    <p>You can insert new empty games into the transcription:</p>
+                    <ul>
+                        <li>Press <strong>n</strong> to insert a new game after the current game</li>
+                        <li>Press <strong>N</strong> (Shift+n) to insert a new game before the current game</li>
+                        <li>Click the game document icon button in the toolbar (between redo and insert decision)</li>
+                    </ul>
+                    <p>In the insert panel, choose whether to insert before or after the current game, then press Enter. The new game will be empty and inherit the score from the adjacent game. You can then add moves to this game using the normal editing workflow.</p>
+                    
+                    <h3>Deleting Games</h3>
+                    <p>You can delete the current game from the transcription:</p>
+                    <ul>
+                        <li>Press <strong>D</strong> (Shift+d) to delete the current game</li>
+                        <li>Click the game document with minus icon button in the toolbar (between insert game and insert decision)</li>
+                    </ul>
+                    <p>When a game is deleted, all subsequent games are renumbered automatically. You cannot delete the last remaining game in a transcription. The position cache is automatically invalidated and recalculated. This action can be undone using the undo feature.</p>
+                    
                     <h3>Inserting Decisions</h3>
                     <p>You can insert new empty decisions (player-specific moves) into the transcription:</p>
                     <ul>
@@ -361,6 +378,38 @@
                             <tr>
                                 <td>Ctrl + H, ?</td>
                                 <td>Open Help</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Game Manipulation</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Shortcut</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>n</td>
+                                <td>Insert New Game After current</td>
+                            </tr>
+                            <tr>
+                                <td>N (Shift+n)</td>
+                                <td>Insert New Game Before current</td>
+                            </tr>
+                            <tr>
+                                <td>D (Shift+d)</td>
+                                <td>Delete Current Game</td>
+                            </tr>
+                            <tr>
+                                <td>Game Icon Button (Toolbar)</td>
+                                <td>Open Insert Game Panel</td>
+                            </tr>
+                            <tr>
+                                <td>Game Delete Button (Toolbar)</td>
+                                <td>Delete Current Game</td>
                             </tr>
                         </tbody>
                     </table>

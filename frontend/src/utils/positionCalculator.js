@@ -551,14 +551,21 @@ export function validateGamePositions(game, startMoveIndex = 0) {
   let firstError = null;
   
   // Build position up to startMoveIndex without validation
-  // Also check for drops in earlier moves
+  // Also check for drops and resignations in earlier moves
   let gameEndedAtMove = null;
   for (let i = 0; i < startMoveIndex && i < game.moves.length; i++) {
     const move = game.moves[i];
     
     // Check for drops (game ends)
-    if (move.player1Move?.cubeAction === 'drops' || move.player2Move?.cubeAction === 'drops' ||
-        (move.cubeAction?.action === 'drops') || (move.cubeAction?.response === 'drops')) {
+    if (move.player1Move?.cubeAction === 'drops' || move.player2Move?.cubeAction === 'drops') {
+      gameEndedAtMove = i;
+      break;
+    }
+    
+    // Check for resignations (move ends with '-')
+    // Only treat as resignation if move is not empty and ends with '-'
+    if ((move.player1Move?.move && move.player1Move.move.trim() && move.player1Move.move.trim().endsWith('-')) ||
+        (move.player2Move?.move && move.player2Move.move.trim() && move.player2Move.move.trim().endsWith('-'))) {
       gameEndedAtMove = i;
       break;
     }
@@ -881,10 +888,10 @@ export function validateGamePositions(game, startMoveIndex = 0) {
     // If we've already encountered an error or drop from previous move, mark all moves as inconsistent
     if (firstError !== null && i > firstError) {
       if (move.player1Move && (move.player1Move.move || move.player1Move.cubeAction)) {
-        inconsistentMoves.push({ moveIndex: i, player: 1, reason: gameEndedAtMove !== null ? 'Game ended after drop' : 'Previous move caused inconsistency' });
+        inconsistentMoves.push({ moveIndex: i, player: 1, reason: gameEndedAtMove !== null ? 'Game already ended' : 'Previous move caused inconsistency' });
       }
       if (move.player2Move && (move.player2Move.move || move.player2Move.cubeAction)) {
-        inconsistentMoves.push({ moveIndex: i, player: 2, reason: gameEndedAtMove !== null ? 'Game ended after drop' : 'Previous move caused inconsistency' });
+        inconsistentMoves.push({ moveIndex: i, player: 2, reason: gameEndedAtMove !== null ? 'Game already ended' : 'Previous move caused inconsistency' });
       }
       continue;
     }

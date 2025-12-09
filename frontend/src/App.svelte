@@ -1,7 +1,7 @@
 <script>
 
     // svelte functions
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, tick } from 'svelte';
     import { fade, slide } from 'svelte/transition';
     import { get } from 'svelte/store';
 
@@ -73,7 +73,8 @@
         clearTranscription,
         swapPlayers,
         migrateCubeActions,
-        validateGameInconsistencies
+        validateGameInconsistencies,
+        dumpTranscriptionState
     } from './stores/transcriptionStore.js';
     import { undoRedoStore } from './stores/undoRedoStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
@@ -100,6 +101,7 @@
     import EditPanel from './components/EditPanel.svelte';
     import MoveSearchPanel from './components/MoveSearchPanel.svelte';
     import MoveInsertPanel from './components/MoveInsertPanel.svelte';
+    import GameInsertPanel from './components/GameInsertPanel.svelte';
 
     // Debug logging
     console.log('App.svelte: Script starting to execute');
@@ -118,6 +120,7 @@
     let showMovesTable = true;
     let showEditPanel = false;
     let showInsertPanel = false;
+    let showInsertGamePanel = false;
     
     console.log('App.svelte: Variables initialized');
     
@@ -685,6 +688,10 @@
                 event.preventDefault();
                 showCommandStore.set(true); // Show command line
             }
+        } else if (event.ctrlKey && event.shiftKey && event.code === 'KeyD') {
+            // Debug: Dump transcription state to console
+            event.preventDefault();
+            dumpTranscriptionState();
         } else if (event.ctrlKey && event.code === 'KeyH') {
             toggleHelpModal();
         } else if (!event.ctrlKey && event.key === '?') {
@@ -734,6 +741,30 @@
                 return;
             }
             insertDecisionDirectly('after');
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'N') {
+            // 'N' - insert new game BEFORE current
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            insertGameDirectly('before');
+        } else if (!event.ctrlKey && !event.shiftKey && event.key === 'n') {
+            // 'n' - insert new game AFTER current
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            insertGameDirectly('after');
+        } else if (!event.ctrlKey && event.shiftKey && event.key === 'D') {
+            // 'D' - delete current game
+            event.preventDefault();
+            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
+                return;
+            }
+            deleteCurrentGame();
         } else if (event.ctrlKey && event.code === 'KeyZ') {
             event.preventDefault();
             handleUndo();
@@ -1297,6 +1328,102 @@
         showInsertPanel = true;
     }
 
+    function showInsertGamePanelFunc() {
+        console.log('showInsertGamePanelFunc');
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        showInsertGamePanel = true;
+    }
+
+    async function insertGameBefore(gameIndex) {
+        saveSnapshotBeforeOperation();
+        const { insertGameBefore: insertGameBeforeStore, validateGameInconsistencies } = await import('./stores/transcriptionStore.js');
+        insertGameBeforeStore(gameIndex);
+        
+        // Validate the newly inserted game and all subsequent games for score inconsistencies
+        const transcription = get(transcriptionStore);
+        for (let i = gameIndex; i < transcription.games.length; i++) {
+            await validateGameInconsistencies(i, 0);
+        }
+        
+        // Select first move of the newly inserted game
+        selectedMoveStore.set({ gameIndex: gameIndex, moveIndex: 0, player: 1 });
+        setStatusBarMessage(`New game inserted before game ${gameIndex + 2}`);
+    }
+
+    async function insertGameAfter(gameIndex) {
+        saveSnapshotBeforeOperation();
+        const { insertGameAfter: insertGameAfterStore, validateGameInconsistencies } = await import('./stores/transcriptionStore.js');
+        insertGameAfterStore(gameIndex);
+        
+        // Force update to ensure UI reflects new scores
+        await tick();
+        
+        // Validate the newly inserted game and all subsequent games for score inconsistencies
+        const transcription = get(transcriptionStore);
+        for (let i = gameIndex + 1; i < transcription.games.length; i++) {
+            await validateGameInconsistencies(i, 0);
+        }
+        
+        // Select first move of the newly inserted game
+        selectedMoveStore.set({ gameIndex: gameIndex + 1, moveIndex: 0, player: 1 });
+        setStatusBarMessage(`New game inserted after game ${gameIndex + 1}`);
+    }
+
+    async function insertGameDirectly(position) {
+        const selectedMove = get(selectedMoveStore);
+        if (!selectedMove) return;
+        
+        const { gameIndex } = selectedMove;
+        
+        if (position === 'before') {
+            await insertGameBefore(gameIndex);
+        } else {
+            await insertGameAfter(gameIndex);
+        }
+    }
+
+    async function deleteCurrentGame() {
+        if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+            setStatusBarMessage('No transcription opened');
+            return;
+        }
+        
+        if ($transcriptionStore.games.length === 1) {
+            setStatusBarMessage('Cannot delete the last game');
+            return;
+        }
+        
+        const selectedMove = get(selectedMoveStore);
+        if (!selectedMove) return;
+        
+        const { gameIndex } = selectedMove;
+        
+        // Save state before operation
+        saveSnapshotBeforeOperation();
+        
+        // Import and call deleteGame
+        const { deleteGame: deleteGameStore } = await import('./stores/transcriptionStore.js');
+        const success = deleteGameStore(gameIndex);
+        
+        if (success) {
+            // Adjust selection to previous game or stay at same index if first game was deleted
+            const newGameIndex = gameIndex > 0 ? gameIndex - 1 : 0;
+            const newTranscription = get(transcriptionStore);
+            
+            // Make sure the new game index is valid
+            if (newTranscription.games[newGameIndex]) {
+                selectedMoveStore.set({ gameIndex: newGameIndex, moveIndex: 0, player: 1 });
+            }
+            
+            setStatusBarMessage(`Game ${gameIndex + 1} deleted`);
+        } else {
+            setStatusBarMessage('Failed to delete game');
+        }
+    }
+
     async function insertDecisionDirectly(position) {
         // Save state before the operation
         saveSnapshotBeforeOperation();
@@ -1508,6 +1635,8 @@
         onUndo={handleUndo}
         onRedo={handleRedo}
         onShowInsertPanel={showInsertDecisionPanel}
+        onShowInsertGamePanel={showInsertGamePanelFunc}
+        onDeleteGame={deleteCurrentGame}
         onDeleteDecision={deleteCurrentDecision}
     />
 
@@ -1578,14 +1707,18 @@
         }}
     />
 
+    <GameInsertPanel
+        visible={showInsertGamePanel}
+        onClose={() => {
+            showInsertGamePanel = false;
+        }}
+        onInsertGameBefore={insertGameBefore}
+        onInsertGameAfter={insertGameAfter}
+    />
+
     <MoveSearchPanel
         visible={showMoveSearchModal}
         onClose={() => showMoveSearchModalStore.set(false)}
-    />
-
-    <MoveInsertPanel
-        visible={showInsertPanel}
-        onClose={() => showInsertPanel = false}
     />
 
     <StatusBar />

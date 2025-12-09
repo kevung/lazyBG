@@ -73,8 +73,8 @@
     
     // Flatten moves into individual player rows
     $: playerRows = moves.flatMap((move, mIdx) => [
-        { gameIndex: selectedGameIndex, moveIndex: mIdx, moveNumber: move.moveNumber, player: 1, moveData: move.player1Move, cubeAction: move.cubeAction },
-        { gameIndex: selectedGameIndex, moveIndex: mIdx, moveNumber: move.moveNumber, player: 2, moveData: move.player2Move, cubeAction: move.cubeAction }
+        { gameIndex: selectedGameIndex, moveIndex: mIdx, moveNumber: move.moveNumber, player: 1, moveData: move.player1Move },
+        { gameIndex: selectedGameIndex, moveIndex: mIdx, moveNumber: move.moveNumber, player: 2, moveData: move.player2Move }
     ]);
 
     // Scroll selected move into view when selection changes
@@ -699,24 +699,13 @@
         
         editingMove = { gameIndex, moveIndex, player };
         
-        // Check for cube action in player move (new structure) or move level (old structure)
+        // Check for cube action in player move
         if (playerMove?.cubeAction) {
-            // New structure: cube action in player's move data
             if (playerMove.cubeAction === 'doubles') {
                 inlineEditDice = 'd';
             } else if (playerMove.cubeAction === 'takes') {
                 inlineEditDice = 't';
             } else if (playerMove.cubeAction === 'drops') {
-                inlineEditDice = 'p';
-            }
-            inlineEditMove = '';
-        } else if (move.cubeAction && move.cubeAction.player === player) {
-            // Old structure: cube action at move level
-            if (move.cubeAction.action === 'doubles') {
-                inlineEditDice = 'd';
-            } else if (move.cubeAction.action === 'takes') {
-                inlineEditDice = 't';
-            } else if (move.cubeAction.action === 'drops') {
                 inlineEditDice = 'p';
             }
             inlineEditMove = '';
@@ -879,8 +868,16 @@
         const isEmpty = !moveData.cubeAction && (!moveData.dice || moveData.dice === '') && (!moveData.move || moveData.move === '');
         
         if (isEmpty) {
-            // Empty decision object with empty strings should always be marked as inconsistent
-            classes.push('inconsistent');
+            // Check if this is player1's first decision when player2 starts (legitimate empty)
+            const firstMove = moves[0];
+            const player2Starts = moveIndex === 0 && player === 1 && firstMove && 
+                                  (!firstMove.player1Move || !firstMove.player1Move.dice || firstMove.player1Move.dice === '') && 
+                                  firstMove.player2Move && firstMove.player2Move.dice;
+            
+            // Only mark as inconsistent if it's NOT the legitimate empty first decision
+            if (!player2Starts) {
+                classes.push('inconsistent');
+            }
         }
         
         // Don't highlight "Cannot Move"
@@ -927,7 +924,15 @@
                        (!moveData.move || moveData.move === '');
         
         if (isEmpty) {
-            return 'Empty decision needs to be defined';
+            // Check if this is player1's first decision when player2 starts (legitimate empty)
+            const firstMove = moves[0];
+            const player2Starts = moveIndex === 0 && player === 1 && firstMove && 
+                                  (!firstMove.player1Move || !firstMove.player1Move.dice || firstMove.player1Move.dice === '') && 
+                                  firstMove.player2Move && firstMove.player2Move.dice;
+            
+            if (!player2Starts) {
+                return 'Empty decision needs to be defined';
+            }
         }
         
         return '';
