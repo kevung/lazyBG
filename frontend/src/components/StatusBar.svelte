@@ -159,6 +159,10 @@
     right: 0; /* Align to right */
     font-size: 14px; /* Font size */
     z-index: 10;
+    user-select: none; /* Prevent text selection */
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE/Edge */
   }
 
   .mode {
