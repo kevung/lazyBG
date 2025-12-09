@@ -357,11 +357,11 @@
                             </tr>
                             <tr>
                                 <td>Left, k</td>
-                                <td>Previous Move</td>
+                                <td>Previous Decision</td>
                             </tr>
                             <tr>
                                 <td>Right, j</td>
-                                <td>Next Move</td>
+                                <td>Next Decision</td>
                             </tr>
                             <tr>
                                 <td>PageDown, l</td>

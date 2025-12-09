@@ -177,25 +177,25 @@
 
     <div class="separator"></div>
 
-    <button on:click|stopPropagation={handlePreviousGame} aria-label="Previous Game" title="Previous Game (First Move) (PageUp, h)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={handlePreviousGame} aria-label="Previous Game" title="Previous Game (PageUp, h)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={handlePreviousPosition} aria-label="Previous Move" title="Previous Move (Left, k)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={handlePreviousPosition} aria-label="Previous Decision" title="Previous Decision (Left, k)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={handleNextPosition} aria-label="Next Move" title="Next Move (Right, j)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={handleNextPosition} aria-label="Next Decision" title="Next Decision (Right, j)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
     </button>
 
-    <button on:click|stopPropagation={handleNextGame} aria-label="Next Game" title="Next Game (First Move) (PageDown, l)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
+    <button on:click|stopPropagation={handleNextGame} aria-label="Next Game" title="Next Game (PageDown, l)" disabled={statusBarMode === 'EDIT' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
         </svg>
@@ -207,9 +207,16 @@
         </svg>
     </button>
 
+    <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (t)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={!showInitialPosition}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+    </button>
+
     <div class="separator"></div>
 
-    <button on:click|stopPropagation={onShowInsertGamePanel} aria-label="Insert Game" title="Insert Game (N, n)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+    <button on:click|stopPropagation={onShowInsertGamePanel} aria-label="Insert Game To New Game" title="Insert Game To New Game (n, N)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
         </svg>
@@ -221,7 +228,7 @@
         </svg>
     </button>
 
-    <button on:click|stopPropagation={onShowInsertPanel} aria-label="Insert Decision" title="Insert Decision (o, O)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
+    <button on:click|stopPropagation={onShowInsertPanel} aria-label="Insert Decision To New Decision" title="Insert Decision To New Decision (o, O)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
@@ -260,13 +267,6 @@
     <button on:click|stopPropagation={onRedo} aria-label="Redo" title="Redo (Ctrl-Y, Ctrl-R)" disabled={!canRedo}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
-        </svg>
-    </button>
-
-    <button on:click|stopPropagation={onTogglePositionDisplay} aria-label="Toggle Position Display" title="Toggle Initial/Final Position Display (t)" disabled={statusBarMode !== 'NORMAL' || !hasTranscription} class:active={!showInitialPosition}>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
     </button>
 
