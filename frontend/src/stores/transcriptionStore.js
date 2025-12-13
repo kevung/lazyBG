@@ -166,7 +166,12 @@ export function addGame(gameNumber, player1Score, player2Score) {
             gameNumber,
             player1Score,
             player2Score,
-            moves: [],
+            moves: [{
+                moveNumber: 1,
+                player1Move: { dice: '', move: '', isIllegal: false, isGala: false },
+                player2Move: null,
+                cubeAction: null
+            }],
             winner: null
         });
         // Return a deep copy to prevent reference sharing issues with subscribers
