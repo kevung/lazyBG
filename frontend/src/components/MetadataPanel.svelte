@@ -50,8 +50,15 @@
                 type="number" 
                 min="1" 
                 max="99" 
-                value={metadata.matchLength || 7} 
-                on:input={(e) => handleInput('matchLength', parseInt(e.target.value) || 7)}
+                value={metadata.matchLength === '' ? '' : (metadata.matchLength || 7)} 
+                on:input={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                        handleInput('matchLength', '');
+                    } else {
+                        handleInput('matchLength', parseInt(val) || 7);
+                    }
+                }}
             />
         </div>
         
