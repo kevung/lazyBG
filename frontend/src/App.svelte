@@ -623,12 +623,36 @@
     });
 
     //Global shortcuts
+    
+    // Helper function to check if focus is on a metadata panel input
+    function isMetadataInputFocused() {
+        const activeElement = document.activeElement;
+        if (!activeElement || activeElement.tagName !== 'INPUT') {
+            return false;
+        }
+        // Check if the input is within the metadata panel
+        const metadataPanel = activeElement.closest('.metadata-panel');
+        return metadataPanel !== null;
+    }
+    
     function handleKeyDown(event) {
         event.stopPropagation();
 
         // Prevent shortcuts if any modal is open
         if ($isAnyModalOpenStore) {
             return;
+        }
+        
+        // Prevent shortcuts if editing metadata (except Escape and Ctrl+M to close panel)
+        const editingMetadata = isMetadataInputFocused();
+        if (editingMetadata) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                showMetadataPanelStore.set(false);
+                return;
+            } else if (!(event.ctrlKey && event.code === 'KeyM')) {
+                return;
+            }
         }
 
         if (event.key === 'Escape') {
@@ -679,12 +703,15 @@
         } else if(event.ctrlKey && event.code == 'KeyK') {
             gotoMove();
         } else if(!event.ctrlKey && event.code === 'Tab') {
-            event.preventDefault();
-            if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
-                setStatusBarMessage('No transcription opened');
-                return;
+            // Don't intercept Tab if in metadata panel (allow field cycling)
+            if (!isMetadataInputFocused()) {
+                event.preventDefault();
+                if (!$transcriptionStore || !$transcriptionStore.games || $transcriptionStore.games.length === 0) {
+                    setStatusBarMessage('No transcription opened');
+                    return;
+                }
+                toggleEditMode();
             }
-            toggleEditMode();
         } else if (!event.ctrlKey && event.code === 'Space') {
             // Don't open command mode if in EDIT mode (allow space in input fields)
             if ($statusBarModeStore !== 'EDIT') {

@@ -928,7 +928,14 @@ export async function validateGameInconsistencies(gameIndex, startMoveIndex = 0)
 
 export function updateMetadata(metadata) {
     transcriptionStore.update(t => {
+        const oldMatchLength = t.metadata.matchLength;
         t.metadata = { ...t.metadata, ...metadata };
+        
+        // If matchLength changed, clear position cache to force recalculation of away scores
+        if (metadata.matchLength !== undefined && oldMatchLength !== metadata.matchLength) {
+            positionsCacheStore.set({});
+        }
+        
         // Return a deep copy to prevent reference sharing issues with subscribers
         return JSON.parse(JSON.stringify(t));
     });
