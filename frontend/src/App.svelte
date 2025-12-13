@@ -958,7 +958,11 @@
                 matchLength: 7
             });
             
-            // Get the transcription with initial metadata
+            // Add the first game with 0-0 score
+            const { addGame } = await import('./stores/transcriptionStore.js');
+            addGame(1, 0, 0);
+            
+            // Get the transcription with initial metadata and first game
             const transcription = get(transcriptionStore);
             
             // Save the initial transcription file
@@ -994,8 +998,8 @@
         try {
             // Get current transcription
             const transcription = get(transcriptionStore);
-            if (!transcription) {
-                setStatusBarMessage('No transcription to save');
+            if (!transcription || !transcription.games || transcription.games.length === 0) {
+                setStatusBarMessage('No transcription opened');
                 return;
             }
 
