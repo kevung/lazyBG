@@ -643,6 +643,38 @@ export function validateGamePositions(game, startMoveIndex = 0) {
   for (let i = startMoveIndex; i < game.moves.length; i++) {
     const move = game.moves[i];
     
+    // NEW: Check if cube decision is the first decision of the game
+    // The first decision of a game cannot be a cube decision (d/t/p)
+    if (i === 0) {
+      // Check if player 1 has a cube action as first decision
+      if (move.player1Move?.cubeAction) {
+        const action = move.player1Move.cubeAction === 'doubles' ? 'double' 
+                     : move.player1Move.cubeAction === 'takes' ? 'take' 
+                     : 'pass';
+        console.log(`[Move 1] Player 1 cannot ${action} - first decision of game must be a checker move`);
+        inconsistentMoves.push({ 
+          moveIndex: 0, 
+          player: 1, 
+          reason: `Cannot ${action}: first decision of game must be a checker move` 
+        });
+        if (firstError === null) firstError = 0;
+      }
+      
+      // Check if player 2 has a cube action as first decision
+      if (move.player2Move?.cubeAction) {
+        const action = move.player2Move.cubeAction === 'doubles' ? 'double' 
+                     : move.player2Move.cubeAction === 'takes' ? 'take' 
+                     : 'pass';
+        console.log(`[Move 1] Player 2 cannot ${action} - first decision of game must be a checker move`);
+        inconsistentMoves.push({ 
+          moveIndex: 0, 
+          player: 2, 
+          reason: `Cannot ${action}: first decision of game must be a checker move` 
+        });
+        if (firstError === null) firstError = 0;
+      }
+    }
+    
     // NEW: Check if player 1 takes/drops without a preceding double
     // Player 1 takes/passes should only occur after player 2 doubles in the previous move
     if (move.player1Move?.cubeAction === 'takes' || move.player1Move?.cubeAction === 'drops') {
