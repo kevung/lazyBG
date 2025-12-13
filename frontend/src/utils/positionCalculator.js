@@ -673,6 +673,34 @@ export function validateGamePositions(game, startMoveIndex = 0) {
         });
         if (firstError === null) firstError = 0;
       }
+      
+      // NEW: Check if the first decision is a dice double (forbidden in opening roll)
+      // The opening roll cannot be a double - if both players roll the same, they re-roll
+      if (move.player1Move?.dice) {
+        const dice = move.player1Move.dice;
+        if (dice.length === 2 && dice[0] === dice[1]) {
+          console.log(`[Move 1] Player 1 cannot have dice double ${dice} as opening roll`);
+          inconsistentMoves.push({ 
+            moveIndex: 0, 
+            player: 1, 
+            reason: `Opening roll cannot be a double (${dice})` 
+          });
+          if (firstError === null) firstError = 0;
+        }
+      }
+      
+      if (move.player2Move?.dice) {
+        const dice = move.player2Move.dice;
+        if (dice.length === 2 && dice[0] === dice[1]) {
+          console.log(`[Move 1] Player 2 cannot have dice double ${dice} as opening roll`);
+          inconsistentMoves.push({ 
+            moveIndex: 0, 
+            player: 2, 
+            reason: `Opening roll cannot be a double (${dice})` 
+          });
+          if (firstError === null) firstError = 0;
+        }
+      }
     }
     
     // NEW: Check if player 1 takes/drops without a preceding double
