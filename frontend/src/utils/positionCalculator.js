@@ -539,12 +539,36 @@ export function validateMoveNotation(position, moveText, isPlayer = true) {
  * Returns an array of move indices that have position errors
  * @param {Object} game - Game object with moves
  * @param {number} startMoveIndex - Index to start validation from (default 0)
+ * @param {Object} transcription - Full transcription object (optional, for Crawford detection)
+ * @param {number} gameIndex - Index of this game in transcription (optional, for Crawford detection)
  */
-export function validateGamePositions(game, startMoveIndex = 0) {
+export function validateGamePositions(game, startMoveIndex = 0, transcription = null, gameIndex = 0) {
   const inconsistentMoves = [];
   
   if (!game || !game.moves || game.moves.length === 0) {
     return inconsistentMoves;
+  }
+
+  // Determine if this is a Crawford game
+  let isCrawfordGame = false;
+  if (transcription && transcription.metadata) {
+    const matchLength = transcription.metadata.matchLength || 0;
+    const crawfordOn = transcription.metadata.crawford === 'On';
+    
+    if (matchLength > 0 && crawfordOn) {
+      const player1Score = game.player1Score || 0;
+      const player2Score = game.player2Score || 0;
+      const awayScore1 = matchLength - player1Score;
+      const awayScore2 = matchLength - player2Score;
+      
+      // Check if one player is 1-away AND this is the first such game
+      if (awayScore1 === 1 || awayScore2 === 1) {
+        const firstCrawfordIndex = transcription.games.findIndex(g => 
+          (matchLength - (g.player1Score || 0) === 1 || matchLength - (g.player2Score || 0) === 1)
+        );
+        isCrawfordGame = (gameIndex === firstCrawfordIndex);
+      }
+    }
   }
 
   let position = createInitialPosition();
@@ -709,47 +733,71 @@ export function validateGamePositions(game, startMoveIndex = 0) {
     // NEW: Check if player 1 takes/drops without a preceding double
     // Player 1 takes/passes should only occur after player 2 doubles in the previous move
     if (move.player1Move?.cubeAction === 'takes' || move.player1Move?.cubeAction === 'drops') {
-      let hasValidPrecedingDouble = false;
-      
-      // Check if previous move (i-1) has player 2 doubling
-      if (i > 0) {
-        const prevMove = game.moves[i - 1];
-        if (prevMove.player2Move?.cubeAction === 'doubles') {
-          hasValidPrecedingDouble = true;
-        }
-      }
-      
-      if (!hasValidPrecedingDouble) {
+      // First check Crawford game
+      if (isCrawfordGame) {
         const action = move.player1Move.cubeAction === 'takes' ? 'take' : 'pass';
-        console.log(`[Move ${i+1}] Player 1 cannot ${action} - no preceding double from player 2`);
+        console.log(`[Move ${i+1}] Player 1 cannot ${action} - Crawford game`);
         inconsistentMoves.push({ 
           moveIndex: i, 
           player: 1, 
-          reason: `Cannot ${action}: no preceding double from opponent` 
+          reason: `Cannot ${action}: cube is dead in Crawford game` 
         });
         if (firstError === null) firstError = i;
+      } else {
+        let hasValidPrecedingDouble = false;
+        
+        // Check if previous move (i-1) has player 2 doubling
+        if (i > 0) {
+          const prevMove = game.moves[i - 1];
+          if (prevMove.player2Move?.cubeAction === 'doubles') {
+            hasValidPrecedingDouble = true;
+          }
+        }
+        
+        if (!hasValidPrecedingDouble) {
+          const action = move.player1Move.cubeAction === 'takes' ? 'take' : 'pass';
+          console.log(`[Move ${i+1}] Player 1 cannot ${action} - no preceding double from player 2`);
+          inconsistentMoves.push({ 
+            moveIndex: i, 
+            player: 1, 
+            reason: `Cannot ${action}: no preceding double from opponent` 
+          });
+          if (firstError === null) firstError = i;
+        }
       }
     }
     
     // NEW: Check if player 2 takes/drops without a preceding double
     // Player 2 takes/passes should only occur after player 1 doubles in the same move
     if (move.player2Move?.cubeAction === 'takes' || move.player2Move?.cubeAction === 'drops') {
-      let hasValidPrecedingDouble = false;
-      
-      // Check if player 1 doubled in the same move entry
-      if (move.player1Move?.cubeAction === 'doubles') {
-        hasValidPrecedingDouble = true;
-      }
-      
-      if (!hasValidPrecedingDouble) {
+      // First check Crawford game
+      if (isCrawfordGame) {
         const action = move.player2Move.cubeAction === 'takes' ? 'take' : 'pass';
-        console.log(`[Move ${i+1}] Player 2 cannot ${action} - no preceding double from player 1`);
+        console.log(`[Move ${i+1}] Player 2 cannot ${action} - Crawford game`);
         inconsistentMoves.push({ 
           moveIndex: i, 
           player: 2, 
-          reason: `Cannot ${action}: no preceding double from opponent` 
+          reason: `Cannot ${action}: cube is dead in Crawford game` 
         });
         if (firstError === null) firstError = i;
+      } else {
+        let hasValidPrecedingDouble = false;
+        
+        // Check if player 1 doubled in the same move entry
+        if (move.player1Move?.cubeAction === 'doubles') {
+          hasValidPrecedingDouble = true;
+        }
+        
+        if (!hasValidPrecedingDouble) {
+          const action = move.player2Move.cubeAction === 'takes' ? 'take' : 'pass';
+          console.log(`[Move ${i+1}] Player 2 cannot ${action} - no preceding double from player 1`);
+          inconsistentMoves.push({ 
+            moveIndex: i, 
+            player: 2, 
+            reason: `Cannot ${action}: no preceding double from opponent` 
+          });
+          if (firstError === null) firstError = i;
+        }
       }
     }
     
@@ -782,8 +830,14 @@ export function validateGamePositions(game, startMoveIndex = 0) {
       
       console.log(`[Move ${i+1}] Player 1 doubles, cubeOwner=${cubeOwner}`);
       
+      // Validate: cannot double in Crawford game
+      if (isCrawfordGame) {
+        console.log(`[Move ${i+1}] Player 1 cannot double - Crawford game`);
+        inconsistentMoves.push({ moveIndex: i, player: 1, reason: `Cannot double: cube is dead in Crawford game` });
+        if (firstError === null) firstError = i;
+      }
       // Validate: can only double if cube is in center or on their side
-      if (cubeOwner !== -1 && cubeOwner !== 0) {
+      else if (cubeOwner !== -1 && cubeOwner !== 0) {
         console.log(`[Move ${i+1}] Player 1 cannot double - cube owned by opponent`);
         inconsistentMoves.push({ moveIndex: i, player: 1, reason: `Cannot double: cube is owned by opponent` });
         if (firstError === null) firstError = i;
@@ -871,8 +925,14 @@ export function validateGamePositions(game, startMoveIndex = 0) {
         continue; // Skip further processing
       }
       
+      // Validate: cannot double in Crawford game
+      if (isCrawfordGame) {
+        console.log(`[Move ${i+1}] Player 2 cannot double - Crawford game`);
+        inconsistentMoves.push({ moveIndex: i, player: 2, reason: `Cannot double: cube is dead in Crawford game` });
+        if (firstError === null) firstError = i;
+      }
       // Validate: can only double if cube is in center or on their side
-      if (cubeOwner !== -1 && cubeOwner !== 1) {
+      else if (cubeOwner !== -1 && cubeOwner !== 1) {
         console.log(`[Move ${i+1}] Player 2 cannot double - cube owned by opponent`);
         inconsistentMoves.push({ moveIndex: i, player: 2, reason: `Cannot double: cube is owned by opponent` });
         if (firstError === null) firstError = i;

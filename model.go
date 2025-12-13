@@ -116,8 +116,9 @@ type Position struct {
 	Score        [2]int `json:"score"`
 	PlayerOnRoll int    `json:"player_on_roll"`
 	DecisionType int    `json:"decision_type"`
-	HasJacoby    int    `json:"has_jacoby"` // Add HasJacoby field
-	HasBeaver    int    `json:"has_beaver"` // Add HasBeaver field
+	HasJacoby    int    `json:"has_jacoby"`  // Add HasJacoby field
+	HasBeaver    int    `json:"has_beaver"`  // Add HasBeaver field
+	IsCrawford   int    `json:"is_crawford"` // 1 if Crawford game, 0 otherwise
 }
 
 func initializeBoard() Board {

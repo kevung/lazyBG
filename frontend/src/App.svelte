@@ -276,7 +276,7 @@
      * Position calculator: points[1..24], bar, off, opponentBar, opponentOff
      * Board format: board.points[0..25], board.bearoff[0,1]
      */
-    function convertPositionToBoard(position, dice = [0, 0], playerOnRoll = 0, score = [0, 0], cubeValue = 1, cubeOwner = -1) {
+    function convertPositionToBoard(position, dice = [0, 0], playerOnRoll = 0, score = [0, 0], cubeValue = 1, cubeOwner = -1, isCrawford = 0) {
         const points = [];
         
         // Initialize points array
@@ -333,7 +333,8 @@
             player_on_roll: playerOnRoll,
             decision_type: 0,
             has_jacoby: 0,
-            has_beaver: 0
+            has_beaver: 0,
+            is_crawford: isCrawford
         };
     }
 
@@ -560,6 +561,8 @@
                     const player2Score = game.player2Score || 0;
                     
                     let awayScore1, awayScore2;
+                    let isCrawfordGame = 0; // 0 = not Crawford, 1 = is Crawford game
+                    
                     if (matchLength === 0) {
                         // Unlimited match
                         awayScore1 = -1;
@@ -575,6 +578,7 @@
                         if (isCrawford && gameIndex === transcription.games.findIndex(g => 
                             (matchLength - g.player1Score === 1 || matchLength - g.player2Score === 1))) {
                             // This is the Crawford game
+                            isCrawfordGame = 1;
                             if (awayScore1 === 1) awayScore1 = 1;
                             if (awayScore2 === 1) awayScore2 = 1;
                         } else if (isCrawford && gameIndex > transcription.games.findIndex(g => 
@@ -586,7 +590,7 @@
                     }
                     
                     // Convert to board format expected by Board component
-                    const boardPosition = convertPositionToBoard(position, dice, player - 1, [awayScore1, awayScore2], cubeValue, cubeOwner);
+                    const boardPosition = convertPositionToBoard(position, dice, player - 1, [awayScore1, awayScore2], cubeValue, cubeOwner, isCrawfordGame);
                     positionStore.set(boardPosition);
                     
                     // Cache the calculated position

@@ -877,7 +877,7 @@ export async function validateGameInconsistencies(gameIndex, startMoveIndex = 0)
         }
         
         const game = transcription.games[gameIndex];
-        const inconsistencies = validateGamePositions(game, startMoveIndex);
+        const inconsistencies = validateGamePositions(game, startMoveIndex, transcription, gameIndex);
         
         // Add score validation for first move (moveIndex 0) if starting from beginning
         if (startMoveIndex === 0 && transcription.metadata.matchLength) {
