@@ -362,8 +362,37 @@
         // Only show context menu in NORMAL mode (not in EDIT or INSERT modes)
         if ($statusBarModeStore === 'NORMAL') {
             event.preventDefault();
-            contextMenuX = event.clientX;
-            contextMenuY = event.clientY;
+            
+            // Estimated context menu dimensions (approximate)
+            const menuWidth = 180;
+            const menuHeight = 280; // Approximate height with all menu items
+            
+            // Calculate position ensuring menu stays within viewport
+            let x = event.clientX;
+            let y = event.clientY;
+            
+            // Check right boundary
+            if (x + menuWidth > window.innerWidth) {
+                x = window.innerWidth - menuWidth - 5; // 5px margin
+            }
+            
+            // Check bottom boundary
+            if (y + menuHeight > window.innerHeight) {
+                y = window.innerHeight - menuHeight - 5; // 5px margin
+            }
+            
+            // Ensure not off left edge
+            if (x < 0) {
+                x = 5;
+            }
+            
+            // Ensure not off top edge
+            if (y < 0) {
+                y = 5;
+            }
+            
+            contextMenuX = x;
+            contextMenuY = y;
             contextMenuGameIndex = gameIndex;
             contextMenuMoveIndex = moveIndex;
             contextMenuPlayer = player;
