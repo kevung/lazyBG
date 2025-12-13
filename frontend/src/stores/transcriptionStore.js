@@ -888,13 +888,38 @@ export async function validateGameInconsistencies(gameIndex, startMoveIndex = 0)
             );
             
             if (!scoreValidation.valid) {
-                // Add score inconsistency at first move for player 1
-                inconsistencies.push({
-                    moveIndex: 0,
-                    player: 1,
-                    reason: `Score inconsistency: ${scoreValidation.reason}`,
-                    type: 'score'
-                });
+                // If the game itself is impossible (starting scores already win/exceed match length),
+                // mark ALL decisions in the game as inconsistent
+                if (scoreValidation.isImpossibleGame) {
+                    // Mark all moves in the game as inconsistent
+                    for (let mIdx = 0; mIdx < game.moves.length; mIdx++) {
+                        const move = game.moves[mIdx];
+                        if (move.player1Move || (mIdx === 0 && !move.player2Move)) {
+                            inconsistencies.push({
+                                moveIndex: mIdx,
+                                player: 1,
+                                reason: scoreValidation.reason,
+                                type: 'impossible-game'
+                            });
+                        }
+                        if (move.player2Move) {
+                            inconsistencies.push({
+                                moveIndex: mIdx,
+                                player: 2,
+                                reason: scoreValidation.reason,
+                                type: 'impossible-game'
+                            });
+                        }
+                    }
+                } else {
+                    // Just a score inconsistency at the start
+                    inconsistencies.push({
+                        moveIndex: 0,
+                        player: 1,
+                        reason: `Score inconsistency: ${scoreValidation.reason}`,
+                        type: 'score'
+                    });
+                }
             }
         }
         
@@ -1159,25 +1184,27 @@ function calculateScoresAfterGame(game, matchLength, startingPlayer1Score = null
 function validateGameScores(player1Score, player2Score, matchLength) {
     // If no match length set, scores can't be validated
     if (!matchLength || matchLength === 0) {
-        return { valid: true, reason: '' };
+        return { valid: true, reason: '', isImpossibleGame: false };
     }
     
-    // Check if match should already be over
+    // Check if match should already be over (impossible game state)
     if (player1Score >= matchLength) {
         return { 
             valid: false, 
-            reason: `Player 1 already won the match (${player1Score}/${matchLength})` 
+            reason: `Game impossible: Player 1 already won the match (${player1Score}/${matchLength})`,
+            isImpossibleGame: true
         };
     }
     
     if (player2Score >= matchLength) {
         return { 
             valid: false, 
-            reason: `Player 2 already won the match (${player2Score}/${matchLength})` 
+            reason: `Game impossible: Player 2 already won the match (${player2Score}/${matchLength})`,
+            isImpossibleGame: true
         };
     }
     
-    return { valid: true, reason: '' };
+    return { valid: true, reason: '', isImpossibleGame: false };
 }
 
 /**

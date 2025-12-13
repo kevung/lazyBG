@@ -624,7 +624,7 @@
 
     // Subscribe to transcription store to detect match length changes
     let previousMatchLength = null;
-    transcriptionStore.subscribe(transcription => {
+    transcriptionStore.subscribe(async transcription => {
         if (transcription && transcription.metadata) {
             const currentMatchLength = transcription.metadata.matchLength;
             
@@ -641,6 +641,11 @@
                 });
                 // Trigger recalculation
                 selectedMoveStore.set(currentSelectedMove);
+                
+                // Revalidate all games to detect impossible game scores
+                for (let gameIndex = 0; gameIndex < transcription.games.length; gameIndex++) {
+                    await validateGameInconsistencies(gameIndex, 0);
+                }
             }
             
             previousMatchLength = currentMatchLength;

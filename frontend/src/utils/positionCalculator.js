@@ -676,6 +676,9 @@ export function validateGamePositions(game, startMoveIndex = 0) {
       
       // NEW: Check if the first decision is a dice double (forbidden in opening roll)
       // The opening roll cannot be a double - if both players roll the same, they re-roll
+      // However, this only applies to the ACTUAL opening roll (first player to move)
+      // If player1 goes first, player2's response can be doubles
+      // If player2 goes first (player1 has no move), player2's opening roll cannot be doubles
       if (move.player1Move?.dice) {
         const dice = move.player1Move.dice;
         if (dice.length === 2 && dice[0] === dice[1]) {
@@ -687,12 +690,12 @@ export function validateGamePositions(game, startMoveIndex = 0) {
           });
           if (firstError === null) firstError = 0;
         }
-      }
-      
-      if (move.player2Move?.dice) {
+      } else if (move.player2Move?.dice) {
+        // Only check player2's doubles if player1 did NOT go first (player2 is opening)
+        // If player1 went first (has a move), player2's response can be doubles
         const dice = move.player2Move.dice;
         if (dice.length === 2 && dice[0] === dice[1]) {
-          console.log(`[Move 1] Player 2 cannot have dice double ${dice} as opening roll`);
+          console.log(`[Move 1] Player 2 cannot have dice double ${dice} as opening roll (player2 starts)`);
           inconsistentMoves.push({ 
             moveIndex: 0, 
             player: 2, 
