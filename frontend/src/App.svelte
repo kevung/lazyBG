@@ -622,6 +622,31 @@
         selectedMoveStore.set(currentSelectedMove);
     });
 
+    // Subscribe to transcription store to detect match length changes
+    let previousMatchLength = null;
+    transcriptionStore.subscribe(transcription => {
+        if (transcription && transcription.metadata) {
+            const currentMatchLength = transcription.metadata.matchLength;
+            
+            // Check if match length has changed (skip initial subscription)
+            if (previousMatchLength !== null && previousMatchLength !== currentMatchLength) {
+                // Match length changed - force recalculation of current position
+                const currentSelectedMove = get(selectedMoveStore);
+                const cacheKeyInitial = `${currentSelectedMove.gameIndex}-${currentSelectedMove.moveIndex}-${currentSelectedMove.player}-initial`;
+                const cacheKeyFinal = `${currentSelectedMove.gameIndex}-${currentSelectedMove.moveIndex}-${currentSelectedMove.player}-final`;
+                positionsCacheStore.update(cache => {
+                    delete cache[cacheKeyInitial];
+                    delete cache[cacheKeyFinal];
+                    return cache;
+                });
+                // Trigger recalculation
+                selectedMoveStore.set(currentSelectedMove);
+            }
+            
+            previousMatchLength = currentMatchLength;
+        }
+    });
+
     //Global shortcuts
     
     // Helper function to check if focus is on a metadata panel input
