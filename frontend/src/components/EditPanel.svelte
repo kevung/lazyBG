@@ -6,7 +6,8 @@
         transcriptionStore, 
         selectedMoveStore,
         updateMove,
-        invalidatePositionsCacheFrom
+        invalidatePositionsCacheFrom,
+        insertDecisionAfter
     } from '../stores/transcriptionStore.js';
     import { 
         statusBarModeStore,
@@ -138,8 +139,66 @@
             statusBarTextStore.set('No changes made');
         }
 
-        // Close panel
-        cancelEditing();
+        // Move to next decision and stay in edit mode
+        await moveToNextDecision(gameIndex, moveIndex, player);
+    }
+
+    async function moveToNextDecision(currentGameIndex, currentMoveIndex, currentPlayer) {
+        const transcription = get(transcriptionStore);
+        if (!transcription || !transcription.games) return;
+        
+        const currentGame = transcription.games[currentGameIndex];
+        if (!currentGame) return;
+        
+        // Try to move to next decision
+        if (currentPlayer === 1) {
+            // Move to player 2 of same move
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex, 
+                moveIndex: currentMoveIndex, 
+                player: 2 
+            });
+        } else if (currentMoveIndex < currentGame.moves.length - 1) {
+            // Move to player 1 of next move in same game
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex, 
+                moveIndex: currentMoveIndex + 1, 
+                player: 1 
+            });
+        } else if (currentGameIndex < transcription.games.length - 1) {
+            // Move to first move of next game
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex + 1, 
+                moveIndex: 0, 
+                player: 1 
+            });
+        } else {
+            // We're at the last decision - insert a new empty decision after it
+            insertDecisionAfter(currentGameIndex, currentMoveIndex, currentPlayer);
+            
+            // Calculate the new move index for the inserted decision
+            const newMoveIndex = currentMoveIndex + 1;
+            
+            // Invalidate cache and force recalculation
+            await invalidatePositionsCacheFrom(currentGameIndex, newMoveIndex);
+            
+            // Select the newly inserted decision
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex, 
+                moveIndex: newMoveIndex, 
+                player: 1 
+            });
+            
+            statusBarTextStore.set('Last decision reached - new empty decision inserted. Tab=exit edit mode');
+            // Reset and restart editing for the new decision
+            hasAutoFocused = false;
+            startEditing();
+            return;
+        }
+        
+        // Reset and restart editing for the next decision
+        hasAutoFocused = false;
+        startEditing();
     }
 
     function handleKeyDown(event) {
