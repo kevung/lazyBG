@@ -860,7 +860,13 @@
     }
     
     function handleInlineEditKeyDown(event) {
-        if (event.key === 'Escape') {
+        if (event.key === 'Tab') {
+            // Allow Tab to propagate to App.svelte to toggle edit mode
+            // Don't prevent default so it can exit edit mode
+            event.stopPropagation();
+            cancelInlineEdit();
+            return;
+        } else if (event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
             cancelInlineEdit();
@@ -938,7 +944,7 @@
             }
         }, 50);
         
-        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass) or 2 digits 1-6, then move. Enter=validate, Esc=cancel');
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass) or 2 digits 1-6, then move. Enter=validate, Tab=exit edit mode');
     }
     
     function cancelInlineEdit() {
@@ -976,9 +982,69 @@
         // Force recalculation
         selectedMoveStore.set({ gameIndex, moveIndex, player });
         
-        statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber}`);
+        statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber}. Tab=exit edit mode`);
         
-        cancelInlineEdit();
+        // Clear current editing state before moving to next decision
+        editingMove = null;
+        inlineEditDice = '';
+        inlineEditMove = '';
+        
+        // Move to next decision and stay in EDIT mode
+        await moveToNextDecision(gameIndex, moveIndex, player);
+    }
+    
+    async function moveToNextDecision(currentGameIndex, currentMoveIndex, currentPlayer) {
+        const transcription = get(transcriptionStore);
+        if (!transcription || !transcription.games) return;
+        
+        const currentGame = transcription.games[currentGameIndex];
+        if (!currentGame) return;
+        
+        // Try to move to next decision
+        if (currentPlayer === 1) {
+            // Move to player 2 of same move
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex, 
+                moveIndex: currentMoveIndex, 
+                player: 2 
+            });
+        } else if (currentMoveIndex < currentGame.moves.length - 1) {
+            // Move to player 1 of next move in same game
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex, 
+                moveIndex: currentMoveIndex + 1, 
+                player: 1 
+            });
+        } else if (currentGameIndex < transcription.games.length - 1) {
+            // Move to first move of next game
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex + 1, 
+                moveIndex: 0, 
+                player: 1 
+            });
+        } else {
+            // We're at the last decision - insert a new empty decision after it
+            saveSnapshotBeforeOperation();
+            insertDecisionAfter(currentGameIndex, currentMoveIndex, currentPlayer);
+            
+            // Calculate the new move index for the inserted decision
+            const newMoveIndex = currentMoveIndex + 1;
+            
+            // Invalidate cache and force recalculation
+            await invalidatePositionsCacheFrom(currentGameIndex, newMoveIndex);
+            
+            // Select the newly inserted decision
+            selectedMoveStore.set({ 
+                gameIndex: currentGameIndex, 
+                moveIndex: newMoveIndex, 
+                player: 1 
+            });
+            
+            statusBarTextStore.set('Last decision reached - new empty decision inserted. Tab=exit edit mode');
+            return;
+        }
+        
+        // The reactive statement will automatically start editing the new selection
     }
     
     function handleDiceInput(event) {
