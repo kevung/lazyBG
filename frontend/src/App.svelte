@@ -989,6 +989,9 @@
             const { addGame } = await import('./stores/transcriptionStore.js');
             addGame(1, 0, 0);
             
+            // Set selected move to the first empty decision of player 1
+            selectedMoveStore.set({ gameIndex: 0, moveIndex: 0, player: 1 });
+            
             // Get the transcription with initial metadata and first game
             const transcription = get(transcriptionStore);
             
