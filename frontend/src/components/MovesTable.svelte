@@ -1177,16 +1177,30 @@
                                   (!firstMove.player1Move || firstMove.player1Move === null) && 
                                   firstMove.player2Move;
             
-            // Only mark as inconsistent if it's NOT the legitimate empty first decision when player2 starts
-            if (!player2Starts) {
+            // Check if previous player dropped or resigned (game ended, so null is legitimate)
+            let gameEndedBefore = false;
+            if (player === 2 && move.player1Move) {
+                // Player 2's slot after player 1 in same move
+                gameEndedBefore = move.player1Move.cubeAction === 'drops' || move.player1Move.resignAction;
+            } else if (player === 1 && moveIndex > 0) {
+                // Player 1's slot after player 2 from previous move
+                const prevMove = moves[moveIndex - 1];
+                gameEndedBefore = prevMove?.player2Move && 
+                                 (prevMove.player2Move.cubeAction === 'drops' || prevMove.player2Move.resignAction);
+            }
+            
+            // Only mark as inconsistent if it's NOT a legitimate null
+            if (!player2Starts && !gameEndedBefore) {
                 classes.push('inconsistent'); // Mark null decision as inconsistent/incomplete
             }
             return classes.join(' ');
         }
         
         // Check if this is an empty decision object (needs to be filled in)
-        // Empty decision = no dice value and no move (but not a cube action)
-        const isEmpty = !moveData.cubeAction && (!moveData.dice || moveData.dice === '') && (!moveData.move || moveData.move === '');
+        // Empty decision = no dice value and no move (and no cube action, no resign action)
+        const isEmpty = !moveData.cubeAction && !moveData.resignAction && 
+                       (!moveData.dice || moveData.dice === '') && 
+                       (!moveData.move || moveData.move === '');
         
         if (isEmpty) {
             // Check if this is player1's first decision when player2 starts (legitimate empty)
@@ -1195,15 +1209,28 @@
                                   (!firstMove.player1Move || !firstMove.player1Move.dice || firstMove.player1Move.dice === '') && 
                                   firstMove.player2Move && firstMove.player2Move.dice;
             
-            // Only mark as inconsistent if it's NOT the legitimate empty first decision
-            if (!player2Starts) {
+            // Check if previous player dropped or resigned (game ended, so empty is legitimate)
+            let gameEndedBefore = false;
+            if (player === 2 && move.player1Move) {
+                // Player 2's decision after player 1 in same move
+                gameEndedBefore = move.player1Move.cubeAction === 'drops' || move.player1Move.resignAction;
+            } else if (player === 1 && moveIndex > 0) {
+                // Player 1's decision after player 2 from previous move
+                const prevMove = moves[moveIndex - 1];
+                gameEndedBefore = prevMove?.player2Move && 
+                                 (prevMove.player2Move.cubeAction === 'drops' || prevMove.player2Move.resignAction);
+            }
+            
+            // Only mark as inconsistent if it's NOT a legitimate empty
+            if (!player2Starts && !gameEndedBefore) {
                 classes.push('inconsistent');
             }
         }
         
         // Don't highlight "Cannot Move"
         if (moveData.move === 'Cannot Move') return classes.join(' ');
-        if (moveData.isIllegal) classes.push('illegal');
+        // Don't mark as illegal if it's a valid resign action or cube action
+        if (moveData.isIllegal && !moveData.resignAction && !moveData.cubeAction) classes.push('illegal');
         if (moveData.isGala) classes.push('gala');
         return classes.join(' ');
     }
@@ -1239,8 +1266,8 @@
             }
         }
         
-        // Check if it's an empty object
-        const isEmpty = moveData && !moveData.cubeAction && 
+        // Check if it's an empty object (no cube action, no resign action, no dice, no move)
+        const isEmpty = moveData && !moveData.cubeAction && !moveData.resignAction &&
                        (!moveData.dice || moveData.dice === '') && 
                        (!moveData.move || moveData.move === '');
         
@@ -1251,7 +1278,12 @@
                                   (!firstMove.player1Move || !firstMove.player1Move.dice || firstMove.player1Move.dice === '') && 
                                   firstMove.player2Move && firstMove.player2Move.dice;
             
-            if (!player2Starts) {
+            // Check if previous player dropped or resigned (game ended, so this empty is legitimate)
+            const gameEnded = (player === 2 && move.player1Move && (move.player1Move.cubeAction === 'drops' || move.player1Move.resignAction)) ||
+                             (player === 1 && moveIndex > 0 && moves[moveIndex - 1]?.player2Move && 
+                              (moves[moveIndex - 1].player2Move.cubeAction === 'drops' || moves[moveIndex - 1].player2Move.resignAction));
+            
+            if (!player2Starts && !gameEnded) {
                 return 'Empty decision needs to be defined';
             }
         }
@@ -1323,11 +1355,11 @@
                         {/if}
                     {:else if row.moveData?.resignAction}
                         {#if row.moveData.resignAction === 'normal'}
-                        <span class="resign-action">Resigns</span>
+                        <span class="cube-response">Resigns</span>
                         {:else if row.moveData.resignAction === 'gammon'}
-                        <span class="resign-action">Resigns Gammon</span>
+                        <span class="cube-response">Resigns Gammon</span>
                         {:else if row.moveData.resignAction === 'backgammon'}
-                        <span class="resign-action">Resigns Backgammon</span>
+                        <span class="cube-response">Resigns Backgammon</span>
                         {/if}
                     {:else if row.cubeAction && row.cubeAction.player === row.player}
                         {#if row.cubeAction.action === 'doubles'}
@@ -1647,12 +1679,6 @@
     .cube-response {
         font-weight: normal;
         color: inherit;
-    }
-
-    .resign-action {
-        font-weight: normal;
-        color: #dc3545;
-        font-style: italic;
     }
 
     .validation-status {

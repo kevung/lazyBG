@@ -435,6 +435,7 @@ export function parseMatchFile(content) {
                     lastPlayerMove.resignAction = resignType;
                     lastPlayerMove.dice = '';
                     lastPlayerMove.move = '';
+                    lastPlayerMove.isIllegal = false;  // Clear illegal flag for valid resign
                 } else {
                     console.error(`[matchParser] ✗ SKIPPED: Game ${game.gameNumber}, winner=${game.winner.player}, lastPlayer=${lastPlayer} (same player)`);
                 }

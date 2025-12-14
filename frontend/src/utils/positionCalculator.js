@@ -586,6 +586,12 @@ export function validateGamePositions(game, startMoveIndex = 0, transcription = 
       break;
     }
     
+    // Check for resign actions (game ends)
+    if (move.player1Move?.resignAction || move.player2Move?.resignAction) {
+      gameEndedAtMove = i;
+      break;
+    }
+    
     // Check for resignations (move ends with '-')
     // Only treat as resignation if move is not empty and ends with '-'
     if ((move.player1Move?.move && move.player1Move.move.trim() && move.player1Move.move.trim().endsWith('-')) ||
@@ -1009,12 +1015,19 @@ export function validateGamePositions(game, startMoveIndex = 0, transcription = 
     }
     
     // If we've already encountered an error or drop from previous move, mark all moves as inconsistent
+    // BUT: Don't mark drops or resigns themselves as inconsistent - they are valid game-ending actions
     if (firstError !== null && i > firstError) {
-      if (move.player1Move && (move.player1Move.move || move.player1Move.cubeAction)) {
-        inconsistentMoves.push({ moveIndex: i, player: 1, reason: gameEndedAtMove !== null ? 'Game already ended' : 'Previous move caused inconsistency' });
+      if (move.player1Move && (move.player1Move.move || move.player1Move.cubeAction || move.player1Move.resignAction)) {
+        // Don't mark drops or resigns as inconsistent - they are valid endings
+        if (move.player1Move.cubeAction !== 'drops' && !move.player1Move.resignAction) {
+          inconsistentMoves.push({ moveIndex: i, player: 1, reason: gameEndedAtMove !== null ? 'Game already ended' : 'Previous move caused inconsistency' });
+        }
       }
-      if (move.player2Move && (move.player2Move.move || move.player2Move.cubeAction)) {
-        inconsistentMoves.push({ moveIndex: i, player: 2, reason: gameEndedAtMove !== null ? 'Game already ended' : 'Previous move caused inconsistency' });
+      if (move.player2Move && (move.player2Move.move || move.player2Move.cubeAction || move.player2Move.resignAction)) {
+        // Don't mark drops or resigns as inconsistent - they are valid endings
+        if (move.player2Move.cubeAction !== 'drops' && !move.player2Move.resignAction) {
+          inconsistentMoves.push({ moveIndex: i, player: 2, reason: gameEndedAtMove !== null ? 'Game already ended' : 'Previous move caused inconsistency' });
+        }
       }
       continue;
     }
@@ -1033,7 +1046,12 @@ export function validateGamePositions(game, startMoveIndex = 0, transcription = 
       
       if (move.player1Move?.cubeAction === 'drops') {
         // Player 1 dropped - mark player 2's move in same entry as inconsistent
-        if (move.player2Move && (move.player2Move.move || move.player2Move.cubeAction)) {
+        // But allow empty player2 moves (no dice and no move)
+        if (move.player2Move && 
+            ((move.player2Move.dice && move.player2Move.dice !== '') || 
+             (move.player2Move.move && move.player2Move.move !== '') || 
+             move.player2Move.cubeAction || 
+             move.player2Move.resignAction)) {
           inconsistentMoves.push({ 
             moveIndex: i, 
             player: 2, 
@@ -1042,6 +1060,39 @@ export function validateGamePositions(game, startMoveIndex = 0, transcription = 
         }
       }
       // If player 2 drops, player 1's move in same entry is valid (it happened first chronologically)
+      
+      // Set firstError to mark all subsequent moves in next iterations
+      firstError = i;
+      continue; // Skip further processing of this move
+    }
+    
+    // Check for resigns (game ends after a resign)
+    if (move.player1Move?.resignAction || move.player2Move?.resignAction) {
+      
+      // Only set gameEndedAtMove if not already set
+      if (gameEndedAtMove === null) {
+        gameEndedAtMove = i;
+      }
+      
+      // If player 1 resigns, player 2 should NOT have a move in the same entry
+      // If player 2 resigns, it's valid for player 1 to have moved first (they act chronologically first)
+      
+      if (move.player1Move?.resignAction) {
+        // Player 1 resigned - mark player 2's move in same entry as inconsistent
+        // But allow empty player2 moves (no dice and no move)
+        if (move.player2Move && 
+            ((move.player2Move.dice && move.player2Move.dice !== '') || 
+             (move.player2Move.move && move.player2Move.move !== '') || 
+             move.player2Move.cubeAction || 
+             move.player2Move.resignAction)) {
+          inconsistentMoves.push({ 
+            moveIndex: i, 
+            player: 2, 
+            reason: 'Game ended after player 1 resigned' 
+          });
+        }
+      }
+      // If player 2 resigns, player 1's move in same entry is valid (it happened first chronologically)
       
       // Set firstError to mark all subsequent moves in next iterations
       firstError = i;
