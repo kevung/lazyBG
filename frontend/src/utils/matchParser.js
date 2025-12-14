@@ -454,7 +454,8 @@ export function parseMatchFile(content) {
             }
             
             // If we found an empty last decision, convert it to a resign
-            if (lastPlayerMove && lastPlayer) {
+            // But only if the game has a winner (completed game)
+            if (lastPlayerMove && lastPlayer && game.winner) {
                 // Track cube value through the game
                 // Note: At this point cube actions are still in move.cubeAction format,
                 // not yet migrated to player1Move.cubeAction/player2Move.cubeAction
