@@ -40,6 +40,15 @@ func (a *App) SaveTranscriptionDialog() (string, error) {
 	})
 }
 
+func (a *App) ExportMatchTextDialog() (string, error) {
+	return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:                "Export to Match Transcription Text",
+		DefaultFilename:      "match.txt",
+		Filters:              []runtime.FileFilter{{DisplayName: "Match Text Files (*.txt)", Pattern: "*.txt"}},
+		CanCreateDirectories: true,
+	})
+}
+
 func (a *App) ReadTextFile(filePath string) (string, error) {
 	content, err := ioutil.ReadFile(filePath)
 	if err != nil {

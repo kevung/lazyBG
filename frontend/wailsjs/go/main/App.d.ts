@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function DeleteFile(arg1:string):Promise<void>;
 
+export function ExportMatchTextDialog():Promise<string>;
+
 export function OpenPositionDialog():Promise<main.FileDialogResponse>;
 
 export function OpenTranscriptionDialog():Promise<string>;

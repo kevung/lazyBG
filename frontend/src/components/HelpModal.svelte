@@ -332,6 +332,10 @@
                                 <td>Open Transcription</td>
                             </tr>
                             <tr>
+                                <td>Ctrl + S</td>
+                                <td>Export to Match Transcription Text</td>
+                            </tr>
+                            <tr>
                                 <td>Ctrl + Q</td>
                                 <td>Exit lazyBG</td>
                             </tr>
@@ -597,6 +601,10 @@
                             <tr>
                                 <td>open, op, o</td>
                                 <td>Open an existing transcription</td>
+                            </tr>
+                            <tr>
+                                <td>export, e</td>
+                                <td>Export to match transcription text</td>
                             </tr>
                             <tr>
                                 <td>quit, q</td>

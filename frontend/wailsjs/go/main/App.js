@@ -6,6 +6,10 @@ export function DeleteFile(arg1) {
   return window['go']['main']['App']['DeleteFile'](arg1);
 }
 
+export function ExportMatchTextDialog() {
+  return window['go']['main']['App']['ExportMatchTextDialog']();
+}
+
 export function OpenPositionDialog() {
   return window['go']['main']['App']['OpenPositionDialog']();
 }

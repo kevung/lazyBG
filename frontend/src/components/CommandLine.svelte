@@ -10,6 +10,7 @@
    export let onToggleHelp;
    export let onNewMatch;
    export let onOpenMatch;
+   export let onExportMatch;
    export let exitApp;
    let inputEl;
 
@@ -111,6 +112,8 @@
                onNewMatch();
             } else if (command === 'open' || command === 'op' || command === 'o') {
                onOpenMatch();
+            } else if (command === 'export' || command === 'e') {
+               onExportMatch();
             } else if (command === 'quit' || command === 'q') {
                exitApp();
             } else if (command === 'help' || command === 'he' || command === 'h') {

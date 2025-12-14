@@ -9,6 +9,7 @@
     import {
         OpenTranscriptionDialog,
         SaveTranscriptionDialog,
+        ExportMatchTextDialog,
         ReadTextFile,
         WriteTextFile,
         OpenPositionDialog,
@@ -79,6 +80,7 @@
     import { undoRedoStore } from './stores/undoRedoStore.js';
     import { clipboardStore } from './stores/clipboardStore.js';
     import { parseMatchFile } from './utils/matchParser.js';
+    import { exportToMatchText } from './utils/matchExporter.js';
     import { checkCompatibility, migrateTranscription, validateTranscription } from './utils/versionUtils.js';
     import { 
         createInitialPosition, 
@@ -696,6 +698,9 @@
             newMatch();
         } else if(event.ctrlKey && event.code == 'KeyO') {
             loadMatchFromText();
+        } else if(event.ctrlKey && event.code == 'KeyS') {
+            event.preventDefault();
+            exportMatchText();
         } else if (event.ctrlKey && event.code === 'KeyQ') {
             exitApp();
         } else if (!event.ctrlKey && event.key === 'PageUp') {
@@ -1116,6 +1121,43 @@
             console.log('Auto-saved transcription to:', filePath);
         } catch (error) {
             console.error('Error auto-saving transcription:', error);
+        }
+    }
+
+    async function exportMatchText() {
+        console.log('exportMatchText');
+        try {
+            // Get current transcription
+            const transcription = get(transcriptionStore);
+            if (!transcription || !transcription.games || transcription.games.length === 0) {
+                setStatusBarMessage('No transcription to export');
+                return;
+            }
+            
+            // Show save dialog
+            let filePath = await ExportMatchTextDialog();
+            if (!filePath) {
+                console.log('Export cancelled');
+                return;
+            }
+            
+            // Ensure .txt extension
+            if (!filePath.endsWith('.txt')) {
+                filePath = filePath + '.txt';
+            }
+            
+            // Convert transcription to match text format
+            const textContent = exportToMatchText(transcription);
+            
+            // Save file
+            await WriteTextFile(filePath, textContent);
+            
+            const filename = filePath.split('/').pop();
+            setStatusBarMessage(`Match exported to ${filename}`);
+            console.log('Match exported to:', filePath);
+        } catch (error) {
+            console.error('Error exporting match:', error);
+            setStatusBarMessage('Error exporting match');
         }
     }
 
@@ -1869,6 +1911,7 @@
     <Toolbar
         onNewMatch={newMatch}
         onOpenMatch={loadMatchFromText}
+        onExportMatch={exportMatchText}
         onExit={exitApp}
         onPreviousGame={previousGame}
         onFirstPosition={firstPosition}
@@ -1913,6 +1956,7 @@
                 bind:this={commandInput}
                 onNewMatch={newMatch}
                 onOpenMatch={loadMatchFromText}
+                onExportMatch={exportMatchText}
                 exitApp={exitApp}
             />
         </div>
