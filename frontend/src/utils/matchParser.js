@@ -3,7 +3,8 @@ import { LAZYBG_VERSION } from '../stores/transcriptionStore.js';
 
 export function parseMatchFile(content) {
 
-    const lines = content.split('\n').map(line => line.trim());
+    const originalLines = content.split('\n');
+    const lines = originalLines.map(line => line.trim());
     
     const transcription = {
         version: LAZYBG_VERSION,
@@ -175,15 +176,33 @@ export function parseMatchFile(content) {
                             }
                         }
                     } else {
-                        // No cube action - likely a resign situation
-                        // Try to determine winner from the last player decision
-                        // Check if last move has an illegal/empty move (????)
+                        // No cube action - could be resign or natural bearoff completion
+                        // Check if last move has an illegal/empty move (resign with ????)
                         if (lastMove.player2Move && (lastMove.player2Move.isIllegal || !lastMove.player2Move.move || lastMove.player2Move.move.trim() === '')) {
                             // Player 2 resigned, so player 1 wins
                             currentGame.winner = { player: 1, points };
                         } else if (lastMove.player1Move && (lastMove.player1Move.isIllegal || !lastMove.player1Move.move || lastMove.player1Move.move.trim() === '')) {
                             // Player 1 resigned, so player 2 wins
                             currentGame.winner = { player: 2, points };
+                        } else if (!lastMove.player2Move && lastMove.player1Move) {
+                            // Player 1 has a move but player 2 doesn't - player 1 wins by bearoff
+                            currentGame.winner = { player: 1, points };
+                        } else if (!lastMove.player1Move && lastMove.player2Move) {
+                            // Player 2 has a move but player 1 doesn't - player 2 wins by bearoff
+                            currentGame.winner = { player: 2, points };
+                        } else {
+                            // Fallback: determine winner from column position of "Wins" text
+                            // "Wins" text position indicates which player won
+                            // Left column (before position 39) = player 1, right column (after 39) = player 2
+                            const originalLine = originalLines[i].replace(/\r/g, '');
+                            const winTextPos = originalLine.indexOf('Wins');
+                            if (winTextPos !== -1) {
+                                // If "Wins" appears after position 39, it's in the right column (player 2)
+                                // Otherwise it's in the left column (player 1)
+                                const player = winTextPos >= 39 ? 2 : 1;
+                                currentGame.winner = { player, points };
+                                console.log(`[matchParser] Game ${currentGame.gameNumber}: Detected winner from column position - player ${player}, points ${points}, winTextPos ${winTextPos}`);
+                            }
                         }
                     }
                 }
