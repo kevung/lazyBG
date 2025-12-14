@@ -333,7 +333,7 @@
                             </tr>
                             <tr>
                                 <td>Ctrl + S</td>
-                                <td>Export to Match Transcription Text</td>
+                                <td>Export Match</td>
                             </tr>
                             <tr>
                                 <td>Ctrl + Q</td>
@@ -604,7 +604,7 @@
                             </tr>
                             <tr>
                                 <td>export, e</td>
-                                <td>Export to match transcription text</td>
+                                <td>Export match</td>
                             </tr>
                             <tr>
                                 <td>quit, q</td>
