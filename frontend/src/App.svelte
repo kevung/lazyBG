@@ -1623,6 +1623,13 @@
                 const move = game.moves[moveIndex];
                 const currentPlayerMove = player === 1 ? move.player1Move : move.player2Move;
                 
+                // Check if game ended by natural bearoff - only block if we're at/after the last move
+                const isAtOrAfterLastMove = moveIndex >= game.moves.length - 1;
+                if (game.naturalBearoffWin && isAtOrAfterLastMove) {
+                    setStatusBarMessage('Cannot insert decision after game has ended naturally');
+                    return;
+                }
+                
                 // Only block if current decision is actually a drop or resign
                 if (currentPlayerMove && (currentPlayerMove.cubeAction === 'drops' || currentPlayerMove.resignAction)) {
                     setStatusBarMessage('Cannot insert decision after game has ended');

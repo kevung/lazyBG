@@ -1189,6 +1189,11 @@
         const game = games[gameIndex];
         if (!game) return false;
         
+        // Check if game ended naturally by bearoff - only consider if we're at/after the last move
+        if (game.naturalBearoffWin && beforeMoveIndex >= game.moves.length) {
+            return true;
+        }
+        
         for (let i = 0; i < beforeMoveIndex && i < game.moves.length; i++) {
             const move = game.moves[i];
             if (move.player1Move?.cubeAction === 'drops' || move.player1Move?.resignAction) {
@@ -1235,8 +1240,11 @@
                                  (prevMove.player2Move.cubeAction === 'drops' || prevMove.player2Move.resignAction);
             }
             
+            // Check for natural bearoff win
+            const gameEndedNaturally = currentGame && currentGame.naturalBearoffWin;
+            
             // Only mark as inconsistent if it's NOT a legitimate null
-            if (!player2Starts && !gameEndedBefore) {
+            if (!player2Starts && !gameEndedBefore && !gameEndedNaturally) {
                 classes.push('inconsistent'); // Mark null decision as inconsistent/incomplete
             }
             return classes.join(' ');
@@ -1307,7 +1315,16 @@
                                   (!firstMove.player1Move || firstMove.player1Move === null) && 
                                   firstMove.player2Move;
             
-            if (!player2Starts) {
+            // Check if game ended (drop, resign, or natural bearoff) - empty decision is legitimate
+            const currentMove = moves[moveIndex];
+            const gameEndedByAction = (player === 2 && currentMove?.player1Move && (currentMove.player1Move.cubeAction === 'drops' || currentMove.player1Move.resignAction)) ||
+                             (player === 1 && moveIndex > 0 && moves[moveIndex - 1]?.player2Move && 
+                              (moves[moveIndex - 1].player2Move.cubeAction === 'drops' || moves[moveIndex - 1].player2Move.resignAction));
+            
+            // Check for natural bearoff win
+            const gameEndedNaturally = currentGame && currentGame.naturalBearoffWin;
+            
+            if (!player2Starts && !gameEndedByAction && !gameEndedNaturally) {
                 return 'Empty decision needs to be defined';
             }
         }
@@ -1324,13 +1341,16 @@
                                   (!firstMove.player1Move || !firstMove.player1Move.dice || firstMove.player1Move.dice === '') && 
                                   firstMove.player2Move && firstMove.player2Move.dice;
             
-            // Check if previous player dropped or resigned (game ended, so this empty is legitimate)
+            // Check if game ended (drop, resign, or natural bearoff) - empty decision is legitimate
             const currentMove = moves[moveIndex];
-            const gameEnded = (player === 2 && currentMove?.player1Move && (currentMove.player1Move.cubeAction === 'drops' || currentMove.player1Move.resignAction)) ||
+            const gameEndedByAction = (player === 2 && currentMove?.player1Move && (currentMove.player1Move.cubeAction === 'drops' || currentMove.player1Move.resignAction)) ||
                              (player === 1 && moveIndex > 0 && moves[moveIndex - 1]?.player2Move && 
                               (moves[moveIndex - 1].player2Move.cubeAction === 'drops' || moves[moveIndex - 1].player2Move.resignAction));
             
-            if (!player2Starts && !gameEnded) {
+            // Check for natural bearoff win
+            const gameEndedNaturally = currentGame && currentGame.naturalBearoffWin;
+            
+            if (!player2Starts && !gameEndedByAction && !gameEndedNaturally) {
                 return 'Empty decision needs to be defined';
             }
         }

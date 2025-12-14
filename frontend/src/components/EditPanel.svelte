@@ -187,9 +187,10 @@
             });
         } else {
             // We're at the last decision
-            // Check if game has ended (drop or resign) - if so, don't insert new decision
+            // Check if game has ended (drop, resign, or natural bearoff) - if so, don't insert new decision
             const currentMove = currentGame.moves[currentMoveIndex];
-            const hasGameEnded = (currentPlayer === 1 && currentMove.player1Move && 
+            const hasGameEnded = currentGame.naturalBearoffWin ||
+                                (currentPlayer === 1 && currentMove.player1Move && 
                                  (currentMove.player1Move.cubeAction === 'drops' || currentMove.player1Move.resignAction)) ||
                                 (currentPlayer === 2 && currentMove.player2Move && 
                                  (currentMove.player2Move.cubeAction === 'drops' || currentMove.player2Move.resignAction));

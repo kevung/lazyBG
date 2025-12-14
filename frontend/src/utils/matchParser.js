@@ -1,6 +1,42 @@
 // Parser pour les fichiers de match au format texte
 import { LAZYBG_VERSION } from '../stores/transcriptionStore.js';
 
+// Helper function to count checkers borne off from move notation
+function countCheckersOff(moves) {
+    let player1Off = 0;
+    let player2Off = 0;
+    
+    for (const move of moves) {
+        // Count checkers borne off by player 1
+        if (move.player1Move && move.player1Move.move && !move.player1Move.isGala) {
+            const moveText = move.player1Move.move;
+            // Match patterns like "5/Off", "2/Off(2)", "6/1 6/Off", etc.
+            const offMatches = moveText.match(/\/Off(\(\d+\))?/gi);
+            if (offMatches) {
+                for (const match of offMatches) {
+                    // Check if there's a count like (2) or (3)
+                    const countMatch = match.match(/\((\d+)\)/);
+                    player1Off += countMatch ? parseInt(countMatch[1]) : 1;
+                }
+            }
+        }
+        
+        // Count checkers borne off by player 2
+        if (move.player2Move && move.player2Move.move && !move.player2Move.isGala) {
+            const moveText = move.player2Move.move;
+            const offMatches = moveText.match(/\/Off(\(\d+\))?/gi);
+            if (offMatches) {
+                for (const match of offMatches) {
+                    const countMatch = match.match(/\((\d+)\)/);
+                    player2Off += countMatch ? parseInt(countMatch[1]) : 1;
+                }
+            }
+        }
+    }
+    
+    return { player1: player1Off, player2: player2Off };
+}
+
 export function parseMatchFile(content) {
 
     const originalLines = content.split('\n');
@@ -349,6 +385,25 @@ export function parseMatchFile(content) {
             
             if (moveEntry.player1Move || moveEntry.player2Move || moveEntry.cubeAction) {
                 currentGame.moves.push(moveEntry);
+                
+                // After adding the move, check if the game ended naturally
+                const checkersOff = countCheckersOff(currentGame.moves);
+                
+                if (checkersOff.player1 >= 15) {
+                    // Player 1 bore off all 15 checkers - mark game as naturally completed
+                    if (!currentGame.winner) {
+                        currentGame.winner = { player: 1, points: 1 }; // Points will be updated by "Wins" line
+                    }
+                    currentGame.naturalBearoffWin = true;
+                    currentGame.bearoffWinner = 1;
+                } else if (checkersOff.player2 >= 15) {
+                    // Player 2 bore off all 15 checkers - mark game as naturally completed
+                    if (!currentGame.winner) {
+                        currentGame.winner = { player: 2, points: 1 }; // Points will be updated by "Wins" line
+                    }
+                    currentGame.naturalBearoffWin = true;
+                    currentGame.bearoffWinner = 2;
+                }
             }
         }
     }
