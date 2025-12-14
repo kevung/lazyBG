@@ -265,23 +265,52 @@ export function insertDecisionBefore(gameIndex, moveIndex, player) {
         
         // Collect all decisions from the insertion point onwards
         // Use deep copies to avoid reference sharing issues
+        // Stop collecting after drop or resign (game ending)
         const decisionsToShift = [];
+        let gameEnded = false;
         
-        for (let i = moveIndex; i < game.moves.length; i++) {
+        for (let i = moveIndex; i < game.moves.length && !gameEnded; i++) {
             const move = game.moves[i];
             
             // For the current move, collect decisions from insertion point onwards
             if (i === moveIndex) {
                 if (player === 1) {
                     // Collect player1Move (even if null/empty)
-                    decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
+                    const p1Move = move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null;
+                    decisionsToShift.push({ decision: p1Move });
+                    // Check if this decision ends the game
+                    if (p1Move && (p1Move.cubeAction === 'drops' || p1Move.resignAction)) {
+                        gameEnded = true;
+                        break;
+                    }
                 }
                 // Always collect player2Move (even if null/empty)
-                decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+                if (!gameEnded) {
+                    const p2Move = move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null;
+                    decisionsToShift.push({ decision: p2Move });
+                    // Check if this decision ends the game
+                    if (p2Move && (p2Move.cubeAction === 'drops' || p2Move.resignAction)) {
+                        gameEnded = true;
+                    }
+                }
             } else {
                 // All decisions from subsequent moves (even if null/empty)
-                decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
-                decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+                const p1Move = move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null;
+                decisionsToShift.push({ decision: p1Move });
+                // Check if this decision ends the game
+                if (p1Move && (p1Move.cubeAction === 'drops' || p1Move.resignAction)) {
+                    gameEnded = true;
+                    break;
+                }
+                
+                if (!gameEnded) {
+                    const p2Move = move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null;
+                    decisionsToShift.push({ decision: p2Move });
+                    // Check if this decision ends the game
+                    if (p2Move && (p2Move.cubeAction === 'drops' || p2Move.resignAction)) {
+                        gameEnded = true;
+                    }
+                }
             }
         }
         
@@ -382,9 +411,11 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
         
         // Collect all decisions after the insertion point in sequence
         // Use deep copies to avoid reference sharing issues
+        // Stop collecting after drop or resign (game ending)
         const decisionsToShift = [];
+        let gameEnded = false;
         
-        for (let i = moveIndex; i < game.moves.length; i++) {
+        for (let i = moveIndex; i < game.moves.length && !gameEnded; i++) {
             const move = game.moves[i];
             console.log(`[insertDecisionAfter] Loop i=${i}, moveIndex=${moveIndex}, move:`, {
                 moveNumber: move.moveNumber,
@@ -399,7 +430,12 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
                 if (player === 1) {
                     // Collect player2Move (even if null/empty)
                     console.log(`[insertDecisionAfter] Collecting player2Move from current move`);
-                    decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+                    const p2Move = move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null;
+                    decisionsToShift.push({ decision: p2Move });
+                    // Check if this decision ends the game
+                    if (p2Move && (p2Move.cubeAction === 'drops' || p2Move.resignAction)) {
+                        gameEnded = true;
+                    }
                 } else {
                     console.log(`[insertDecisionAfter] Not collecting from current move (player=2)`);
                 }
@@ -407,8 +443,22 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
             } else {
                 // All decisions from subsequent moves (even if null/empty)
                 console.log(`[insertDecisionAfter] Collecting both players from subsequent move ${i}`);
-                decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
-                decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+                const p1Move = move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null;
+                decisionsToShift.push({ decision: p1Move });
+                // Check if this decision ends the game
+                if (p1Move && (p1Move.cubeAction === 'drops' || p1Move.resignAction)) {
+                    gameEnded = true;
+                    break;
+                }
+                
+                if (!gameEnded) {
+                    const p2Move = move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null;
+                    decisionsToShift.push({ decision: p2Move });
+                    // Check if this decision ends the game
+                    if (p2Move && (p2Move.cubeAction === 'drops' || p2Move.resignAction)) {
+                        gameEnded = true;
+                    }
+                }
             }
         }
         
