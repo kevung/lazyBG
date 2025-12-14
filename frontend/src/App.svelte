@@ -1567,16 +1567,41 @@
     }
 
     async function insertDecisionDirectly(position) {
-        // Save state before the operation
-        saveSnapshotBeforeOperation();
-        const { insertDecisionBefore, insertDecisionAfter, invalidatePositionsCacheFrom } = await import('./stores/transcriptionStore.js');
         const selectedMove = get(selectedMoveStore);
         
         if (!selectedMove) return;
         
         const { gameIndex, moveIndex, player } = selectedMove;
         
+        // Check if game has ended before allowing insertion after
+        if (position === 'after') {
+            const transcription = get(transcriptionStore);
+            const game = transcription?.games[gameIndex];
+            if (game && game.moves && game.moves[moveIndex]) {
+                const move = game.moves[moveIndex];
+                const currentPlayerMove = player === 1 ? move.player1Move : move.player2Move;
+                
+                // Only block if current decision is actually a drop or resign
+                if (currentPlayerMove && (currentPlayerMove.cubeAction === 'drops' || currentPlayerMove.resignAction)) {
+                    setStatusBarMessage('Cannot insert decision after game has ended');
+                    return;
+                }
+                
+                // For player 1, also check if player 2 of same move has dropped/resigned
+                if (player === 1 && move.player2Move && (move.player2Move.cubeAction === 'drops' || move.player2Move.resignAction)) {
+                    setStatusBarMessage('Cannot insert decision after game has ended');
+                    return;
+                }
+            }
+        }
+        
+        // Save state before the operation
+        saveSnapshotBeforeOperation();
+        const { insertDecisionBefore, insertDecisionAfter, invalidatePositionsCacheFrom } = await import('./stores/transcriptionStore.js');
+        
         console.log(`[insertDecisionDirectly] BEFORE - position=${position}, gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+        console.log(`[insertDecisionDirectly] Current transcription games count:`, get(transcriptionStore)?.games?.length);
+        console.log(`[insertDecisionDirectly] Current game moves count:`, get(transcriptionStore)?.games[gameIndex]?.moves?.length);
         
         // Insert empty decision
         if (position === 'before') {
@@ -1584,6 +1609,8 @@
         } else {
             insertDecisionAfter(gameIndex, moveIndex, player);
         }
+        
+        console.log(`[insertDecisionDirectly] AFTER INSERT - New moves count:`, get(transcriptionStore)?.games[gameIndex]?.moves?.length);
         
         // Calculate new move index and player
         // When inserting before player1, it stays in same move as player1
@@ -1606,6 +1633,9 @@
         // For 'before', newMoveIndex and newPlayer stay the same
         
         console.log(`[insertDecisionDirectly] AFTER - Selecting newMoveIndex=${newMoveIndex}, newPlayer=${newPlayer}`);
+        
+        // Invalidate position cache from the insertion point onwards
+        await invalidatePositionsCacheFrom(gameIndex, moveIndex);
         
         // Update selection to point to the newly inserted empty decision
         selectedMoveStore.set({ gameIndex, moveIndex: newMoveIndex, player: newPlayer });

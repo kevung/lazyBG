@@ -438,6 +438,26 @@
     }
 
     async function handleInsertAfter() {
+        // Check if current decision is a drop or resign - can't insert after game-ending moves
+        const game = games[contextMenuGameIndex];
+        if (game && game.moves && game.moves[contextMenuMoveIndex]) {
+            const move = game.moves[contextMenuMoveIndex];
+            const currentPlayerMove = contextMenuPlayer === 1 ? move.player1Move : move.player2Move;
+            
+            if (currentPlayerMove && (currentPlayerMove.cubeAction === 'drops' || currentPlayerMove.resignAction)) {
+                statusBarTextStore.set('Cannot insert decision after game has ended');
+                closeContextMenu();
+                return;
+            }
+            
+            // If inserting after player 1, also check if player 2 has already dropped/resigned in same move
+            if (contextMenuPlayer === 1 && move.player2Move && (move.player2Move.cubeAction === 'drops' || move.player2Move.resignAction)) {
+                statusBarTextStore.set('Cannot insert decision after game has ended');
+                closeContextMenu();
+                return;
+            }
+        }
+        
         // Save state before the operation
         saveSnapshotBeforeOperation();
         
@@ -848,7 +868,13 @@
                 
             case 'b':
                 event.preventDefault();
-                insertMoveAfter(gameIndex, currentMoves[moveIndex].moveNumber);
+                // For 'b' (insert full move after), check if game has ended in current move
+                const currentMove = currentMoves[moveIndex];
+                const gameEnded = (currentMove.player1Move && (currentMove.player1Move.cubeAction === 'drops' || currentMove.player1Move.resignAction)) ||
+                                 (currentMove.player2Move && (currentMove.player2Move.cubeAction === 'drops' || currentMove.player2Move.resignAction));
+                if (!gameEnded) {
+                    insertMoveAfter(gameIndex, currentMoves[moveIndex].moveNumber);
+                }
                 break;
                 
             case 'i':
@@ -1158,6 +1184,23 @@
         return moveData.move || '-';
     }
 
+    // Check if game has ended at or before a specific move
+    function hasGameEnded(gameIndex, beforeMoveIndex) {
+        const game = games[gameIndex];
+        if (!game) return false;
+        
+        for (let i = 0; i < beforeMoveIndex && i < game.moves.length; i++) {
+            const move = game.moves[i];
+            if (move.player1Move?.cubeAction === 'drops' || move.player1Move?.resignAction) {
+                return true;
+            }
+            if (move.player2Move?.cubeAction === 'drops' || move.player2Move?.resignAction) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function getMoveClass(moveData, moveIndex, player) {
         const classes = [];
         
@@ -1166,6 +1209,9 @@
         if (gameInconsistencies[inconsistencyKey]) {
             classes.push('inconsistent');
         }
+        
+        // Get the move object for checking game-ending conditions
+        const move = moves[moveIndex];
         
         // Check if moveData is null (empty decision that needs to be filled in)
         // Exception: If player2 starts (moveIndex 0, player 1 is null, player 2 has a move), 
@@ -1179,7 +1225,7 @@
             
             // Check if previous player dropped or resigned (game ended, so null is legitimate)
             let gameEndedBefore = false;
-            if (player === 2 && move.player1Move) {
+            if (player === 2 && move?.player1Move) {
                 // Player 2's slot after player 1 in same move
                 gameEndedBefore = move.player1Move.cubeAction === 'drops' || move.player1Move.resignAction;
             } else if (player === 1 && moveIndex > 0) {
@@ -1211,7 +1257,7 @@
             
             // Check if previous player dropped or resigned (game ended, so empty is legitimate)
             let gameEndedBefore = false;
-            if (player === 2 && move.player1Move) {
+            if (player === 2 && move?.player1Move) {
                 // Player 2's decision after player 1 in same move
                 gameEndedBefore = move.player1Move.cubeAction === 'drops' || move.player1Move.resignAction;
             } else if (player === 1 && moveIndex > 0) {
@@ -1279,7 +1325,8 @@
                                   firstMove.player2Move && firstMove.player2Move.dice;
             
             // Check if previous player dropped or resigned (game ended, so this empty is legitimate)
-            const gameEnded = (player === 2 && move.player1Move && (move.player1Move.cubeAction === 'drops' || move.player1Move.resignAction)) ||
+            const currentMove = moves[moveIndex];
+            const gameEnded = (player === 2 && currentMove?.player1Move && (currentMove.player1Move.cubeAction === 'drops' || currentMove.player1Move.resignAction)) ||
                              (player === 1 && moveIndex > 0 && moves[moveIndex - 1]?.player2Move && 
                               (moves[moveIndex - 1].player2Move.cubeAction === 'drops' || moves[moveIndex - 1].player2Move.resignAction));
             

@@ -350,6 +350,7 @@ export function insertDecisionBefore(gameIndex, moveIndex, player) {
             decisionIndex++;
         }
         
+        // Stable sort: moves with same moveNumber keep their insertion order
         game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
         console.log(`[insertDecisionBefore] After insertion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
         
@@ -385,16 +386,27 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
         
         for (let i = moveIndex; i < game.moves.length; i++) {
             const move = game.moves[i];
+            console.log(`[insertDecisionAfter] Loop i=${i}, moveIndex=${moveIndex}, move:`, {
+                moveNumber: move.moveNumber,
+                hasP1: !!move.player1Move,
+                hasP2: !!move.player2Move,
+                p1Dice: move.player1Move?.dice,
+                p2Dice: move.player2Move?.dice
+            });
             
             // For the current move, only collect decisions after the insertion point
             if (i === moveIndex) {
                 if (player === 1) {
                     // Collect player2Move (even if null/empty)
+                    console.log(`[insertDecisionAfter] Collecting player2Move from current move`);
                     decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
+                } else {
+                    console.log(`[insertDecisionAfter] Not collecting from current move (player=2)`);
                 }
                 // If player === 2, we don't collect anything from current move
             } else {
                 // All decisions from subsequent moves (even if null/empty)
+                console.log(`[insertDecisionAfter] Collecting both players from subsequent move ${i}`);
                 decisionsToShift.push({ decision: move.player1Move ? JSON.parse(JSON.stringify(move.player1Move)) : null });
                 decisionsToShift.push({ decision: move.player2Move ? JSON.parse(JSON.stringify(move.player2Move)) : null });
             }
@@ -426,7 +438,8 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
             
             // Ensure next move exists for the empty slot
             if (moveIndex + 1 >= game.moves.length) {
-                const newMoveNumber = game.moves.length > 0 ? game.moves[game.moves.length - 1].moveNumber + 1 : 1;
+                // Use the same moveNumber as current move (it's a continuation of the same game move)
+                const newMoveNumber = currentMove.moveNumber;
                 game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
             }
         }
@@ -452,7 +465,10 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
         while (decisionIndex < decisionsToShift.length) {
             // Ensure target move exists
             if (targetMoveIndex >= game.moves.length) {
-                const newMoveNumber = game.moves.length > 0 ? game.moves[game.moves.length - 1].moveNumber + 1 : 1;
+                // Determine the correct moveNumber for the new entry
+                // It should be the same as the previous move's moveNumber (continuation)
+                const prevMove = game.moves[targetMoveIndex - 1];
+                const newMoveNumber = prevMove ? prevMove.moveNumber : 1;
                 game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
             }
             
@@ -472,6 +488,7 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
             decisionIndex++;
         }
         
+        // Stable sort: moves with same moveNumber keep their insertion order
         game.moves.sort((a, b) => a.moveNumber - b.moveNumber);
         console.log(`[insertDecisionAfter] After insertion:`, JSON.stringify(game.moves.slice(0, 5), null, 2));
         
