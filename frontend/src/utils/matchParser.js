@@ -2,6 +2,7 @@
 import { LAZYBG_VERSION } from '../stores/transcriptionStore.js';
 
 export function parseMatchFile(content) {
+
     const lines = content.split('\n').map(line => line.trim());
     
     const transcription = {
@@ -173,6 +174,17 @@ export function parseMatchFile(content) {
                                 };
                             }
                         }
+                    } else {
+                        // No cube action - likely a resign situation
+                        // Try to determine winner from the last player decision
+                        // Check if last move has an illegal/empty move (????)
+                        if (lastMove.player2Move && (lastMove.player2Move.isIllegal || !lastMove.player2Move.move || lastMove.player2Move.move.trim() === '')) {
+                            // Player 2 resigned, so player 1 wins
+                            currentGame.winner = { player: 1, points };
+                        } else if (lastMove.player1Move && (lastMove.player1Move.isIllegal || !lastMove.player1Move.move || lastMove.player1Move.move.trim() === '')) {
+                            // Player 1 resigned, so player 2 wins
+                            currentGame.winner = { player: 2, points };
+                        }
                     }
                 }
             }
@@ -318,6 +330,114 @@ export function parseMatchFile(content) {
             
             if (moveEntry.player1Move || moveEntry.player2Move || moveEntry.cubeAction) {
                 currentGame.moves.push(moveEntry);
+            }
+        }
+    }
+    
+
+    
+    // Post-process: detect resign decisions
+    // If a game has a winner with points won, and the last decision has no checker movement,
+    // add the appropriate resign action
+    console.log(`[matchParser] Post-processing ${transcription.games.length} games for resign detection`);
+    for (const game of transcription.games) {
+
+        
+        // Process games with moves, regardless of whether winner is set
+        if (game.moves.length > 0) {
+            const lastMove = game.moves[game.moves.length - 1];
+            console.log(`[matchParser] Game ${game.gameNumber} last move:`, JSON.stringify({
+                player1: lastMove.player1Move ? { dice: lastMove.player1Move.dice, move: lastMove.player1Move.move, isIllegal: lastMove.player1Move.isIllegal, cubeAction: lastMove.player1Move.cubeAction } : null,
+                player2: lastMove.player2Move ? { dice: lastMove.player2Move.dice, move: lastMove.player2Move.move, isIllegal: lastMove.player2Move.isIllegal, cubeAction: lastMove.player2Move.cubeAction } : null
+            }));
+            
+            // Find the last player decision (could be player 1 or player 2)
+            let lastPlayerMove = null;
+            let lastPlayer = null;
+            
+            // Check player 2 first (later in turn order)
+            if (lastMove.player2Move && !lastMove.player2Move.cubeAction && !lastMove.player2Move.resignAction) {
+                // Check if it's an empty move or just dice with no checker movement
+                // isIllegal means ???? was in the text, which gets stored as empty move
+                if (lastMove.player2Move.isIllegal || 
+                    !lastMove.player2Move.move || 
+                    lastMove.player2Move.move.trim() === '') {
+                    lastPlayerMove = lastMove.player2Move;
+                    lastPlayer = 2;
+                }
+            }
+            
+            // If player 2 didn't have a valid decision, check player 1
+            if (!lastPlayerMove && lastMove.player1Move && !lastMove.player1Move.cubeAction && !lastMove.player1Move.resignAction) {
+                // Check if it's an empty move or just dice with no checker movement
+                // isIllegal means ???? was in the text, which gets stored as empty move
+                if (lastMove.player1Move.isIllegal || 
+                    !lastMove.player1Move.move || 
+                    lastMove.player1Move.move.trim() === '') {
+                    lastPlayerMove = lastMove.player1Move;
+                    lastPlayer = 1;
+                }
+            }
+            
+            // If we found an empty last decision, convert it to a resign
+            if (lastPlayerMove && lastPlayer) {
+                // Track cube value through the game
+                // Note: At this point cube actions are still in move.cubeAction format,
+                // not yet migrated to player1Move.cubeAction/player2Move.cubeAction
+                let cubeValue = 1;
+                for (let j = 0; j < game.moves.length - 1; j++) {
+                    const move = game.moves[j];
+                    // Check move-level cubeAction (before migration)
+                    if (move.cubeAction) {
+                        if (move.cubeAction.action === 'doubles' || move.cubeAction.action === 'takes') {
+                            cubeValue = move.cubeAction.value;
+                        }
+                    }
+                }
+                
+                // Determine resign type based on points won
+                // NOTE: We cannot accurately determine gammon/backgammon from text alone
+                // without analyzing board state (whether checkers were borne off).
+                // We'll make an educated guess based on the score multiplier.
+                let resignType = 'normal';
+                const pointsWon = game.winner.points;
+                
+                // Check if any bearing off moves are present to help determine resign type
+                let hasBearoffMoves = false;
+                for (let i = game.moves.length - 1; i >= Math.max(0, game.moves.length - 10); i--) {
+                    const move = game.moves[i];
+                    // Check if moves contain "off" or "/Off" indicating bearing off
+                    if (move.player1Move?.move && /\/off/i.test(move.player1Move.move)) {
+                        if (lastPlayer === 1) {
+                            hasBearoffMoves = true;
+                        }
+                    }
+                    if (move.player2Move?.move && /\/off/i.test(move.player2Move.move)) {
+                        if (lastPlayer === 2) {
+                            hasBearoffMoves = true;
+                        }
+                    }
+                }
+                
+                // Determine resign type
+                if (pointsWon === cubeValue * 3) {
+                    resignType = 'backgammon';
+                } else if (pointsWon === cubeValue * 2) {
+                    // If losing player has borne off checkers, it's likely a normal resign with doubled cube
+                    // Otherwise it's a gammon resign
+                    resignType = hasBearoffMoves ? 'normal' : 'gammon';
+                } else {
+                    resignType = 'normal';
+                }
+                
+                // Only set resign if the resigning player is the one who lost
+                if (game.winner.player !== lastPlayer) {
+                    lastPlayerMove.resignAction = resignType;
+                    lastPlayerMove.dice = '';
+                    lastPlayerMove.move = '';
+                } else {
+                    console.error(`[matchParser] ✗ SKIPPED: Game ${game.gameNumber}, winner=${game.winner.player}, lastPlayer=${lastPlayer} (same player)`);
+                }
             }
         }
     }

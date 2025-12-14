@@ -792,10 +792,11 @@
         const isIllegal = existingMove?.isIllegal || false;
         const isGala = existingMove?.isGala || false;
         
-        // For cube decisions (d/t/p), pass empty string as move
+        // For cube decisions (d/t/p) and resign decisions (r/g/b), pass empty string as move
         const diceStr = dice.toLowerCase();
         const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
-        const moveToSave = isCubeDecision ? '' : moveStr;
+        const isResignDecision = diceStr === 'r' || diceStr === 'g' || diceStr === 'b';
+        const moveToSave = (isCubeDecision || isResignDecision) ? '' : moveStr;
         
         // Save state before the operation
         saveSnapshotBeforeOperation();
@@ -906,23 +907,23 @@
             // If dice input is focused
             if (document.activeElement === diceInputElement) {
                 const dice = inlineEditDice.toLowerCase();
-                // Check for cube decisions
-                if (dice === 'd' || dice === 't' || dice === 'p') {
-                    // Validate immediately for cube decisions
+                // Check for cube decisions and resign decisions
+                if (dice === 'd' || dice === 't' || dice === 'p' || dice === 'r' || dice === 'g' || dice === 'b') {
+                    // Validate immediately for cube and resign decisions
                     validateInlineEdit();
                 } else if (validateDiceInput(inlineEditDice)) {
                     // Valid dice, move to move input
                     moveInputElement?.focus();
                 } else {
-                    statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
+                    statusBarTextStore.set('Invalid dice: enter d/t/p/r/g/b or 2 digits between 1 and 6');
                 }
             } else if (document.activeElement === moveInputElement) {
                 // Validate and save
                 const dice = inlineEditDice.toLowerCase();
-                if (dice === 'd' || dice === 't' || dice === 'p' || validateDiceInput(inlineEditDice)) {
+                if (dice === 'd' || dice === 't' || dice === 'p' || dice === 'r' || dice === 'g' || dice === 'b' || validateDiceInput(inlineEditDice)) {
                     validateInlineEdit();
                 } else {
-                    statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
+                    statusBarTextStore.set('Invalid dice: enter d/t/p/r/g/b or 2 digits between 1 and 6');
                 }
             }
         } else if (event.key === 'Backspace') {
@@ -957,6 +958,16 @@
                 inlineEditDice = 'p';
             }
             inlineEditMove = '';
+        } else if (playerMove?.resignAction) {
+            // Check for resign action in player move
+            if (playerMove.resignAction === 'normal') {
+                inlineEditDice = 'r';
+            } else if (playerMove.resignAction === 'gammon') {
+                inlineEditDice = 'g';
+            } else if (playerMove.resignAction === 'backgammon') {
+                inlineEditDice = 'b';
+            }
+            inlineEditMove = '';
         } else if (playerMove) {
             inlineEditDice = playerMove.dice || '';
             inlineEditMove = playerMove.move || '';
@@ -973,7 +984,7 @@
             }
         }, 50);
         
-        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass) or 2 digits 1-6, then move. Enter=validate, Tab=exit edit mode');
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move. Enter=validate, Tab=exit edit mode');
     }
     
     function cancelInlineEdit() {
@@ -995,10 +1006,11 @@
         const isIllegal = playerMove?.isIllegal || false;
         const isGala = playerMove?.isGala || false;
         
-        // For cube decisions (d/t/p), pass empty string as move
+        // For cube decisions (d/t/p) and resign decisions (r/g/b), pass empty string as move
         const diceStr = inlineEditDice.toLowerCase();
         const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
-        const moveToSave = isCubeDecision ? '' : inlineEditMove;
+        const isResignDecision = diceStr === 'r' || diceStr === 'g' || diceStr === 'b';
+        const moveToSave = (isCubeDecision || isResignDecision) ? '' : inlineEditMove;
         
         // Save state before the operation
         saveSnapshotBeforeOperation();
@@ -1079,10 +1091,10 @@
     function handleDiceInput(event) {
         let value = event.target.value.toLowerCase();
         
-        // Check for cube decisions first
-        if (value === 'd' || value === 't' || value === 'p') {
+        // Check for cube decisions and resign decisions first
+        if (value === 'd' || value === 't' || value === 'p' || value === 'r' || value === 'g' || value === 'b') {
             inlineEditDice = value;
-            // Clear move input for cube decisions
+            // Clear move input for cube and resign decisions
             inlineEditMove = '';
             return;
         }
@@ -1123,8 +1135,9 @@
         inlineEditMove = '';
     }
     
-    // Check if dice is a cube decision
+    // Check if dice is a cube decision or resign decision
     $: isCubeDecision = inlineEditDice.toLowerCase() === 'd' || inlineEditDice.toLowerCase() === 't' || inlineEditDice.toLowerCase() === 'p';
+    $: isResignDecision = inlineEditDice.toLowerCase() === 'r' || inlineEditDice.toLowerCase() === 'g' || inlineEditDice.toLowerCase() === 'b';
 
     function isSelected(gIdx, mIdx) {
         return $selectedMoveStore?.gameIndex === gIdx && 
@@ -1298,7 +1311,7 @@
                         on:keydown={handleInlineEditKeyDown}
                         class="inline-move-input"
                         placeholder="24/20 13/8"
-                        disabled={isCubeDecision}
+                        disabled={isCubeDecision || isResignDecision}
                     />
                     {:else if row.moveData?.cubeAction}
                         {#if row.moveData.cubeAction === 'doubles'}
@@ -1307,6 +1320,14 @@
                         <span class="cube-response">Takes</span>
                         {:else if row.moveData.cubeAction === 'drops'}
                         <span class="cube-response">Drops</span>
+                        {/if}
+                    {:else if row.moveData?.resignAction}
+                        {#if row.moveData.resignAction === 'normal'}
+                        <span class="resign-action">Resigns</span>
+                        {:else if row.moveData.resignAction === 'gammon'}
+                        <span class="resign-action">Resigns Gammon</span>
+                        {:else if row.moveData.resignAction === 'backgammon'}
+                        <span class="resign-action">Resigns Backgammon</span>
                         {/if}
                     {:else if row.cubeAction && row.cubeAction.player === row.player}
                         {#if row.cubeAction.action === 'doubles'}
@@ -1626,6 +1647,12 @@
     .cube-response {
         font-weight: normal;
         color: inherit;
+    }
+
+    .resign-action {
+        font-weight: normal;
+        color: #dc3545;
+        font-style: italic;
     }
 
     .validation-status {

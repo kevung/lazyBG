@@ -651,6 +651,7 @@ export function deleteMove(gameIndex, moveIndex) {
 
 export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal = false, isGala = false) {
     let isCubeAction = false;
+    let isResignAction = false;
     
     transcriptionStore.update(t => {
         const game = t.games[gameIndex];
@@ -659,9 +660,37 @@ export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal =
         const moveEntry = game.moves.find(m => m.moveNumber === moveIndex);
         if (!moveEntry) return t;
         
-        // Check if this is a cube decision (d/t/p)
+        // Check if this is a resign decision (r/g/b)
         const diceStr = dice.toLowerCase();
-        if (diceStr === 'd' || diceStr === 't' || diceStr === 'p') {
+        if (diceStr === 'r' || diceStr === 'g' || diceStr === 'b') {
+            isResignAction = true;
+            
+            // Determine resign type
+            let resignType;
+            if (diceStr === 'r') {
+                resignType = 'normal';
+            } else if (diceStr === 'g') {
+                resignType = 'gammon';
+            } else { // 'b'
+                resignType = 'backgammon';
+            }
+            
+            // Store resign action in the player's move data
+            const moveData = { 
+                dice: '', 
+                move: '', 
+                isIllegal: false, 
+                isGala: false,
+                resignAction: resignType
+            };
+            
+            if (player === 1) {
+                moveEntry.player1Move = moveData;
+            } else {
+                moveEntry.player2Move = moveData;
+            }
+        } else if (diceStr === 'd' || diceStr === 't' || diceStr === 'p') {
+            // Check if this is a cube decision (d/t/p)
             isCubeAction = true;
             
             // Handle cube decision independently for this player
@@ -732,9 +761,9 @@ export function updateMove(gameIndex, moveIndex, player, dice, move, isIllegal =
     
     invalidatePositionsCacheFrom(gameIndex, moveIndex);
     
-    // If this was a cube action, recalculate scores for this game and all subsequent games
-    if (isCubeAction) {
-        console.log(`[updateMove] Cube action detected, recalculating scores from game ${gameIndex}`);
+    // If this was a cube action or resign action, recalculate scores for this game and all subsequent games
+    if (isCubeAction || isResignAction) {
+        console.log(`[updateMove] ${isResignAction ? 'Resign' : 'Cube'} action detected, recalculating scores from game ${gameIndex}`);
         recalculateScoresFromGame(gameIndex);
     }
 }
@@ -1113,19 +1142,49 @@ function calculateScoresAfterGame(game, matchLength, startingPlayer1Score = null
                 }
             }
             
-            // Check for resignations (moves ending with '-')
+            // Check for resign actions
+            if (move.player1Move?.resignAction) {
+                // Player 1 resigned, player 2 wins
+                winner = 2;
+                // Calculate points based on resign type and cube value
+                if (move.player1Move.resignAction === 'normal') {
+                    pointsWon = cubeValue; // 1x cube
+                } else if (move.player1Move.resignAction === 'gammon') {
+                    pointsWon = cubeValue * 2; // 2x cube
+                } else if (move.player1Move.resignAction === 'backgammon') {
+                    pointsWon = cubeValue * 3; // 3x cube
+                }
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 resigned ${move.player1Move.resignAction}, player 2 wins ${pointsWon} points`);
+                break;
+            }
+            if (move.player2Move?.resignAction) {
+                // Player 2 resigned, player 1 wins
+                winner = 1;
+                // Calculate points based on resign type and cube value
+                if (move.player2Move.resignAction === 'normal') {
+                    pointsWon = cubeValue; // 1x cube
+                } else if (move.player2Move.resignAction === 'gammon') {
+                    pointsWon = cubeValue * 2; // 2x cube
+                } else if (move.player2Move.resignAction === 'backgammon') {
+                    pointsWon = cubeValue * 3; // 3x cube
+                }
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 resigned ${move.player2Move.resignAction}, player 1 wins ${pointsWon} points`);
+                break;
+            }
+            
+            // Check for resignations (moves ending with '-') - legacy support
             if (move.player1Move?.move && move.player1Move.move.trim().endsWith('-')) {
                 // Player 1 resigned, player 2 wins
                 winner = 2;
                 pointsWon = cubeValue; // Use current cube value
-                console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 resigned, player 2 wins ${pointsWon} points`);
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 1 resigned (legacy), player 2 wins ${pointsWon} points`);
                 break;
             }
             if (move.player2Move?.move && move.player2Move.move.trim().endsWith('-')) {
                 // Player 2 resigned, player 1 wins
                 winner = 1;
                 pointsWon = cubeValue; // Use current cube value
-                console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 resigned, player 1 wins ${pointsWon} points`);
+                console.log(`[calculateScoresAfterGame] Move ${i}: Player 2 resigned (legacy), player 1 wins ${pointsWon} points`);
                 break;
             }
         }

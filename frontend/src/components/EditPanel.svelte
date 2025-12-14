@@ -66,6 +66,18 @@
             originalMove = '';
             diceInput = originalDice;
             moveInput = '';
+        } else if (playerMove?.resignAction) {
+            // Check if this is a resign action
+            if (playerMove.resignAction === 'normal') {
+                originalDice = 'r';
+            } else if (playerMove.resignAction === 'gammon') {
+                originalDice = 'g';
+            } else if (playerMove.resignAction === 'backgammon') {
+                originalDice = 'b';
+            }
+            originalMove = '';
+            diceInput = originalDice;
+            moveInput = '';
         } else if (playerMove) {
             originalDice = playerMove.dice || '';
             originalMove = playerMove.move || '';
@@ -86,7 +98,7 @@
             }
         }, 100);
 
-        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass) or 2 digits 1-6, then move. Enter=validate, Esc=cancel');
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move. Enter=validate, Esc=cancel');
     }
 
     function cancelEditing() {
@@ -121,10 +133,11 @@
             const isIllegal = playerMove?.isIllegal || false;
             const isGala = playerMove?.isGala || false;
             
-            // For cube decisions (d/t/p), pass empty string as move
+            // For cube decisions (d/t/p) and resign decisions (r/g/b), pass empty string as move
             const diceStr = diceInput.toLowerCase();
             const isCubeDecision = diceStr === 'd' || diceStr === 't' || diceStr === 'p';
-            const moveToSave = isCubeDecision ? '' : moveInput;
+            const isResignDecision = diceStr === 'r' || diceStr === 'g' || diceStr === 'b';
+            const moveToSave = (isCubeDecision || isResignDecision) ? '' : moveInput;
             
             updateMove(gameIndex, move.moveNumber, player, diceInput, moveToSave, isIllegal, isGala);
             
@@ -215,9 +228,9 @@
             // If dice input is focused
             if (document.activeElement === diceInputElement) {
                 const dice = diceInput.toLowerCase();
-                // Check for cube decisions
-                if (dice === 'd' || dice === 't' || dice === 'p') {
-                    // Validate immediately for cube decisions
+                // Check for cube decisions and resign decisions
+                if (dice === 'd' || dice === 't' || dice === 'p' || dice === 'r' || dice === 'g' || dice === 'b') {
+                    // Validate immediately for cube and resign decisions
                     validateEditing();
                 } else if (validateDiceInput(diceInput)) {
                     // Valid dice, move to move input
@@ -250,10 +263,10 @@
     function handleDiceInput(event) {
         let value = event.target.value.toLowerCase();
         
-        // Check for cube decisions first
-        if (value === 'd' || value === 't' || value === 'p') {
+        // Check for cube decisions and resign decisions first
+        if (value === 'd' || value === 't' || value === 'p' || value === 'r' || value === 'g' || value === 'b') {
             diceInput = value;
-            // Disable move input for cube decisions
+            // Disable move input for cube and resign decisions
             moveInput = '';
             return;
         }
@@ -299,8 +312,9 @@
         document.removeEventListener('mousedown', handleClickOutside);
     });
 
-    // Check if dice is a cube decision
+    // Check if dice is a cube decision or resign decision
     $: isCubeDecision = diceInput.toLowerCase() === 'd' || diceInput.toLowerCase() === 't' || diceInput.toLowerCase() === 'p';
+    $: isResignDecision = diceInput.toLowerCase() === 'r' || diceInput.toLowerCase() === 'g' || diceInput.toLowerCase() === 'b';
 </script>
 
 {#if visible}
@@ -316,7 +330,7 @@
                     on:input={handleDiceInput}
                     on:keydown={handleKeyDown}
                     maxlength="2"
-                    placeholder="54 or d/t/p"
+                    placeholder="54 or d/t/p/r/g/b"
                     class="dice-input"
                 />
             </div>
@@ -331,7 +345,7 @@
                     on:keydown={handleKeyDown}
                     placeholder="24/20 13/8"
                     class="move-input"
-                    disabled={isCubeDecision}
+                    disabled={isCubeDecision || isResignDecision}
                 />
             </div>
 
