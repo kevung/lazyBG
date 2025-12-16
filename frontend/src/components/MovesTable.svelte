@@ -1,4 +1,5 @@
 <script>
+    import { onMount } from 'svelte';
     import { get } from 'svelte/store';
     import { 
         transcriptionStore, 
@@ -20,7 +21,15 @@
     import { clipboardStore } from '../stores/clipboardStore.js';
     import { positionsCacheStore } from '../stores/transcriptionStore.js';
     
+    console.log('[MovesTable] Component script loaded');
+    
     export let visible = true;
+    console.log('[MovesTable] visible prop:', visible);
+    
+    onMount(() => {
+        console.log('[MovesTable] MOUNTED - component is now in DOM');
+        return () => console.log('[MovesTable] UNMOUNTING');
+    });
 
     let selectedGameIndex = 0;
     let editingMove = null;
@@ -33,6 +42,12 @@
     let inlineEditMove = '';
     let diceInputElement;
     let moveInputElement;
+    
+    // Original state for cancellation
+    let originalDice = '';
+    let originalMove = '';
+    let originalIsIllegal = false;
+    let originalIsGala = false;
 
     // Context menu state
     let showContextMenu = false;
@@ -966,13 +981,24 @@
     }
     
     function startInlineEdit(gameIndex, moveIndex, player) {
+        console.log('[MovesTable] startInlineEdit called:', { gameIndex, moveIndex, player });
         const game = games[gameIndex];
-        if (!game || !game.moves[moveIndex]) return;
+        if (!game || !game.moves[moveIndex]) {
+            console.log('[MovesTable] No game or move found');
+            return;
+        }
         
         const move = game.moves[moveIndex];
         const playerMove = player === 1 ? move.player1Move : move.player2Move;
         
+        console.log('[MovesTable] Setting editingMove:', { gameIndex, moveIndex, player });
         editingMove = { gameIndex, moveIndex, player };
+        
+        // Store original state for cancellation
+        originalDice = playerMove?.dice || '';
+        originalMove = playerMove?.move || '';
+        originalIsIllegal = playerMove?.isIllegal || false;
+        originalIsGala = playerMove?.isGala || false;
         
         // Check for cube action in player move
         if (playerMove?.cubeAction) {
@@ -1014,6 +1040,28 @@
     }
     
     function cancelInlineEdit() {
+        // Restore original state if it was modified
+        if (editingMove) {
+            const { gameIndex, moveIndex, player } = editingMove;
+            const transcription = get(transcriptionStore);
+            const game = transcription?.games[gameIndex];
+            const move = game?.moves[moveIndex];
+            const playerMove = player === 1 ? move?.player1Move : move?.player2Move;
+            
+            // Check if dice was modified
+            const currentDice = playerMove?.dice || '';
+            if (currentDice !== originalDice) {
+                console.log('[MovesTable] Restoring original dice:', originalDice);
+                // Restore original state
+                updateMove(gameIndex, move.moveNumber, player, originalDice, originalMove, originalIsIllegal, originalIsGala);
+                
+                // Invalidate cache and refresh position
+                invalidatePositionsCacheFrom(gameIndex, moveIndex);
+                const currentSelection = get(selectedMoveStore);
+                selectedMoveStore.set({...currentSelection});
+            }
+        }
+        
         editingMove = null;
         inlineEditDice = '';
         inlineEditMove = '';
@@ -1115,10 +1163,12 @@
     }
     
     function handleDiceInput(event) {
+        console.log('[MovesTable] handleDiceInput called, value:', event.target.value);
         let value = event.target.value.toLowerCase();
         
         // Check for cube decisions and resign decisions first
         if (value === 'd' || value === 't' || value === 'p' || value === 'r' || value === 'g' || value === 'b') {
+            console.log('[MovesTable] Special action detected:', value);
             inlineEditDice = value;
             // Clear move input for cube and resign decisions
             inlineEditMove = '';
@@ -1127,6 +1177,7 @@
         
         // Only allow digits
         value = value.replace(/[^1-6]/g, '');
+        console.log('[MovesTable] Filtered dice value:', value, 'length:', value.length);
         
         // Limit to 2 characters
         if (value.length > 2) {
@@ -1135,30 +1186,88 @@
         
         inlineEditDice = value;
         
-        // Auto-advance to move input when 2 valid digits are entered
+        // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
+            console.log('[MovesTable] 2 valid dice digits entered, calling updateDiceOnly');
+            updateDiceOnly(value);
+            
+            // Auto-advance to move input
             setTimeout(() => {
                 moveInputElement?.focus();
             }, 50);
         }
     }
-    
+
+    // Update dice immediately in transcription (without move) to trigger candidate moves analysis
+    function updateDiceOnly(newDice) {
+        console.log('[MovesTable] updateDiceOnly called with:', newDice);
+        if (!editingMove) {
+            console.log('[MovesTable] Not editing, skipping update');
+            return;
+        }
+
+        const { gameIndex, moveIndex, player } = editingMove;
+        const transcription = get(transcriptionStore);
+        
+        if (!transcription || !transcription.games[gameIndex]) {
+            console.log('[MovesTable] No transcription or game');
+            return;
+        }
+
+        const game = transcription.games[gameIndex];
+        const move = game.moves[moveIndex];
+        
+        if (!move) {
+            console.log('[MovesTable] No move at index');
+            return;
+        }
+
+        const playerMove = player === 1 ? move.player1Move : move.player2Move;
+        
+        // Keep existing move and flags, just update dice
+        const existingMove = playerMove?.move || '';
+        const isIllegal = playerMove?.isIllegal || false;
+        const isGala = playerMove?.isGala || false;
+        
+        console.log('[MovesTable] Calling updateMove with dice:', newDice, 'move:', existingMove);
+        updateMove(gameIndex, move.moveNumber, player, newDice, existingMove, isIllegal, isGala);
+        
+        // Invalidate position cache so CandidateMovesPanel recalculates with new dice
+        invalidatePositionsCacheFrom(gameIndex, moveIndex);
+        console.log('[MovesTable] Position cache invalidated from moveIndex:', moveIndex);
+        
+        // Force selectedMoveStore to re-trigger so App.svelte recalculates position with new dice
+        const currentSelection = get(selectedMoveStore);
+        selectedMoveStore.set({...currentSelection});
+        console.log('[MovesTable] Triggered selectedMoveStore refresh');
+    }
+
     function validateDiceInput(dice) {
         if (dice.length !== 2) return false;
         const d1 = parseInt(dice[0]);
         const d2 = parseInt(dice[1]);
         return d1 >= 1 && d1 <= 6 && d2 >= 1 && d2 <= 6;
-    }
-    
-    // Watch for EDIT mode changes - start inline editing when entering EDIT mode
-    $: if ($statusBarModeStore === 'EDIT' && $selectedMoveStore && !editingMove && visible) {
-        const { gameIndex, moveIndex, player } = $selectedMoveStore;
-        startInlineEdit(gameIndex, moveIndex, player);
-    } else if ($statusBarModeStore !== 'EDIT' && editingMove) {
-        // Exit edit mode if mode changes
-        editingMove = null;
-        inlineEditDice = '';
-        inlineEditMove = '';
+    }    // Watch for EDIT mode changes - start inline editing when entering EDIT mode
+    $: {
+        console.log('[MovesTable] Reactive check:', {
+            mode: $statusBarModeStore,
+            hasSelected: !!$selectedMoveStore,
+            editing: editingMove,
+            visible: visible
+        });
+        
+        if ($statusBarModeStore === 'EDIT' && $selectedMoveStore && !editingMove && visible) {
+            console.log('[MovesTable] EDIT mode reactive - triggering startInlineEdit');
+            console.log('[MovesTable] visible:', visible, 'editingMove:', editingMove);
+            const { gameIndex, moveIndex, player } = $selectedMoveStore;
+            startInlineEdit(gameIndex, moveIndex, player);
+        } else if ($statusBarModeStore !== 'EDIT' && editingMove) {
+            console.log('[MovesTable] Exiting EDIT mode');
+            // Exit edit mode if mode changes
+            editingMove = null;
+            inlineEditDice = '';
+            inlineEditMove = '';
+        }
     }
     
     // Check if dice is a cube decision or resign decision

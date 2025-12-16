@@ -192,6 +192,7 @@
 
     function handleDiceInput(event) {
         let value = event.target.value;
+        console.log('[EditMovePanel] 🎲 handleDiceInput called, value:', value);
         
         // Only allow digits
         value = value.replace(/[^1-6]/g, '');
@@ -202,13 +203,49 @@
         }
         
         diceInput = value;
+        console.log('[EditMovePanel] diceInput set to:', value, 'length:', value.length);
         
-        // Auto-advance to move input when 2 valid digits are entered
+        // When 2 valid digits are entered, immediately update the dice (not the move yet)
         if (value.length === 2 && validateDiceInput(value)) {
+            console.log('[EditMovePanel] ✓ Valid 2-digit dice, calling updateDiceOnly');
+            updateDiceOnly(value);
+            
             setTimeout(() => {
                 moveInputElement?.focus();
             }, 50);
+        } else {
+            console.log('[EditMovePanel] ✗ Not valid or not 2 digits yet');
         }
+    }
+    
+    function updateDiceOnly(newDice) {
+        console.log('[EditMovePanel] 🎲 updateDiceOnly called with:', newDice);
+        const transcription = get(transcriptionStore);
+        const selectedMove = get(selectedMoveStore);
+        
+        if (!transcription || !selectedMove) {
+            console.log('[EditMovePanel] ⚠️ No transcription or selectedMove');
+            return;
+        }
+        
+        const { gameIndex, moveIndex, player } = selectedMove;
+        const game = transcription.games[gameIndex];
+        
+        if (!game || !game.moves[moveIndex]) {
+            console.log('[EditMovePanel] ⚠️ No game or move');
+            return;
+        }
+        
+        const move = game.moves[moveIndex];
+        const playerMove = player === 1 ? move.player1Move : move.player2Move;
+        
+        // Update with new dice but keep the original move (empty for now)
+        const isIllegal = playerMove?.isIllegal || false;
+        const isGala = playerMove?.isGala || false;
+        
+        console.log('[EditMovePanel] Calling updateMove:', {gameIndex, moveNumber: move.moveNumber, player, dice: newDice});
+        updateMove(gameIndex, move.moveNumber, player, newDice, '', isIllegal, isGala);
+        console.log('[EditMovePanel] updateMove completed');
     }
 
     function validateDiceInput(dice) {

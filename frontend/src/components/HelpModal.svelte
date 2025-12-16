@@ -309,6 +309,36 @@
                     </ul>
                     <p>When you undo or redo, the position cache is automatically cleared and recalculated to ensure accurate board positions. The undo/redo buttons are disabled when no undo or redo actions are available.</p>
                     
+                    <h3>Candidate Moves Analysis (gnubg)</h3>
+                    <p>lazyBG integrates the powerful gnubg backgammon engine to provide move analysis. When you select a decision with dice values, the candidate moves panel automatically displays the top 10 moves suggested by gnubg, ranked from best to worst.</p>
+                    
+                    <h4>Features</h4>
+                    <ul>
+                        <li><strong>Automatic Analysis:</strong> When dice values are defined for a position, gnubg instantly analyzes and displays candidate moves</li>
+                        <li><strong>Best Move Highlighting:</strong> The best move is shown in green with its equity value</li>
+                        <li><strong>Current Move Highlighting:</strong> If your current move matches one of gnubg's suggestions, it's highlighted in yellow</li>
+                        <li><strong>Move Statistics:</strong> Each candidate shows equity, equity difference from best, and probability statistics (Win, Win Gammon, Lose, Lose Gammon)</li>
+                        <li><strong>Instant Updates:</strong> When you change dice values in edit mode, candidate moves update automatically</li>
+                    </ul>
+                    
+                    <h4>Using Candidate Moves</h4>
+                    <ul>
+                        <li><strong>View Candidates:</strong> Press <strong>Ctrl+L</strong> to toggle the candidate moves panel</li>
+                        <li><strong>Navigate Moves:</strong> Use <strong>j</strong>/<strong>k</strong> or <strong>↓</strong>/<strong>↑</strong> arrow keys to cycle through candidate moves</li>
+                        <li><strong>Select a Move:</strong> Press <strong>Enter</strong> or click on a candidate move to apply it to the current decision</li>
+                        <li><strong>In Edit Mode:</strong> After changing dice values, the move field is automatically cleared and set to the best move suggested by gnubg</li>
+                    </ul>
+                    
+                    <h4>Move Notation</h4>
+                    <p>Candidate moves use standard backgammon notation:</p>
+                    <ul>
+                        <li><strong>24/20 13/8</strong> - Move from point 24 to 20, and from 13 to 8</li>
+                        <li><strong>bar/22</strong> - Enter from the bar to point 22</li>
+                        <li><strong>6/off 5/off</strong> - Bear off checkers from points 6 and 5</li>
+                    </ul>
+                    
+                    <p><strong>Note:</strong> The gnubg engine and all required data files are embedded in lazyBG, making it completely standalone with no external dependencies.</p>
+                    
                     <h3>COMMAND Mode</h3>
                     <p>COMMAND mode provides quick access to common operations via a command line interface. Press <strong>SPACE</strong> to enter COMMAND mode, type your command, and press <strong>ENTER</strong> to execute it.</p>
                 {/if}

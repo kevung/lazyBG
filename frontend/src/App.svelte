@@ -1325,9 +1325,14 @@
     }
 
     function previousPosition() {
-        if ($statusBarModeStore === 'EDIT') {
+        // Allow j/k in edit mode if in move input (for gnubg candidate navigation)
+        const moveInputK = document.getElementById('move-input');
+        if ($statusBarModeStore === 'EDIT' && (!moveInputK || document.activeElement !== moveInputK)) {
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
+        }
+        if ($statusBarModeStore === 'EDIT') {
+            return; // Let EditPanel handle it
         }
         
         // Clear multi-selection when navigating
@@ -1350,9 +1355,14 @@
     }
 
     function nextPosition() {
-        if ($statusBarModeStore === 'EDIT') {
+        // Allow j/k in edit mode if in move input (for gnubg candidate navigation)
+        const moveInput = document.getElementById('move-input');
+        if ($statusBarModeStore === 'EDIT' && (!moveInput || document.activeElement !== moveInput)) {
             setStatusBarMessage('Cannot browse positions in edit mode');
             return;
+        }
+        if ($statusBarModeStore === 'EDIT') {
+            return; // Let EditPanel handle it
         }
         
         // Clear multi-selection when navigating
@@ -1949,8 +1959,11 @@
     <div class="transcription-layout">
         {#if showMovesTable}
         <div class="moves-table-column" transition:slide={{ duration: 50, axis: 'x' }}>
+            {console.log('[App] About to render MovesTable, showMovesTable:', showMovesTable)}
             <MovesTable bind:this={movesTableRef} />
         </div>
+        {:else}
+        {console.log('[App] MovesTable NOT rendered, showMovesTable:', showMovesTable)}
         {/if}
         
         <div class="board-column">
@@ -2092,11 +2105,8 @@
     }
 
     .candidate-moves-column {
-        width: 350px;
-        min-width: 250px;
-        max-width: 500px;
+        width: auto;
         border-left: 1px solid #ccc;
-        background-color: #f9f9f9;
         display: flex;
         flex-direction: column;
         overflow: hidden;

@@ -6,6 +6,8 @@ export function DeleteFile(arg1:string):Promise<void>;
 
 export function ExportMatchTextDialog():Promise<string>;
 
+export function GetCandidateMoves(arg1:main.Position):Promise<Array<main.CandidateMove>>;
+
 export function OpenPositionDialog():Promise<main.FileDialogResponse>;
 
 export function OpenTranscriptionDialog():Promise<string>;

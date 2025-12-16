@@ -247,8 +247,18 @@
                     // Validate immediately for cube and resign decisions
                     validateEditing();
                 } else if (validateDiceInput(diceInput)) {
-                    // Valid dice, move to move input
+                    // Valid dice, move to move input and select best gnubg move
                     moveInputElement?.focus();
+                    // Auto-select best gnubg move after dice entry
+                    setTimeout(() => {
+                        const candidatePanel = document.querySelector('.candidate-moves-panel');
+                        if (candidatePanel && candidatePanel.__svelte_component) {
+                            const bestMove = candidatePanel.__svelte_component.getBestMove?.();
+                            if (bestMove) {
+                                moveInput = bestMove;
+                            }
+                        }
+                    }, 100);
                 } else {
                     statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
                 }
@@ -271,14 +281,26 @@
                     diceInputElement.select();
                 }
             }
+        } else if ((event.key === 'j' || event.key === 'k') && document.activeElement === moveInputElement) {
+            // j/k navigation for gnubg candidate moves
+            event.preventDefault();
+            const candidatePanel = document.querySelector('.candidate-moves-panel');
+            if (candidatePanel) {
+                // Dispatch custom event to the panel
+                candidatePanel.dispatchEvent(new CustomEvent('candidateNavigate', {
+                    detail: { direction: event.key === 'j' ? 'next' : 'prev' }
+                }));
+            }
         }
     }
 
     function handleDiceInput(event) {
+        console.log('[EditPanel] handleDiceInput called, value:', event.target.value);
         let value = event.target.value.toLowerCase();
         
         // Check for cube decisions and resign decisions first
         if (value === 'd' || value === 't' || value === 'p' || value === 'r' || value === 'g' || value === 'b') {
+            console.log('[EditPanel] Special action detected:', value);
             diceInput = value;
             // Disable move input for cube and resign decisions
             moveInput = '';
@@ -287,6 +309,7 @@
         
         // Only allow digits
         value = value.replace(/[^1-6]/g, '');
+        console.log('[EditPanel] Filtered dice value:', value, 'length:', value.length);
         
         // Limit to 2 characters
         if (value.length > 2) {
@@ -295,12 +318,48 @@
         
         diceInput = value;
         
-        // Auto-advance to move input when 2 valid digits are entered
+        // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
+            console.log('[EditPanel] 2 valid dice digits entered, calling updateDiceOnly');
+            updateDiceOnly(value);
+            
+            // Auto-advance to move input
             setTimeout(() => {
                 moveInputElement?.focus();
             }, 50);
         }
+    }
+
+    // Update dice immediately in transcription (without move) to trigger candidate moves analysis
+    function updateDiceOnly(newDice) {
+        console.log('[EditPanel] updateDiceOnly called with:', newDice);
+        const transcription = get(transcriptionStore);
+        const selectedMove = get(selectedMoveStore);
+        
+        if (!transcription || !selectedMove) {
+            console.log('[EditPanel] No transcription or selectedMove');
+            return;
+        }
+
+        const { gameIndex, moveIndex, player } = selectedMove;
+        const game = transcription.games[gameIndex];
+        
+        if (!game || !game.moves[moveIndex]) {
+            console.log('[EditPanel] No game or move at indices');
+            return;
+        }
+
+        const move = game.moves[moveIndex];
+        const playerMove = player === 1 ? move.player1Move : move.player2Move;
+        
+        // Keep existing move and flags, just update dice
+        const existingMove = playerMove?.move || '';
+        const isIllegal = playerMove?.isIllegal || false;
+        const isGala = playerMove?.isGala || false;
+        
+        console.log('[EditPanel] Calling updateMove with dice:', newDice, 'move:', existingMove);
+        updateMove(gameIndex, move.moveNumber, player, newDice, existingMove, isIllegal, isGala);
+        console.log('[EditPanel] updateMove completed');
     }
 
     function validateDiceInput(dice) {

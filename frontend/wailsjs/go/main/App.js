@@ -10,6 +10,10 @@ export function ExportMatchTextDialog() {
   return window['go']['main']['App']['ExportMatchTextDialog']();
 }
 
+export function GetCandidateMoves(arg1) {
+  return window['go']['main']['App']['GetCandidateMoves'](arg1);
+}
+
 export function OpenPositionDialog() {
   return window['go']['main']['App']['OpenPositionDialog']();
 }

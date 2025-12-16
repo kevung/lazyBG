@@ -31,6 +31,12 @@ type EvalInfo struct {
 }
 
 func Init(dataDir fs.FS) error {
+	// Try to open the data subdirectory if it exists
+	subDir, err := fs.Sub(dataDir, "data")
+	if err == nil {
+		dataDir = subDir
+	}
+
 	initMatchEquity(dataDir, "met/Kazaross-XG2.xml")
 
 	if err := evalInitialise(dataDir); err != nil {

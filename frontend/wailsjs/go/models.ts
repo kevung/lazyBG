@@ -1,5 +1,63 @@
 export namespace main {
 	
+	export class Point {
+	    checkers: number;
+	    color: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Point(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.checkers = source["checkers"];
+	        this.color = source["color"];
+	    }
+	}
+	export class Board {
+	    points: Point[];
+	    bearoff: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Board(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.points = this.convertValues(source["points"], Point);
+	        this.bearoff = source["bearoff"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CandidateMove {
+	    move: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CandidateMove(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.move = source["move"];
+	    }
+	}
 	export class Config {
 	    window_width: number;
 	    window_height: number;
@@ -12,6 +70,20 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.window_width = source["window_width"];
 	        this.window_height = source["window_height"];
+	    }
+	}
+	export class Cube {
+	    owner: number;
+	    value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Cube(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.owner = source["owner"];
+	        this.value = source["value"];
 	    }
 	}
 	export class FileDialogResponse {
@@ -29,6 +101,55 @@ export namespace main {
 	        this.content = source["content"];
 	        this.error = source["error"];
 	    }
+	}
+	
+	export class Position {
+	    id: number;
+	    board: Board;
+	    cube: Cube;
+	    dice: number[];
+	    score: number[];
+	    player_on_roll: number;
+	    decision_type: number;
+	    has_jacoby: number;
+	    has_beaver: number;
+	    is_crawford: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Position(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.board = this.convertValues(source["board"], Board);
+	        this.cube = this.convertValues(source["cube"], Cube);
+	        this.dice = source["dice"];
+	        this.score = source["score"];
+	        this.player_on_roll = source["player_on_roll"];
+	        this.decision_type = source["decision_type"];
+	        this.has_jacoby = source["has_jacoby"];
+	        this.has_beaver = source["has_beaver"];
+	        this.is_crawford = source["is_crawford"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

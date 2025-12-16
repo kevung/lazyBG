@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
+	"lazybg/gnubg"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -16,10 +17,20 @@ var icon []byte
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed all:data
+var gnubgData embed.FS
+
 func main() {
 
 	app := NewApp()
 	cfg := NewConfig()
+
+	// Initialize gnubg engine with embedded data
+	if err := gnubg.Init(gnubgData); err != nil {
+		fmt.Println("Error initializing gnubg:", err)
+		return
+	}
+	defer gnubg.Destroy()
 
 	// Load the configuration file
 	config, err := cfg.LoadConfig()
