@@ -3,7 +3,7 @@
     import { onMount, onDestroy } from "svelte";
     import Two from "two.js";
     import { get } from 'svelte/store';
-    import { statusBarModeStore, isAnyModalOpenStore, showMetadataModalStore, showCandidateMovesStore, showMovesTableStore, showInitialPositionStore } from '../stores/uiStore';
+    import { statusBarModeStore, isAnyModalOpenStore, showMetadataModalStore, showCandidateMovesStore, showMovesTableStore, showInitialPositionStore, candidatePreviewMoveStore } from '../stores/uiStore';
     import { selectedMoveStore, transcriptionStore } from '../stores/transcriptionStore';
 
     let mode;
@@ -73,25 +73,62 @@
         showInitialPosition = value;
     });
     
-    // Subscribe to selected move to get the move text for drawing arrows
-    selectedMoveStore.subscribe(selectedMove => {
-        const transcription = get(transcriptionStore);
-        if (transcription && transcription.games && transcription.games.length > 0) {
-            const { gameIndex, moveIndex, player } = selectedMove;
-            const game = transcription.games[gameIndex];
-            if (game && game.moves[moveIndex]) {
-                const move = game.moves[moveIndex];
-                const playerMove = player === 1 ? move.player1Move : move.player2Move;
-                currentMoveText = playerMove?.move || '';
+    // Subscribe to candidate preview move (takes priority over transcription move)
+    candidatePreviewMoveStore.subscribe(previewMove => {
+        console.log('[Board] candidatePreviewMoveStore changed:', previewMove);
+        if (previewMove) {
+            // Use the preview move when cycling through candidates
+            console.log('[Board] Setting currentMoveText to preview:', previewMove);
+            currentMoveText = previewMove;
+        } else {
+            // Otherwise, get move from transcription
+            console.log('[Board] No preview, getting move from transcription');
+            const selectedMove = get(selectedMoveStore);
+            const transcription = get(transcriptionStore);
+            if (transcription && transcription.games && transcription.games.length > 0) {
+                const { gameIndex, moveIndex, player } = selectedMove;
+                const game = transcription.games[gameIndex];
+                if (game && game.moves[moveIndex]) {
+                    const move = game.moves[moveIndex];
+                    const playerMove = player === 1 ? move.player1Move : move.player2Move;
+                    currentMoveText = playerMove?.move || '';
+                } else {
+                    currentMoveText = '';
+                }
             } else {
                 currentMoveText = '';
             }
-        } else {
-            currentMoveText = '';
+        }
+    });
+    
+    // Subscribe to selected move to update when no preview is active
+    selectedMoveStore.subscribe(selectedMove => {
+        const previewMove = get(candidatePreviewMoveStore);
+        if (!previewMove) {
+            const transcription = get(transcriptionStore);
+            if (transcription && transcription.games && transcription.games.length > 0) {
+                const { gameIndex, moveIndex, player } = selectedMove;
+                const game = transcription.games[gameIndex];
+                if (game && game.moves[moveIndex]) {
+                    const move = game.moves[moveIndex];
+                    const playerMove = player === 1 ? move.player1Move : move.player2Move;
+                    currentMoveText = playerMove?.move || '';
+                } else {
+                    currentMoveText = '';
+                }
+            } else {
+                currentMoveText = '';
+            }
         }
     });
 
     let previousDice = get(positionStore).dice; // Save previous dice values
+
+    // Reactive statement: redraw board when currentMoveText changes (for candidate preview arrows)
+    $: if (two && currentMoveText !== undefined) {
+        console.log('[Board] currentMoveText changed, redrawing board:', currentMoveText);
+        drawBoard();
+    }
 
     function handleMouseDown(event) {
         event.preventDefault(); // Prevent text or element selection

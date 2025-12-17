@@ -248,17 +248,34 @@
                     validateEditing();
                 } else if (validateDiceInput(diceInput)) {
                     // Valid dice, move to move input and select best gnubg move
-                    moveInputElement?.focus();
-                    // Auto-select best gnubg move after dice entry
+                    // Auto-select best gnubg move after dice entry (wait for analysis)
                     setTimeout(() => {
                         const candidatePanel = document.querySelector('.candidate-moves-panel');
+                        console.log('[EditPanel-Enter] Candidate panel:', !!candidatePanel);
                         if (candidatePanel && candidatePanel.__svelte_component) {
                             const bestMove = candidatePanel.__svelte_component.getBestMove?.();
+                            console.log('[EditPanel-Enter] Best move:', bestMove);
                             if (bestMove) {
                                 moveInput = bestMove;
+                                // Focus and select after the reactive update completes
+                                // Use double requestAnimationFrame to ensure all updates are done
+                                requestAnimationFrame(() => {
+                                    requestAnimationFrame(() => {
+                                        console.log('[EditPanel-Enter] About to focus and select');
+                                        if (moveInputElement) {
+                                            moveInputElement.focus();
+                                            moveInputElement.setSelectionRange(0, moveInputElement.value.length);
+                                            console.log('[EditPanel-Enter] Selection set:', moveInputElement.selectionStart, '-', moveInputElement.selectionEnd);
+                                        }
+                                    });
+                                });
                             }
+                        } else {
+                            console.log('[EditPanel-Enter] No candidate panel, just focusing');
+                            // No candidate moves yet, just focus
+                            moveInputElement?.focus();
                         }
-                    }, 100);
+                    }, 150);
                 } else {
                     statusBarTextStore.set('Invalid dice: enter d/t/p or 2 digits between 1 and 6');
                 }
@@ -320,12 +337,56 @@
         
         // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
+            console.log('═══════════════════════════════════════════════════');
+            console.log('[EditPanel] ⚡ 2 VALID DICE ENTERED:', value);
+            console.log('═══════════════════════════════════════════════════');
             console.log('[EditPanel] 2 valid dice digits entered, calling updateDiceOnly');
             updateDiceOnly(value);
             
-            // Auto-advance to move input
+            // Auto-advance to move input and select best gnubg move
             setTimeout(() => {
-                moveInputElement?.focus();
+                console.log('[EditPanel] First timeout - moveInputElement:', !!moveInputElement);
+                if (moveInputElement) {
+                    // Auto-fill with best candidate move (wait for analysis)
+                    setTimeout(() => {
+                        console.log('[EditPanel] Second timeout - getting candidate panel');
+                        const candidatePanel = document.querySelector('.candidate-moves-panel');
+                        console.log('[EditPanel] Candidate panel:', !!candidatePanel);
+                        if (candidatePanel && candidatePanel.__svelte_component) {
+                            const bestMove = candidatePanel.__svelte_component.getBestMove?.();
+                            console.log('[EditPanel] Best move:', bestMove);
+                            if (bestMove) {
+                                console.log('[EditPanel] Setting moveInput to:', bestMove);
+                                moveInput = bestMove;
+                                console.log('[EditPanel] \u2705 moveInput SET, scheduling requestAnimationFrame...');
+                                // Focus and select after the reactive update completes
+                                // Use double requestAnimationFrame to ensure all updates are done
+                                requestAnimationFrame(() => {
+                                    console.log('[EditPanel] \u23f1\ufe0f First requestAnimationFrame');
+                                    requestAnimationFrame(() => {
+                                        console.log('[EditPanel] \u23f1\ufe0f\u23f1\ufe0f Second requestAnimationFrame - NOW SELECTING');
+                                        console.log('[EditPanel] moveInputElement exists:', !!moveInputElement);
+                                        console.log('[EditPanel] moveInputElement.value:', moveInputElement?.value);
+                                        if (moveInputElement) {
+                                            console.log('[EditPanel] \u{1f3af} About to FOCUS');
+                                            moveInputElement.focus();
+                                            console.log('[EditPanel] \u2705 FOCUSED! Active element:', document.activeElement?.id);
+                                            console.log('[EditPanel] \u{1f3af} About to SELECT - value length:', moveInputElement.value.length);
+                                            moveInputElement.setSelectionRange(0, moveInputElement.value.length);
+                                            console.log('[EditPanel] \u2705 SELECTION SET!');
+                                            console.log('[EditPanel] Selection range:', moveInputElement.selectionStart, '-', moveInputElement.selectionEnd);
+                                            console.log('[EditPanel] Active element after select:', document.activeElement?.id);
+                                        }
+                                    });
+                                });
+                            }
+                        } else {
+                            console.log('[EditPanel] No candidate panel or component, just focusing');
+                            // No candidate moves yet, just focus
+                            moveInputElement.focus();
+                        }
+                    }, 150);
+                }
             }, 50);
         }
     }

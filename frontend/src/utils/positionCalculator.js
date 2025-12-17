@@ -240,12 +240,12 @@ function applyMoveSegment(position, moveSegment, isPlayer = true) {
 
       // Check if we hit an opponent checker at destination
       if (isPlayer && newPos.points[to] === -1) {
-        console.log(`Player 1 hits opponent at point ${to}, opponentBar: ${newPos.opponentBar} -> ${newPos.opponentBar - 1}`);
+        // console.log(`Player 1 hits opponent at point ${to}, opponentBar: ${newPos.opponentBar} -> ${newPos.opponentBar - 1}`);
         newPos.points[to] = 1;
         newPos.opponentBar--;  // Opponent bar becomes more negative (0 -> -1)
         hit = true;
       } else if (!isPlayer && newPos.points[to] === 1) {
-        console.log(`Player 2 hits opponent at point ${to}, bar: ${newPos.bar} -> ${newPos.bar + 1}`);
+        // console.log(`Player 2 hits opponent at point ${to}, bar: ${newPos.bar} -> ${newPos.bar + 1}`);
         newPos.points[to] = -1;
         newPos.bar++;  // Player bar increases (0 -> 1)
         hit = true;

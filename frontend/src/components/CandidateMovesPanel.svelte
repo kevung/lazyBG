@@ -3,6 +3,7 @@
     import { get } from 'svelte/store';
     import { positionStore } from '../stores/positionStore.js';
     import { selectedMoveStore, transcriptionStore } from '../stores/transcriptionStore.js';
+    import { candidatePreviewMoveStore } from '../stores/uiStore.js';
     import { GetCandidateMoves } from '../../wailsjs/go/main/App.js';
     import { updateMove, invalidatePositionsCacheFrom } from '../stores/transcriptionStore.js';
     import { undoRedoStore } from '../stores/undoRedoStore.js';
@@ -24,6 +25,7 @@
     let error = null;
     let selectedIndex = 0;
     let currentPlayerMove = '';
+    let basePosition = null; // Store the position before any move is applied (for cycling through candidates)
     
     // Cache for candidate moves analysis results
     // Key format: "gameIndex:moveIndex:player"
@@ -66,15 +68,35 @@
     $: selectedMove = $selectedMoveStore;
     
     function navigateNext() {
-        if (candidateMoves.length > 0) {
-            selectedIndex = (selectedIndex + 1) % candidateMoves.length;
+        console.log('[CandidateMovesPanel.navigateNext] candidateMoves:', candidateMoves.length, 'selectedIndex:', selectedIndex);
+        if (candidateMoves.length === 0) return;
+        
+        // If no selection (selectedIndex = -1), start from first candidate
+        if (selectedIndex === -1) {
+            selectedIndex = 0;
+            console.log('[CandidateMovesPanel.navigateNext] ➡️ Starting from first candidate:', selectedIndex);
+            applyMoveToInput();
+        } else if (selectedIndex < candidateMoves.length - 1) {
+            const oldIndex = selectedIndex;
+            selectedIndex = selectedIndex + 1;
+            console.log('[CandidateMovesPanel.navigateNext] ➡️ Moving from', oldIndex, 'to', selectedIndex);
             applyMoveToInput();
         }
     }
     
     function navigatePrevious() {
-        if (candidateMoves.length > 0) {
-            selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : candidateMoves.length - 1;
+        console.log('[CandidateMovesPanel.navigatePrevious] candidateMoves:', candidateMoves.length, 'selectedIndex:', selectedIndex);
+        if (candidateMoves.length === 0) return;
+        
+        // If no selection (selectedIndex = -1), start from first candidate
+        if (selectedIndex === -1) {
+            selectedIndex = 0;
+            console.log('[CandidateMovesPanel.navigatePrevious] ⬅️ Starting from first candidate:', selectedIndex);
+            applyMoveToInput();
+        } else if (selectedIndex > 0) {
+            const oldIndex = selectedIndex;
+            selectedIndex = selectedIndex - 1;
+            console.log('[CandidateMovesPanel.navigatePrevious] ⬅️ Moving from', oldIndex, 'to', selectedIndex);
             applyMoveToInput();
         }
     }
@@ -261,21 +283,26 @@
             }
         });
         
-        // Listen for j/k navigation from EditPanel
+        // Listen for j/k navigation from App.svelte (dispatched when move input is focused)
         const handleCandidateNavigate = (event) => {
+            console.log('[CandidateMovesPanel] candidateNavigate event received:', event.detail);
             const direction = event.detail.direction;
             if (direction === 'next') {
+                console.log('[CandidateMovesPanel] Calling navigateNext from window event');
                 navigateNext();
             } else if (direction === 'prev') {
+                console.log('[CandidateMovesPanel] Calling navigatePrevious from window event');
                 navigatePrevious();
             }
         };
         
-        // Add event listener to panel element
-        const panelEl = document.querySelector('.candidate-moves-panel');
-        if (panelEl) {
-            panelEl.addEventListener('candidateNavigate', handleCandidateNavigate);
-        }
+        // Add event listener to window
+        window.addEventListener('candidateNavigate', handleCandidateNavigate);
+        
+        // Cleanup on destroy
+        return () => {
+            window.removeEventListener('candidateNavigate', handleCandidateNavigate);
+        };
     });
     
     onDestroy(() => {
@@ -314,20 +341,32 @@
         return `${selMove.gameIndex}:${selMove.moveIndex}:${selMove.player}`;
     }
     
-    function findMatchingMoveIndex() {
-        if (!currentPlayerMove || candidateMoves.length === 0) return 0;
+    function findMatchingMoveIndex(moveText) {
+        if (candidateMoves.length === 0) return -1;
+        
+        // If move is empty or not provided, select first candidate
+        if (!moveText || moveText.trim() === '') return 0;
+        
+        // Try to find matching move in candidates
         const matchIndex = candidateMoves.findIndex(m => 
-            normalizeMove(m.move) === normalizeMove(currentPlayerMove)
+            normalizeMove(m.move) === normalizeMove(moveText)
         );
-        return matchIndex >= 0 ? matchIndex : 0;
+        
+        // Return -1 if no match (don't auto-select when move doesn't match)
+        return matchIndex;
     }
     
     async function analyzeMoves(pos, selMove) {
         if (!pos || !pos.dice || (pos.dice[0] === 0 && pos.dice[1] === 0)) {
             candidateMoves = [];
             selectedIndex = 0;
+            basePosition = null;
             return;
         }
+        
+        // Store the base position (NOT cloned - just keep reference for board updates)
+        // We'll use it later to apply candidate moves for board visualization
+        basePosition = pos;
         
         loading = true;
         error = null;
@@ -357,7 +396,24 @@
                 }
                 
                 console.log('[CandidateMovesPanel] First move:', moves[0].move);
-                selectedIndex = findMatchingMoveIndex();
+                
+                // Check current move input value
+                const moveInputEl = document.getElementById('move-input') || document.querySelector('.inline-move-input');
+                const currentInputValue = moveInputEl?.value?.trim() || '';
+                
+                selectedIndex = findMatchingMoveIndex(currentInputValue);
+                
+                // Only auto-fill if input is truly empty
+                if (currentInputValue === '' && selectedIndex === 0) {
+                    console.log('[CandidateMovesPanel] Empty input detected, auto-filling with first candidate');
+                    applyMoveToInput();
+                } else if (selectedIndex >= 0) {
+                    // Found matching candidate - keep the input as-is, just highlight in panel
+                    console.log('[CandidateMovesPanel] Found matching candidate at index:', selectedIndex);
+                } else {
+                    // No matching candidate found (selectedIndex = -1), don't change the input
+                    console.log('[CandidateMovesPanel] No matching candidate for:', currentInputValue);
+                }
             } else {
                 candidateMoves = [];
                 selectedIndex = 0;
@@ -535,11 +591,38 @@
     
     function applyMoveToInput() {
         // If in edit mode with move input, update the input field
-        const moveInputElement = document.getElementById('move-input');
+        // Try EditPanel's move input first, then MovesTable's inline input
+        let moveInputElement = document.getElementById('move-input');
+        if (!moveInputElement) {
+            moveInputElement = document.querySelector('.inline-move-input');
+        }
+        
+        console.log('[CandidateMovesPanel] applyMoveToInput - element:', !!moveInputElement, 'selectedIndex:', selectedIndex);
         if (moveInputElement && selectedIndex >= 0 && selectedIndex < candidateMoves.length) {
-            moveInputElement.value = candidateMoves[selectedIndex].move;
+            const move = candidateMoves[selectedIndex].move;
+            console.log('[CandidateMovesPanel] Setting value to:', move);
+            moveInputElement.value = move;
             // Dispatch input event to update the bound value
             moveInputElement.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Update the board to show this candidate move by setting the preview
+            console.log('[CandidateMovesPanel] Setting candidate preview move:', move);
+            console.log('[CandidateMovesPanel] candidatePreviewMoveStore.set called with:', move);
+            candidatePreviewMoveStore.set(move);
+            console.log('[CandidateMovesPanel] Preview set complete');
+            
+            // Select the text so user can continue pressing j/k or type to replace
+            // Use double requestAnimationFrame to ensure selection happens after all DOM updates
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    console.log('[CandidateMovesPanel] requestAnimationFrame (2nd) - about to select');
+                    if (moveInputElement) {
+                        console.log('[CandidateMovesPanel] Value before select:', moveInputElement.value);
+                        moveInputElement.setSelectionRange(0, moveInputElement.value.length);
+                        console.log('[CandidateMovesPanel] Selection set:', moveInputElement.selectionStart, '-', moveInputElement.selectionEnd);
+                    }
+                });
+            });
         }
     }
     
@@ -581,25 +664,9 @@
     }
     
     function handleKeyDown(event) {
-        // Don't handle keys if not visible or no moves
-        if (!visible || candidateMoves.length === 0) return;
-        
-        // Only handle keys in normal mode (not in any input field)
-        const isInEditMode = document.activeElement && 
-            (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-        
-        if (isInEditMode) return;
-        
-        if (event.key === 'j' || event.key === 'ArrowDown') {
-            event.preventDefault();
-            navigateNext();
-        } else if (event.key === 'k' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            navigatePrevious();
-        } else if (event.key === 'Enter' && selectedIndex >= 0) {
-            event.preventDefault();
-            selectMove(selectedIndex);
-        }
+        // This component now handles navigation exclusively through the candidateNavigate window event
+        // dispatched by App.svelte. Direct keyboard handling is removed to prevent double-triggering.
+        // Only keeping this function for potential future non-navigation shortcuts.
     }
 </script>
 

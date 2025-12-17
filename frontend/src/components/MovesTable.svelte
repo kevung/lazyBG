@@ -16,7 +16,7 @@
         deleteDecision,
         deleteDecisions
     } from '../stores/transcriptionStore.js';
-    import { statusBarModeStore, statusBarTextStore } from '../stores/uiStore.js';
+    import { statusBarModeStore, statusBarTextStore, candidatePreviewMoveStore } from '../stores/uiStore.js';
     import { undoRedoStore } from '../stores/undoRedoStore.js';
     import { clipboardStore } from '../stores/clipboardStore.js';
     import { positionsCacheStore } from '../stores/transcriptionStore.js';
@@ -1066,6 +1066,9 @@
         inlineEditDice = '';
         inlineEditMove = '';
         statusBarModeStore.set('NORMAL');
+        
+        // Clear candidate preview when exiting edit mode
+        candidatePreviewMoveStore.set(null);
     }
     
     async function validateInlineEdit() {
@@ -1098,6 +1101,9 @@
         selectedMoveStore.set({ gameIndex, moveIndex, player });
         
         statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber}. Tab=exit edit mode`);
+        
+        // Clear candidate preview
+        candidatePreviewMoveStore.set(null);
         
         // Clear current editing state before moving to next decision
         editingMove = null;
@@ -1188,12 +1194,48 @@
         
         // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
-            console.log('[MovesTable] 2 valid dice digits entered, calling updateDiceOnly');
+            console.log('[MovesTable] ═══════════════════════════════════════════════════════');
+            console.log('[MovesTable] ⚡ 2 VALID DICE ENTERED:', value);
+            console.log('[MovesTable] ═══════════════════════════════════════════════════════');
             updateDiceOnly(value);
             
             // Auto-advance to move input
             setTimeout(() => {
-                moveInputElement?.focus();
+                console.log('[MovesTable] First timeout - moveInputElement:', !!moveInputElement);
+                if (moveInputElement) {
+                    // Only auto-fill if move is currently empty
+                    if (!inlineEditMove || inlineEditMove.trim() === '') {
+                        // Auto-fill with best candidate move (wait for analysis)
+                        setTimeout(() => {
+                            console.log('[MovesTable] Second timeout - getting best move from candidate panel');
+                            // Get the best move by looking for the first move item in the candidate panel
+                            const firstMoveItem = document.querySelector('.candidate-moves-panel .move-item');
+                            console.log('[MovesTable] First move item element:', !!firstMoveItem);
+                            
+                            if (firstMoveItem) {
+                                // Extract the move text from the first candidate
+                                const moveText = firstMoveItem.querySelector('.move-notation')?.textContent?.trim();
+                                console.log('[MovesTable] Best move from DOM:', moveText);
+                                
+                                if (moveText) {
+                                    console.log('[MovesTable] Setting inlineEditMove to:', moveText);
+                                    inlineEditMove = moveText;
+                                }
+                            }
+                        }, 100);
+                    } else {
+                        console.log('[MovesTable] Move already exists, not auto-filling:', inlineEditMove);
+                    }
+                    
+                    // Always focus and select the move input
+                    setTimeout(() => {
+                        if (moveInputElement) {
+                            console.log('[MovesTable] Focusing and selecting move input');
+                            moveInputElement.focus();
+                            moveInputElement.setSelectionRange(0, moveInputElement.value.length);
+                        }
+                    }, 150);
+                }
             }, 50);
         }
     }
