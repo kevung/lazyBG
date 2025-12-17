@@ -953,8 +953,8 @@
                     // Validate immediately for cube and resign decisions
                     validateInlineEdit();
                 } else if (validateDiceInput(inlineEditDice)) {
-                    // Valid dice, move to move input
-                    moveInputElement?.focus();
+                    // Valid dice - validate immediately (skip move input)
+                    validateInlineEdit();
                 } else {
                     statusBarTextStore.set('Invalid dice: enter d/t/p/r/g/b or 2 digits between 1 and 6');
                 }
