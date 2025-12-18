@@ -1189,6 +1189,28 @@
         // The reactive statement will automatically start editing the new selection
     }
     
+    function handleDiceKeyDownInline(event) {
+        // Allow special keys: Backspace, Delete, Tab, Escape, Enter, Arrow keys, Home, End
+        const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+        if (allowedKeys.includes(event.key)) {
+            return; // Allow these keys
+        }
+        
+        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X for copy/paste/select all
+        if (event.ctrlKey || event.metaKey) {
+            return;
+        }
+        
+        // Check for valid input: d, t, p, r, g, b (case insensitive) or digits 1-6
+        const key = event.key.toLowerCase();
+        const validChars = ['d', 't', 'p', 'r', 'g', 'b', '1', '2', '3', '4', '5', '6'];
+        
+        if (!validChars.includes(key)) {
+            event.preventDefault(); // Block invalid keys
+            statusBarTextStore.set('Invalid input: use d/t/p/r/g/b or digits 1-6 only');
+        }
+    }
+
     function handleDiceInput(event) {
         console.log('[MovesTable] handleDiceInput called, value:', event.target.value);
         let value = event.target.value.toLowerCase();
@@ -1202,7 +1224,7 @@
             return;
         }
         
-        // Only allow digits
+        // Only allow digits 1-6 (additional safety check)
         value = value.replace(/[^1-6]/g, '');
         console.log('[MovesTable] Filtered dice value:', value, 'length:', value.length);
         
@@ -1574,6 +1596,7 @@
                         type="text"
                         bind:this={diceInputElement}
                         bind:value={inlineEditDice}
+                        on:keydown={handleDiceKeyDownInline}
                         on:input={handleDiceInput}
                         on:keydown={handleInlineEditKeyDown}
                         maxlength="2"

@@ -190,11 +190,33 @@
         }
     }
 
+    function handleDiceKeyDownMovePanel(event) {
+        // Allow special keys: Backspace, Delete, Tab, Escape, Enter, Arrow keys, Home, End
+        const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+        if (allowedKeys.includes(event.key)) {
+            return; // Allow these keys
+        }
+        
+        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X for copy/paste/select all
+        if (event.ctrlKey || event.metaKey) {
+            return;
+        }
+        
+        // Check for valid input: only digits 1-6
+        const key = event.key;
+        const validChars = ['1', '2', '3', '4', '5', '6'];
+        
+        if (!validChars.includes(key)) {
+            event.preventDefault(); // Block invalid keys
+            statusBarTextStore.set('Invalid input: use digits 1-6 only');
+        }
+    }
+
     function handleDiceInput(event) {
         let value = event.target.value;
         console.log('[EditMovePanel] 🎲 handleDiceInput called, value:', value);
         
-        // Only allow digits
+        // Only allow digits 1-6 (additional safety check)
         value = value.replace(/[^1-6]/g, '');
         
         // Limit to 2 characters
@@ -296,6 +318,7 @@
                     type="text"
                     bind:this={diceInputElement}
                     bind:value={diceInput}
+                    on:keydown={handleDiceKeyDownMovePanel}
                     on:input={handleDiceInput}
                     on:keydown={handleKeyDown}
                     maxlength="2"
