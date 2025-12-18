@@ -987,53 +987,61 @@
             extendSelectionDown();
         } else if (!event.ctrlKey && event.key === 'k') {
             // k for up navigation (delete mode handled earlier)
-            console.log('[App.handleKeyDown] k pressed, calling previousPosition');
-            // Prevent default if in edit mode with move input focused (to avoid typing 'k')
+            console.log('[App.handleKeyDown] k pressed');
+            // Check if in edit mode with move input focused (for candidate cycling)
             if ($statusBarModeStore === 'EDIT') {
                 const moveInput = document.getElementById('move-input');
                 const inlineMoveInput = document.querySelector('.inline-move-input');
                 const activeElement = document.activeElement;
                 if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
                     event.preventDefault();
+                    cycleToPreviousCandidate();
+                    return;
                 }
             }
             previousPosition();
         } else if (!event.ctrlKey && event.key === 'j') {
             // j for down navigation (delete mode handled earlier)
-            console.log('[App.handleKeyDown] j pressed, calling nextPosition');
-            // Prevent default if in edit mode with move input focused (to avoid typing 'j')
+            console.log('[App.handleKeyDown] j pressed');
+            // Check if in edit mode with move input focused (for candidate cycling)
             if ($statusBarModeStore === 'EDIT') {
                 const moveInput = document.getElementById('move-input');
                 const inlineMoveInput = document.querySelector('.inline-move-input');
                 const activeElement = document.activeElement;
                 if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
                     event.preventDefault();
+                    cycleToNextCandidate();
+                    return;
                 }
             }
             nextPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowDown') {
             // ArrowDown for down navigation - navigate to next decision (same behavior as 'j')
-            console.log('[App.handleKeyDown] ArrowDown pressed, calling nextPosition');
-            // Prevent default if in edit mode with move input focused (to avoid typing)
+            console.log('[App.handleKeyDown] ArrowDown pressed');
+            // Check if in edit mode with move input focused (for candidate cycling)
             if ($statusBarModeStore === 'EDIT') {
                 const moveInput = document.getElementById('move-input');
                 const inlineMoveInput = document.querySelector('.inline-move-input');
                 const activeElement = document.activeElement;
                 if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
                     event.preventDefault();
+                    cycleToNextCandidate();
+                    return;
                 }
             }
             nextPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowUp') {
             // ArrowUp for up navigation - navigate to previous decision (same behavior as 'k')
-            console.log('[App.handleKeyDown] ArrowUp pressed, calling previousPosition');
-            // Prevent default if in edit mode with move input focused (to avoid typing)
+            console.log('[App.handleKeyDown] ArrowUp pressed');
+            // Check if in edit mode with move input focused (for candidate cycling)
             if ($statusBarModeStore === 'EDIT') {
                 const moveInput = document.getElementById('move-input');
                 const inlineMoveInput = document.querySelector('.inline-move-input');
                 const activeElement = document.activeElement;
                 if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
                     event.preventDefault();
+                    cycleToPreviousCandidate();
+                    return;
                 }
             }
             previousPosition();
@@ -1370,29 +1378,27 @@
         }
     }
 
+    // Cycle to previous candidate move in Edit mode
+    function cycleToPreviousCandidate() {
+        console.log('[App.cycleToPreviousCandidate] Dispatching candidateNavigate(prev)');
+        const navEvent = new CustomEvent('candidateNavigate', { detail: { direction: 'prev' } });
+        window.dispatchEvent(navEvent);
+    }
+
+    // Cycle to next candidate move in Edit mode
+    function cycleToNextCandidate() {
+        console.log('[App.cycleToNextCandidate] Dispatching candidateNavigate(next)');
+        const navEvent = new CustomEvent('candidateNavigate', { detail: { direction: 'next' } });
+        window.dispatchEvent(navEvent);
+    }
+
+    // Browse to previous decision/position in the transcription
     function previousPosition() {
-        console.log('[App.previousPosition] Called, mode:', $statusBarModeStore);
-        // Allow j/k in edit mode if in move input (for gnubg candidate navigation)
-        const moveInputK = document.getElementById('move-input');
-        const inlineMoveInput = document.querySelector('.inline-move-input');
-        const activeElement = document.activeElement;
-        console.log('[App.previousPosition] moveInputK:', !!moveInputK, 'inlineMoveInput:', !!inlineMoveInput, 'activeElement:', activeElement?.tagName, activeElement?.className);
+        console.log('[App.previousPosition] Called');
         
         if ($statusBarModeStore === 'EDIT') {
-            // Check if focus is in either EditPanel input OR MovesTable inline input
-            if ((moveInputK && activeElement === moveInputK) || (inlineMoveInput && activeElement === inlineMoveInput)) {
-                // Focus is in move input - dispatch event for candidate move navigation
-                console.log('[App.previousPosition] ✅ Move input focused, dispatching candidateNavigate(prev)');
-                // Dispatch custom event for CandidateMovesPanel to handle
-                const navEvent = new CustomEvent('candidateNavigate', { detail: { direction: 'prev' } });
-                window.dispatchEvent(navEvent);
-                return;
-            } else {
-                // Focus is not in move input - show error
-                console.log('[App.previousPosition] ❌ Move input NOT focused, blocking navigation');
-                setStatusBarMessage('Cannot browse positions in edit mode');
-                return;
-            }
+            setStatusBarMessage('Cannot browse positions in edit mode');
+            return;
         }
         
         // Clear multi-selection when navigating
@@ -1414,29 +1420,13 @@
         }
     }
 
+    // Browse to next decision/position in the transcription
     function nextPosition() {
-        console.log('[App.nextPosition] Called, mode:', $statusBarModeStore);
-        // Allow j/k in edit mode if in move input (for gnubg candidate navigation)
-        const moveInput = document.getElementById('move-input');
-        const inlineMoveInput = document.querySelector('.inline-move-input');
-        const activeElement = document.activeElement;
-        console.log('[App.nextPosition] moveInput:', !!moveInput, 'inlineMoveInput:', !!inlineMoveInput, 'activeElement:', activeElement?.tagName, activeElement?.className);
+        console.log('[App.nextPosition] Called');
         
         if ($statusBarModeStore === 'EDIT') {
-            // Check if focus is in either EditPanel input OR MovesTable inline input
-            if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
-                // Focus is in move input - dispatch event for candidate move navigation
-                console.log('[App.nextPosition] ✅ Move input focused, dispatching candidateNavigate(next)');
-                // Dispatch custom event for CandidateMovesPanel to handle
-                const navEvent = new CustomEvent('candidateNavigate', { detail: { direction: 'next' } });
-                window.dispatchEvent(navEvent);
-                return;
-            } else {
-                // Focus is not in move input - show error
-                console.log('[App.nextPosition] ❌ Move input NOT focused, blocking navigation');
-                setStatusBarMessage('Cannot browse positions in edit mode');
-                return;
-            }
+            setStatusBarMessage('Cannot browse positions in edit mode');
+            return;
         }
         
         // Clear multi-selection when navigating
