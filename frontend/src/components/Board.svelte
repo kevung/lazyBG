@@ -5,6 +5,7 @@
     import { get } from 'svelte/store';
     import { statusBarModeStore, isAnyModalOpenStore, showMetadataModalStore, showCandidateMovesStore, showMovesTableStore, showInitialPositionStore, candidatePreviewMoveStore } from '../stores/uiStore';
     import { selectedMoveStore, transcriptionStore } from '../stores/transcriptionStore';
+    import { applyMove } from '../utils/positionCalculator.js';
 
     let mode;
     let showMetadataModal = false;
@@ -12,6 +13,7 @@
     let showMovesTable = false;
     let showInitialPosition = false;
     let currentMoveText = '';
+    let cachedInitialPosition = null; // Cache initial position for edit mode final position display
     let two;
     let canvas;
     let width;
@@ -635,8 +637,15 @@
         resizeObserver.observe(canvas.parentElement);
 
         unsubscribe = positionStore.subscribe(() => {
-            drawBoard();
             const position = get(positionStore);
+            
+            // Cache initial position when showInitialPosition is true
+            // This lets us use it later for final position display in edit mode
+            if (showInitialPosition) {
+                cachedInitialPosition = position;
+            }
+            
+            drawBoard();
             console.log("positionStore.subscribe - decision_type: ", position.decision_type); // Debug log
             console.log("positionStore: ", position);
         });
@@ -800,6 +809,8 @@
      * Draw arrows showing checker movements
      */
     function drawMoveArrows(boardOrigXpos, boardOrigYpos, boardWidth, boardHeight, boardCheckerSize) {
+        // Draw arrows only when showInitialPosition is true
+        // When false, we show final position with checkers in their final locations
         if (!showInitialPosition || !currentMoveText) {
             return;
         }
@@ -1119,8 +1130,73 @@
             return labels;
         }
 
+        /**
+         * Convert positionStore format to positionCalculator format
+         * positionStore: {board: {points: [{checkers: 5, color: 0}, ...]}}
+         * positionCalculator: {points: [5, -3, 0, ...]} (positive = player 0, negative = player 1)
+         */
+        function convertToCalculatorFormat(storePosition) {
+            const points = new Array(25).fill(0);
+            storePosition.board.points.forEach((point, index) => {
+                if (point && point.checkers > 0) {
+                    // color 0 = positive numbers, color 1 = negative numbers
+                    points[index] = point.color === 0 ? point.checkers : -point.checkers;
+                }
+            });
+            return {
+                points,
+                bar: 0,
+                off: 0,
+                opponentBar: 0,
+                opponentOff: 0
+            };
+        }
+        
+        /**
+         * Convert positionCalculator format back to positionStore format
+         */
+        function convertFromCalculatorFormat(calcPosition, originalPosition) {
+            const newPoints = calcPosition.points.map((value, index) => {
+                if (value === 0) {
+                    return { checkers: 0, color: -1 };
+                } else if (value > 0) {
+                    return { checkers: value, color: 0 };
+                } else {
+                    return { checkers: Math.abs(value), color: 1 };
+                }
+            });
+            
+            return {
+                ...originalPosition,
+                board: {
+                    ...originalPosition.board,
+                    points: newPoints
+                }
+            };
+        }
+        
         function drawCheckers() {
-            const position = get(positionStore);
+            let position = get(positionStore);
+            const isEditMode = mode === 'EDIT';
+            
+            // In EDIT mode with final position display:
+            // Use cached initial position and apply the current edit to show correct final position
+            if (isEditMode && !showInitialPosition && cachedInitialPosition && currentMoveText && currentMoveText.trim() !== '') {
+                try {
+                    // Use the cached initial position
+                    const calcPosition = convertToCalculatorFormat(cachedInitialPosition);
+                    
+                    // Apply the current edit to get final position
+                    const result = applyMove(calcPosition, currentMoveText, cachedInitialPosition.player_on_roll === 0);
+                    
+                    // Convert back to store format
+                    position = convertFromCalculatorFormat(result.position, cachedInitialPosition);
+                } catch (error) {
+                    console.warn('[Board] Failed to apply move for final position in edit mode:', error);
+                    // Fall back to showing position as-is
+                }
+            }
+            
             position.board.points.forEach((point, index) => {
                 let x, yBase;
                 if (boardCfg.orientation === "right") {
