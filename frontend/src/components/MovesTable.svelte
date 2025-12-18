@@ -993,6 +993,11 @@
                     diceInputElement.select();
                 }
             }
+        } else if (event.key === 'f' && document.activeElement === moveInputElement) {
+            // 'f' key fills "Cannot Move" when in move input
+            event.preventDefault();
+            inlineEditMove = 'Cannot Move';
+            statusBarTextStore.set('Move set to "Cannot Move" - player cannot play. Enter=validate, Esc=cancel');
         }
     }
     
@@ -1052,7 +1057,7 @@
             }
         }, 50);
         
-        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move. Enter=validate, Tab=exit edit mode');
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move (f=fail/cannot move). Enter=validate, Tab=exit edit mode');
     }
     
     function cancelInlineEdit() {
@@ -1576,7 +1581,7 @@
                         bind:value={inlineEditMove}
                         on:keydown={handleInlineEditKeyDown}
                         class="inline-move-input"
-                        placeholder="24/20 13/8"
+                        placeholder="24/20 13/8 (f=fail)"
                         disabled={isCubeDecision || isResignDecision}
                     />
                     {:else if row.moveData?.cubeAction}

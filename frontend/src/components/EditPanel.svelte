@@ -98,7 +98,7 @@
             }
         }, 100);
 
-        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move. Enter=validate, Esc=cancel');
+        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move (f=fail/cannot move). Enter=validate, Esc=cancel');
     }
 
     function cancelEditing() {
@@ -308,6 +308,11 @@
                     detail: { direction: event.key === 'j' ? 'next' : 'prev' }
                 }));
             }
+        } else if (event.key === 'f' && document.activeElement === moveInputElement) {
+            // 'f' key fills "Cannot Move" when in move input
+            event.preventDefault();
+            moveInput = 'Cannot Move';
+            statusBarTextStore.set('Move set to "Cannot Move" - player cannot play. Enter=validate, Esc=cancel');
         }
     }
 
@@ -477,7 +482,7 @@
                     bind:this={moveInputElement}
                     bind:value={moveInput}
                     on:keydown={handleKeyDown}
-                    placeholder="24/20 13/8"
+                    placeholder="24/20 13/8 (f=fail)"
                     class="move-input"
                     disabled={isCubeDecision || isResignDecision}
                 />
