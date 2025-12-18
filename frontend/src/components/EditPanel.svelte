@@ -98,7 +98,13 @@
             }
         }, 100);
 
-        statusBarTextStore.set('EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move (f=fail/cannot move). Enter=validate, Esc=cancel');
+        // Set status bar message - add note about empty dice for player1's first decision
+        const currentMove = get(selectedMoveStore);
+        let statusMessage = 'EDIT MODE: Enter dice (d=double, t=take, p=pass, r=resign, g=resign gammon, b=resign backgammon) or 2 digits 1-6, then move (f=fail/cannot move). Enter=validate, Esc=cancel';
+        if (currentMove && currentMove.moveIndex === 0 && currentMove.player === 1) {
+            statusMessage = 'EDIT MODE: Enter dice (2 digits 1-6) or leave empty if player2 starts. d/t/p=cube, r/g/b=resign. Enter=validate, Esc=cancel';
+        }
+        statusBarTextStore.set(statusMessage);
     }
 
     function cancelEditing() {
@@ -247,6 +253,12 @@
                     // Validate immediately for cube and resign decisions
                     validateEditing();
                 } else if (validateDiceInput(diceInput)) {
+                    // Valid dice (including empty for player1's first decision)
+                    // For empty dice, validate immediately (player2 starts)
+                    if (diceInput === '') {
+                        validateEditing();
+                        return;
+                    }
                     // Valid dice, move to move input and select best gnubg move
                     // Auto-select best gnubg move after dice entry (wait for analysis)
                     setTimeout(() => {
@@ -340,6 +352,12 @@
         
         diceInput = value;
         
+        // If dice is erased (empty), automatically clear the move input
+        if (value === '') {
+            moveInput = '';
+            console.log('[EditPanel] Dice cleared - move input automatically erased');
+        }
+        
         // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
             console.log('═══════════════════════════════════════════════════');
@@ -429,6 +447,16 @@
     }
 
     function validateDiceInput(dice) {
+        // Check if this is player1's first decision - allow empty dice (player2 starts)
+        const transcription = get(transcriptionStore);
+        const selectedMove = get(selectedMoveStore);
+        if (selectedMove && transcription) {
+            const { gameIndex, moveIndex, player } = selectedMove;
+            if (moveIndex === 0 && player === 1 && dice === '') {
+                return true; // Allow empty dice for player1's first decision
+            }
+        }
+        
         if (dice.length !== 2) return false;
         const d1 = parseInt(dice[0]);
         const d2 = parseInt(dice[1]);

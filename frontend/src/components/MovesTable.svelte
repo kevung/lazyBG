@@ -969,10 +969,10 @@
                     // Validate immediately for cube and resign decisions
                     validateInlineEdit();
                 } else if (validateDiceInput(inlineEditDice)) {
-                    // Valid dice - validate immediately (skip move input)
+                    // Valid dice (including empty for player1's first decision) - validate immediately
                     validateInlineEdit();
                 } else {
-                    statusBarTextStore.set('Invalid dice: enter d/t/p/r/g/b or 2 digits between 1 and 6');
+                    statusBarTextStore.set('Invalid dice: enter d/t/p/r/g/b or 2 digits between 1 and 6 (or empty for player1 first if player2 starts)');
                 }
             } else if (document.activeElement === moveInputElement) {
                 // Validate and save
@@ -1213,6 +1213,12 @@
         
         inlineEditDice = value;
         
+        // If dice is erased (empty), automatically clear the move input
+        if (value === '') {
+            inlineEditMove = '';
+            console.log('[MovesTable] Dice cleared - move input automatically erased');
+        }
+        
         // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
             console.log('[MovesTable] ═══════════════════════════════════════════════════════');
@@ -1306,6 +1312,15 @@
     }
 
     function validateDiceInput(dice) {
+        // Check if this is player1's first decision - allow empty dice (player2 starts)
+        const selectedMove = get(selectedMoveStore);
+        if (selectedMove) {
+            const { moveIndex, player } = selectedMove;
+            if (moveIndex === 0 && player === 1 && dice === '') {
+                return true; // Allow empty dice for player1's first decision
+            }
+        }
+        
         if (dice.length !== 2) return false;
         const d1 = parseInt(dice[0]);
         const d2 = parseInt(dice[1]);

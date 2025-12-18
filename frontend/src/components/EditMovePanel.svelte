@@ -205,6 +205,12 @@
         diceInput = value;
         console.log('[EditMovePanel] diceInput set to:', value, 'length:', value.length);
         
+        // If dice is erased (empty), automatically clear the move input
+        if (value === '') {
+            moveInput = '';
+            console.log('[EditMovePanel] Dice cleared - move input automatically erased');
+        }
+        
         // When 2 valid digits are entered, immediately update the dice (not the move yet)
         if (value.length === 2 && validateDiceInput(value)) {
             console.log('[EditMovePanel] ✓ Valid 2-digit dice, calling updateDiceOnly');
@@ -249,6 +255,15 @@
     }
 
     function validateDiceInput(dice) {
+        // Check if this is player1's first decision - allow empty dice (player2 starts)
+        const selectedMove = get(selectedMoveStore);
+        if (selectedMove) {
+            const { moveIndex, player } = selectedMove;
+            if (moveIndex === 0 && player === 1 && dice === '') {
+                return true; // Allow empty dice for player1's first decision
+            }
+        }
+        
         if (dice.length !== 2) return false;
         const d1 = parseInt(dice[0]);
         const d2 = parseInt(dice[1]);
