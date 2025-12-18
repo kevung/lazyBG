@@ -128,6 +128,22 @@
             console.log(`[MovesTable.selectMove] moveData:`, JSON.stringify(moveData));
         }
         
+        // If in EDIT mode and clicking on a different decision, exit EDIT mode first
+        const currentSelection = $selectedMoveStore;
+        const isDifferentDecision = !currentSelection || 
+                                   currentSelection.gameIndex !== gameIndex || 
+                                   currentSelection.moveIndex !== moveIndex || 
+                                   currentSelection.player !== player;
+        
+        if ($statusBarModeStore === 'EDIT' && isDifferentDecision) {
+            console.log(`[MovesTable.selectMove] Exiting EDIT mode - clicking on different decision`);
+            statusBarModeStore.set('NORMAL');
+            // Clear inline edit state
+            editingMove = null;
+            inlineEditDice = '';
+            inlineEditMove = '';
+        }
+        
         if (isShiftClick && selectionStart) {
             // Extend selection from start to current position
             selectionEnd = { gameIndex, moveIndex, player };
