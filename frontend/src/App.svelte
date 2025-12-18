@@ -1012,21 +1012,31 @@
             }
             nextPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowDown') {
-            // ArrowDown for down navigation in edit mode (candidate cycling)
-            // In normal mode this is already handled earlier, so this catches edit mode
+            // ArrowDown for down navigation - navigate to next decision (same behavior as 'j')
             console.log('[App.handleKeyDown] ArrowDown pressed, calling nextPosition');
+            // Prevent default if in edit mode with move input focused (to avoid typing)
             if ($statusBarModeStore === 'EDIT') {
-                event.preventDefault();
-                nextPosition();
+                const moveInput = document.getElementById('move-input');
+                const inlineMoveInput = document.querySelector('.inline-move-input');
+                const activeElement = document.activeElement;
+                if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
+                    event.preventDefault();
+                }
             }
+            nextPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowUp') {
-            // ArrowUp for up navigation in edit mode (candidate cycling)
-            // In normal mode this is already handled earlier, so this catches edit mode
+            // ArrowUp for up navigation - navigate to previous decision (same behavior as 'k')
             console.log('[App.handleKeyDown] ArrowUp pressed, calling previousPosition');
+            // Prevent default if in edit mode with move input focused (to avoid typing)
             if ($statusBarModeStore === 'EDIT') {
-                event.preventDefault();
-                previousPosition();
+                const moveInput = document.getElementById('move-input');
+                const inlineMoveInput = document.querySelector('.inline-move-input');
+                const activeElement = document.activeElement;
+                if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
+                    event.preventDefault();
+                }
             }
+            previousPosition();
         } else if (pendingDeleteCommand) {
             // Any other key pressed while waiting for delete command - cancel
             console.log(`[App.handleKeyDown] Canceling delete mode on other key: ${event.key}`);
