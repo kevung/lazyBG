@@ -114,11 +114,15 @@
                 if (game && game.moves[moveIndex]) {
                     const move = game.moves[moveIndex];
                     const playerMove = player === 1 ? move.player1Move : move.player2Move;
+                    console.log('[Board] selectedMoveStore subscription - playerMove:', playerMove);
+                    console.log('[Board] selectedMoveStore subscription - move from transcription:', playerMove?.move);
                     currentMoveText = playerMove?.move || '';
                 } else {
+                    console.log('[Board] selectedMoveStore subscription - no move found at index');
                     currentMoveText = '';
                 }
             } else {
+                console.log('[Board] selectedMoveStore subscription - no transcription');
                 currentMoveText = '';
             }
         }
@@ -638,11 +642,26 @@
 
         unsubscribe = positionStore.subscribe(() => {
             const position = get(positionStore);
+            const mode = get(statusBarModeStore);
             
-            // Cache initial position when showInitialPosition is true
-            // This lets us use it later for final position display in edit mode
+            console.log('[Board] ======================================');
+            console.log('[Board] positionStore.subscribe triggered');
+            console.log('[Board] showInitialPosition:', showInitialPosition);
+            console.log('[Board] mode:', mode);
+            console.log('[Board] position.id:', position.id);
+            console.log('[Board] position.player_on_roll:', position.player_on_roll);
+            
+            // Cache initial position ONLY when showInitialPosition is true
+            // In Edit mode with final position display, positionStore contains the FINAL position,
+            // so we should NOT cache it as "initial" - it will be used directly
             if (showInitialPosition) {
+                console.log('[Board] Caching position as cachedInitialPosition (showing initial)');
                 cachedInitialPosition = position;
+            } else if (mode === 'EDIT') {
+                console.log('[Board] In EDIT mode but final position - clearing cache to force direct use');
+                cachedInitialPosition = null;
+            } else {
+                console.log('[Board] NOT caching position (showInitialPosition=false, mode!=EDIT)');
             }
             
             drawBoard();
@@ -1179,22 +1198,40 @@
             let position = get(positionStore);
             const isEditMode = mode === 'EDIT';
             
+            console.log('[Board] ========== drawCheckers ==========');
+            console.log('[Board] isEditMode:', isEditMode);
+            console.log('[Board] showInitialPosition:', showInitialPosition);
+            console.log('[Board] currentMoveText:', currentMoveText);
+            console.log('[Board] cachedInitialPosition exists:', !!cachedInitialPosition);
+            console.log('[Board] positionStore.id:', position.id);
+            console.log('[Board] positionStore.player_on_roll:', position.player_on_roll);
+            
             // In EDIT mode with final position display:
             // Use cached initial position and apply the current edit to show correct final position
             if (isEditMode && !showInitialPosition && cachedInitialPosition && currentMoveText && currentMoveText.trim() !== '') {
+                console.log('[Board] 🎯 EDIT mode with final position display - applying move manually');
+                console.log('[Board] cachedInitialPosition.id:', cachedInitialPosition.id);
+                console.log('[Board] cachedInitialPosition.player_on_roll:', cachedInitialPosition.player_on_roll);
                 try {
                     // Use the cached initial position
                     const calcPosition = convertToCalculatorFormat(cachedInitialPosition);
+                    console.log('[Board] Converted cachedInitialPosition to calculator format');
                     
                     // Apply the current edit to get final position
+                    console.log('[Board] Applying move:', currentMoveText);
                     const result = applyMove(calcPosition, currentMoveText, cachedInitialPosition.player_on_roll === 0);
+                    console.log('[Board] Move applied successfully');
                     
                     // Convert back to store format
                     position = convertFromCalculatorFormat(result.position, cachedInitialPosition);
+                    console.log('[Board] ✓ Using manually calculated position');
                 } catch (error) {
                     console.warn('[Board] Failed to apply move for final position in edit mode:', error);
+                    console.log('[Board] ✗ Falling back to positionStore position');
                     // Fall back to showing position as-is
                 }
+            } else {
+                console.log('[Board] Using positionStore as-is (not applying move manually)');
             }
             
             position.board.points.forEach((point, index) => {

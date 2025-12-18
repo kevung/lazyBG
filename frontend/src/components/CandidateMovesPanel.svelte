@@ -75,12 +75,12 @@
         if (selectedIndex === -1) {
             selectedIndex = 0;
             console.log('[CandidateMovesPanel.navigateNext] ➡️ Starting from first candidate:', selectedIndex);
-            applyMoveToInput();
+            applyMoveToInput(true);
         } else if (selectedIndex < candidateMoves.length - 1) {
             const oldIndex = selectedIndex;
             selectedIndex = selectedIndex + 1;
             console.log('[CandidateMovesPanel.navigateNext] ➡️ Moving from', oldIndex, 'to', selectedIndex);
-            applyMoveToInput();
+            applyMoveToInput(true);
         }
     }
     
@@ -92,12 +92,12 @@
         if (selectedIndex === -1) {
             selectedIndex = 0;
             console.log('[CandidateMovesPanel.navigatePrevious] ⬅️ Starting from first candidate:', selectedIndex);
-            applyMoveToInput();
+            applyMoveToInput(true);
         } else if (selectedIndex > 0) {
             const oldIndex = selectedIndex;
             selectedIndex = selectedIndex - 1;
             console.log('[CandidateMovesPanel.navigatePrevious] ⬅️ Moving from', oldIndex, 'to', selectedIndex);
-            applyMoveToInput();
+            applyMoveToInput(true);
         }
     }
     
@@ -210,26 +210,29 @@
         // Subscribe to selected move changes to trigger analysis immediately
         unsubscribeSelectedMove = selectedMoveStore.subscribe(async () => {
             updateCurrentMove();
-            const pos = get(positionStore);
             const selMove = get(selectedMoveStore);
             
             console.log('[CandidateMovesPanel] 🔔 selectedMoveStore changed:', selMove);
-            console.log('[CandidateMovesPanel] Position dice:', pos?.dice);
+            
+            // Get dice from transcription (not from positionStore which might be stale)
+            const transcription = get(transcriptionStore);
+            const game = transcription?.games[selMove.gameIndex];
+            const move = game?.moves[selMove.moveIndex];
+            const playerMove = selMove.player === 1 ? move?.player1Move : move?.player2Move;
+            const diceStr = playerMove?.dice || '';
+            
+            console.log('[CandidateMovesPanel] Dice from transcription:', diceStr);
             console.log('[CandidateMovesPanel] Background analyzing:', isBackgroundAnalyzing);
             
-            if (pos && pos.dice && (pos.dice[0] !== 0 || pos.dice[1] !== 0)) {
+            // Parse dice string to array
+            const dice = parseDice(diceStr);
+            
+            if (dice && (dice[0] !== 0 || dice[1] !== 0)) {
                 const cacheKey = getCacheKey(selMove);
                 const cachedMoves = analysisCache.get(cacheKey);
                 
-                // Get current dice string from transcription
-                const transcription = get(transcriptionStore);
-                const game = transcription?.games[selMove.gameIndex];
-                const move = game?.moves[selMove.moveIndex];
-                const playerMove = selMove.player === 1 ? move?.player1Move : move?.player2Move;
-                const currentDiceStr = playerMove?.dice || '';
-                
                 console.log('[CandidateMovesPanel] Cache key:', cacheKey);
-                console.log('[CandidateMovesPanel] Current dice str:', currentDiceStr);
+                console.log('[CandidateMovesPanel] Current dice str:', diceStr);
                 console.log('[CandidateMovesPanel] Has cache:', !!cachedMoves);
                 console.log('[CandidateMovesPanel] Cache dice str:', cachedMoves?._diceStr);
                 
@@ -246,12 +249,18 @@
                         isBackgroundAnalyzing = false;
                     }
                     
-                    await analyzeMoves(pos, selMove);
+                    // Recalculate position with current dice from transcription
+                    const pos = get(positionStore);
+                    if (pos) {
+                        // Update position dice with current dice from transcription
+                        const posWithDice = { ...pos, dice: dice };
+                        await analyzeMoves(posWithDice, selMove);
+                    }
                     return;
                 }
                 
                 // Check if cache exists and if dice match
-                const cacheValid = cachedMoves && cachedMoves._diceStr === currentDiceStr;
+                const cacheValid = cachedMoves && cachedMoves._diceStr === diceStr;
                 
                 if (cacheValid) {
                     // Use cached results
@@ -263,9 +272,9 @@
                     if (cachedMoves) {
                         // Dice changed - invalidate cache
                         analysisCache.delete(cacheKey);
-                        console.log('[CandidateMovesPanel] 🔄 Dice changed, re-analyzing:', currentDiceStr);
+                        console.log('[CandidateMovesPanel] 🔄 Dice changed, re-analyzing:', diceStr);
                     } else {
-                        console.log('[CandidateMovesPanel] 🔄 No cache, analyzing:', currentDiceStr);
+                        console.log('[CandidateMovesPanel] 🔄 No cache, analyzing:', diceStr);
                     }
                     
                     // Cancel background analysis to prioritize immediate analysis
@@ -274,7 +283,13 @@
                         isBackgroundAnalyzing = false;
                     }
                     
-                    await analyzeMoves(pos, selMove);
+                    // Recalculate position with current dice from transcription
+                    const pos = get(positionStore);
+                    if (pos) {
+                        // Update position dice with current dice from transcription
+                        const posWithDice = { ...pos, dice: dice };
+                        await analyzeMoves(posWithDice, selMove);
+                    }
                 }
             } else {
                 console.log('[CandidateMovesPanel] No valid dice, clearing candidates');
@@ -403,13 +418,14 @@
                 
                 selectedIndex = findMatchingMoveIndex(currentInputValue);
                 
-                // Only auto-fill if input is truly empty
-                if (currentInputValue === '' && selectedIndex === 0) {
-                    console.log('[CandidateMovesPanel] Empty input detected, auto-filling with first candidate');
-                    applyMoveToInput();
-                } else if (selectedIndex >= 0) {
+                // Don't auto-fill when browsing - only highlight matching moves
+                if (selectedIndex >= 0) {
                     // Found matching candidate - keep the input as-is, just highlight in panel
                     console.log('[CandidateMovesPanel] Found matching candidate at index:', selectedIndex);
+                } else if (currentInputValue === '') {
+                    // Empty input - select first candidate but don't preview it
+                    console.log('[CandidateMovesPanel] Empty input, selecting first candidate without preview');
+                    selectedIndex = 0;
                 } else {
                     // No matching candidate found (selectedIndex = -1), don't change the input
                     console.log('[CandidateMovesPanel] No matching candidate for:', currentInputValue);
@@ -589,7 +605,7 @@
         return move.trim().toLowerCase().replace(/\s+/g, ' ');
     }
     
-    function applyMoveToInput() {
+    function applyMoveToInput(forcePreview = false) {
         // If in edit mode with move input, update the input field
         // Try EditPanel's move input first, then MovesTable's inline input
         let moveInputElement = document.getElementById('move-input');
@@ -597,32 +613,34 @@
             moveInputElement = document.querySelector('.inline-move-input');
         }
         
-        console.log('[CandidateMovesPanel] applyMoveToInput - element:', !!moveInputElement, 'selectedIndex:', selectedIndex);
-        if (moveInputElement && selectedIndex >= 0 && selectedIndex < candidateMoves.length) {
+        console.log('[CandidateMovesPanel] applyMoveToInput - element:', !!moveInputElement, 'selectedIndex:', selectedIndex, 'forcePreview:', forcePreview);
+        
+        // Only update preview store if explicitly requested (for j/k navigation) or if there's an input element (edit mode)
+        if ((forcePreview || moveInputElement) && selectedIndex >= 0 && selectedIndex < candidateMoves.length) {
             const move = candidateMoves[selectedIndex].move;
-            console.log('[CandidateMovesPanel] Setting value to:', move);
-            moveInputElement.value = move;
-            // Dispatch input event to update the bound value
-            moveInputElement.dispatchEvent(new Event('input', { bubbles: true }));
-            
-            // Update the board to show this candidate move by setting the preview
             console.log('[CandidateMovesPanel] Setting candidate preview move:', move);
-            console.log('[CandidateMovesPanel] candidatePreviewMoveStore.set called with:', move);
             candidatePreviewMoveStore.set(move);
-            console.log('[CandidateMovesPanel] Preview set complete');
             
-            // Select the text so user can continue pressing j/k or type to replace
-            // Use double requestAnimationFrame to ensure selection happens after all DOM updates
-            requestAnimationFrame(() => {
+            // If there's an input element, also update it
+            if (moveInputElement) {
+                console.log('[CandidateMovesPanel] Setting value to:', move);
+                moveInputElement.value = move;
+                // Dispatch input event to update the bound value
+                moveInputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Select the text so user can continue pressing j/k or type to replace
+                // Use double requestAnimationFrame to ensure selection happens after all DOM updates
                 requestAnimationFrame(() => {
-                    console.log('[CandidateMovesPanel] requestAnimationFrame (2nd) - about to select');
-                    if (moveInputElement) {
-                        console.log('[CandidateMovesPanel] Value before select:', moveInputElement.value);
-                        moveInputElement.setSelectionRange(0, moveInputElement.value.length);
-                        console.log('[CandidateMovesPanel] Selection set:', moveInputElement.selectionStart, '-', moveInputElement.selectionEnd);
-                    }
+                    requestAnimationFrame(() => {
+                        console.log('[CandidateMovesPanel] requestAnimationFrame (2nd) - about to select');
+                        if (moveInputElement) {
+                            console.log('[CandidateMovesPanel] Value before select:', moveInputElement.value);
+                            moveInputElement.setSelectionRange(0, moveInputElement.value.length);
+                            console.log('[CandidateMovesPanel] Selection set:', moveInputElement.selectionStart, '-', moveInputElement.selectionEnd);
+                        }
+                    });
                 });
-            });
+            }
         }
     }
     

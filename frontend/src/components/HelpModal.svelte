@@ -199,8 +199,26 @@
                     </ul>
                     
                     <h3>EDIT Mode</h3>
-                    <p>EDIT mode allows you to modify board positions using the mouse. Activate it by pressing <strong>TAB</strong>. You can adjust checker positions, cube ownership, dice, and score.</p>
-                    <p>When in EDIT mode with the moves panel open, you can right-click on any move to access a context menu with options to insert new decisions before or after the selected move.</p>
+                    <p>EDIT mode allows you to modify decisions in your match transcription. Activate it by pressing <strong>TAB</strong>.</p>
+                    
+                    <h4>Edit Mode with Moves Table Closed</h4>
+                    <p>When the moves table is closed, EDIT mode provides a streamlined keyboard-driven workflow:</p>
+                    <ul>
+                        <li><strong>Dice Entry:</strong> Type dice values directly (1-6 digits) or decision letters:
+                            <ul>
+                                <li><strong>d</strong> = double, <strong>t</strong> = take, <strong>p</strong> = pass</li>
+                                <li><strong>r</strong> = resign, <strong>g</strong> = resign gammon, <strong>b</strong> = resign backgammon</li>
+                            </ul>
+                        </li>
+                        <li><strong>j/k Navigation:</strong> After entering dice, press <strong>j</strong> (down) or <strong>k</strong> (up) to cycle through gnubg candidate moves. The board updates in real-time to preview each move.</li>
+                        <li><strong>Cannot Move:</strong> Press <strong>f</strong> to indicate the player cannot move with the current dice (automatically saves and advances).</li>
+                        <li><strong>Manual Entry:</strong> Press <strong>Space</strong> to open a text input bar where you can type move notation manually (e.g., "24/20 13/8"). Press <strong>Enter</strong> to confirm or <strong>Esc</strong> to cancel.</li>
+                        <li><strong>Validate:</strong> Press <strong>Enter</strong> to save the current decision and automatically move to the next decision.</li>
+                        <li><strong>Cancel:</strong> Press <strong>Esc</strong> to exit EDIT mode without saving changes.</li>
+                    </ul>
+                    
+                    <h4>Edit Mode with Moves Table Open</h4>
+                    <p>When the moves table is visible, you can edit decisions inline or right-click on any move to access a context menu with options to insert new decisions before or after the selected move.</p>
                     
                     <h3>Inserting Games</h3>
                     <p>You can insert new empty games into the transcription:</p>

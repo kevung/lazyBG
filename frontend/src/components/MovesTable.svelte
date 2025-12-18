@@ -1212,7 +1212,11 @@
     }
 
     function handleDiceInput(event) {
-        console.log('[MovesTable] handleDiceInput called, value:', event.target.value);
+        console.log('[MovesTable] ========================================');
+        console.log('[MovesTable] handleDiceInput called');
+        console.log('[MovesTable] event.target.value:', event.target.value);
+        console.log('[MovesTable] Current inlineEditDice:', inlineEditDice);
+        console.log('[MovesTable] Current inlineEditMove:', inlineEditMove);
         let value = event.target.value.toLowerCase();
         
         // Check for cube decisions and resign decisions first
@@ -1234,12 +1238,12 @@
         }
         
         inlineEditDice = value;
+        console.log('[MovesTable] After setting inlineEditDice:', inlineEditDice);
+        console.log('[MovesTable] inlineEditMove is still:', inlineEditMove);
         
-        // If dice is erased (empty), automatically clear the move input
-        if (value === '') {
-            inlineEditMove = '';
-            console.log('[MovesTable] Dice cleared - move input automatically erased');
-        }
+        // Note: Do NOT automatically clear the move input when dice is erased
+        // The user may want to enter new dice while keeping the existing move
+        // The move should only be cleared for cube/resign decisions (handled above)
         
         // Immediately update transcription when 2 valid dice digits are entered
         if (value.length === 2 && validateDiceInput(value)) {
@@ -1291,7 +1295,9 @@
 
     // Update dice immediately in transcription (without move) to trigger candidate moves analysis
     function updateDiceOnly(newDice) {
+        console.log('[MovesTable] ========================================');
         console.log('[MovesTable] updateDiceOnly called with:', newDice);
+        console.log('[MovesTable] Current inlineEditMove before update:', inlineEditMove);
         if (!editingMove) {
             console.log('[MovesTable] Not editing, skipping update');
             return;
@@ -1320,8 +1326,23 @@
         const isIllegal = playerMove?.isIllegal || false;
         const isGala = playerMove?.isGala || false;
         
+        console.log('[MovesTable] playerMove:', playerMove);
+        console.log('[MovesTable] existingMove from transcription:', existingMove);
+        console.log('[MovesTable] inlineEditMove variable:', inlineEditMove);
         console.log('[MovesTable] Calling updateMove with dice:', newDice, 'move:', existingMove);
         updateMove(gameIndex, move.moveNumber, player, newDice, existingMove, isIllegal, isGala);
+        console.log('[MovesTable] updateMove completed');
+        
+        // Ensure inlineEditMove stays in sync with the preserved move
+        console.log('[MovesTable] Checking sync: existingMove=', existingMove, 'inlineEditMove=', inlineEditMove);
+        if (existingMove && !inlineEditMove) {
+            inlineEditMove = existingMove;
+            console.log('[MovesTable] ✓ Synced inlineEditMove with existing move:', existingMove);
+        } else if (existingMove) {
+            console.log('[MovesTable] inlineEditMove already set, no sync needed');
+        } else {
+            console.log('[MovesTable] No existing move to sync');
+        }
         
         // Invalidate position cache so CandidateMovesPanel recalculates with new dice
         invalidatePositionsCacheFrom(gameIndex, moveIndex);

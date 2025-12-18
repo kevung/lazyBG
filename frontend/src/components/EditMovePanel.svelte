@@ -214,7 +214,11 @@
 
     function handleDiceInput(event) {
         let value = event.target.value;
-        console.log('[EditMovePanel] 🎲 handleDiceInput called, value:', value);
+        console.log('[EditMovePanel] ========================================');
+        console.log('[EditMovePanel] 🎲 handleDiceInput called');
+        console.log('[EditMovePanel] event.target.value:', value);
+        console.log('[EditMovePanel] Current diceInput:', diceInput);
+        console.log('[EditMovePanel] Current moveInput:', moveInput);
         
         // Only allow digits 1-6 (additional safety check)
         value = value.replace(/[^1-6]/g, '');
@@ -225,13 +229,12 @@
         }
         
         diceInput = value;
-        console.log('[EditMovePanel] diceInput set to:', value, 'length:', value.length);
+        console.log('[EditMovePanel] After setting diceInput:', diceInput);
+        console.log('[EditMovePanel] moveInput is still:', moveInput);
+        console.log('[EditMovePanel] value length:', value.length);
         
-        // If dice is erased (empty), automatically clear the move input
-        if (value === '') {
-            moveInput = '';
-            console.log('[EditMovePanel] Dice cleared - move input automatically erased');
-        }
+        // Note: Do NOT automatically clear the move input when dice is erased
+        // The user may want to enter new dice while keeping the existing move
         
         // When 2 valid digits are entered, immediately update the dice (not the move yet)
         if (value.length === 2 && validateDiceInput(value)) {
@@ -247,7 +250,9 @@
     }
     
     function updateDiceOnly(newDice) {
+        console.log('[EditMovePanel] ========================================');
         console.log('[EditMovePanel] 🎲 updateDiceOnly called with:', newDice);
+        console.log('[EditMovePanel] Current moveInput before update:', moveInput);
         const transcription = get(transcriptionStore);
         const selectedMove = get(selectedMoveStore);
         
@@ -267,13 +272,30 @@
         const move = game.moves[moveIndex];
         const playerMove = player === 1 ? move.player1Move : move.player2Move;
         
-        // Update with new dice but keep the original move (empty for now)
+        // Keep existing move and flags, just update dice
+        const existingMove = playerMove?.move || '';
         const isIllegal = playerMove?.isIllegal || false;
         const isGala = playerMove?.isGala || false;
         
-        console.log('[EditMovePanel] Calling updateMove:', {gameIndex, moveNumber: move.moveNumber, player, dice: newDice});
-        updateMove(gameIndex, move.moveNumber, player, newDice, '', isIllegal, isGala);
-        console.log('[EditMovePanel] updateMove completed');
+        console.log('[EditMovePanel] playerMove:', playerMove);
+        console.log('[EditMovePanel] existingMove from transcription:', existingMove);
+        console.log('[EditMovePanel] moveInput variable:', moveInput);
+        console.log('[EditMovePanel] Calling updateMove:', {gameIndex, moveNumber: move.moveNumber, player, dice: newDice, move: existingMove});
+        updateMove(gameIndex, move.moveNumber, player, newDice, existingMove, isIllegal, isGala);
+        console.log('[EditMovePanel] updateMove call completed');
+        
+        // Ensure moveInput stays in sync with the preserved move
+        console.log('[EditMovePanel] Checking sync: existingMove=', existingMove, 'moveInput=', moveInput);
+        if (existingMove && !moveInput) {
+            moveInput = existingMove;
+            console.log('[EditMovePanel] ✓ Synced moveInput with existing move:', existingMove);
+        } else if (existingMove) {
+            console.log('[EditMovePanel] moveInput already set, no sync needed');
+        } else {
+            console.log('[EditMovePanel] No existing move to sync');
+        }
+        
+        console.log('[EditMovePanel] updateDiceOnly completed');
     }
 
     function validateDiceInput(dice) {

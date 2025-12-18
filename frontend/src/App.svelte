@@ -48,7 +48,8 @@
         showCandidateMovesStore,
         showMovesTableStore,
         showInitialPositionStore,
-        showMoveSearchModalStore
+        showMoveSearchModalStore,
+        candidatePreviewMoveStore
     } from './stores/uiStore';
 
     import { metaStore } from './stores/metaStore'; // Import metaStore
@@ -101,7 +102,7 @@
     import MovesTable from './components/MovesTable.svelte';
     import CandidateMovesPanel from './components/CandidateMovesPanel.svelte';
     import EditMovePanel from './components/EditMovePanel.svelte';
-    import EditPanel from './components/EditPanel.svelte';
+    import BoardEditPanel from './components/BoardEditPanel.svelte';
     import MoveSearchPanel from './components/MoveSearchPanel.svelte';
     import MoveInsertPanel from './components/MoveInsertPanel.svelte';
     import GameInsertPanel from './components/GameInsertPanel.svelte';
@@ -342,6 +343,9 @@
 
     // Subscribe to selected move changes to update position
     selectedMoveStore.subscribe(selectedMove => {
+        // Clear candidate preview when navigating between decisions
+        candidatePreviewMoveStore.set(null);
+        
         const transcription = get(transcriptionStore);
         const positionsCache = get(positionsCacheStore);
         const showInitialPosition = get(showInitialPositionStore);
@@ -998,6 +1002,12 @@
                     cycleToPreviousCandidate();
                     return;
                 }
+                // If moves table is closed (board edit mode), allow j/k for candidate navigation
+                if (!showMovesTable) {
+                    event.preventDefault();
+                    cycleToPreviousCandidate();
+                    return;
+                }
             }
             previousPosition();
         } else if (!event.ctrlKey && event.key === 'j') {
@@ -1009,6 +1019,12 @@
                 const inlineMoveInput = document.querySelector('.inline-move-input');
                 const activeElement = document.activeElement;
                 if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
+                    event.preventDefault();
+                    cycleToNextCandidate();
+                    return;
+                }
+                // If moves table is closed (board edit mode), allow j/k for candidate navigation
+                if (!showMovesTable) {
                     event.preventDefault();
                     cycleToNextCandidate();
                     return;
@@ -1028,6 +1044,12 @@
                     cycleToNextCandidate();
                     return;
                 }
+                // If moves table is closed (board edit mode), allow arrows for candidate navigation
+                if (!showMovesTable) {
+                    event.preventDefault();
+                    cycleToNextCandidate();
+                    return;
+                }
             }
             nextPosition();
         } else if (!event.ctrlKey && event.key === 'ArrowUp') {
@@ -1039,6 +1061,12 @@
                 const inlineMoveInput = document.querySelector('.inline-move-input');
                 const activeElement = document.activeElement;
                 if ((moveInput && activeElement === moveInput) || (inlineMoveInput && activeElement === inlineMoveInput)) {
+                    event.preventDefault();
+                    cycleToPreviousCandidate();
+                    return;
+                }
+                // If moves table is closed (board edit mode), allow arrows for candidate navigation
+                if (!showMovesTable) {
                     event.preventDefault();
                     cycleToPreviousCandidate();
                     return;
@@ -2074,7 +2102,7 @@
 
     <EditMovePanel />
 
-    <EditPanel
+    <BoardEditPanel
         visible={showEditPanel}
         onClose={() => {
             showEditPanel = false;
