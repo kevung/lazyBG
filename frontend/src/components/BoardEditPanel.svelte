@@ -286,6 +286,33 @@
         if (event.key === 'Escape') {
             event.preventDefault();
             cancelEditing();
+        } else if (event.key === 'Backspace') {
+            // Backspace = erase dice and any associated checker move
+            event.preventDefault();
+            if (diceInput) {
+                console.log('[BoardEditPanel] Backspace - erasing dice and move');
+                diceInput = '';
+                manualMoveInput = '';
+                
+                // Clear dice and move in transcription
+                const transcription = get(transcriptionStore);
+                const selectedMove = get(selectedMoveStore);
+                if (transcription && selectedMove) {
+                    const { gameIndex, moveIndex, player } = selectedMove;
+                    const move = transcription.games[gameIndex]?.moves[moveIndex];
+                    const playerMove = player === 1 ? move?.player1Move : move?.player2Move;
+                    const isIllegal = playerMove?.isIllegal || false;
+                    const isGala = playerMove?.isGala || false;
+                    
+                    // Update with empty dice and move
+                    updateMove(gameIndex, move.moveNumber, player, '', '', isIllegal, isGala);
+                    
+                    // Invalidate position cache to force board to recalculate
+                    invalidatePositionsCacheFrom(gameIndex, moveIndex);
+                    
+                    statusBarTextStore.set('Dice and move erased');
+                }
+            }
         } else if (event.key === 'Enter') {
             event.preventDefault();
             validateEditing();
