@@ -557,6 +557,13 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
  */
 export function deleteDecision(gameIndex, moveIndex, player) {
     console.log(`[deleteDecision] gameIndex=${gameIndex}, moveIndex=${moveIndex}, player=${player}`);
+    
+    // Prevent deleting the first move (first 2 decisions) of a game
+    if (moveIndex === 0) {
+        console.log(`[deleteDecision] Cannot delete first move of game`);
+        return;
+    }
+    
     transcriptionStore.update(t => {
         const game = t.games[gameIndex];
         if (!game) return t;
@@ -670,8 +677,20 @@ export function deleteDecisions(decisions) {
     
     console.log(`[deleteDecisions] Deleting ${decisions.length} decisions`);
     
+    // Filter out decisions from the first move (first 2 decisions) of any game
+    const allowedDecisions = decisions.filter(d => d.moveIndex !== 0);
+    
+    if (allowedDecisions.length === 0) {
+        console.log(`[deleteDecisions] All decisions were from first move, none deleted`);
+        return;
+    }
+    
+    if (allowedDecisions.length < decisions.length) {
+        console.log(`[deleteDecisions] Filtered out ${decisions.length - allowedDecisions.length} first move decisions`);
+    }
+    
     // Sort decisions in reverse order (from last to first) to avoid index shifting issues
-    const sortedDecisions = [...decisions].sort((a, b) => {
+    const sortedDecisions = [...allowedDecisions].sort((a, b) => {
         if (a.gameIndex !== b.gameIndex) return b.gameIndex - a.gameIndex;
         if (a.moveIndex !== b.moveIndex) return b.moveIndex - a.moveIndex;
         return b.player - a.player; // player 2 before player 1

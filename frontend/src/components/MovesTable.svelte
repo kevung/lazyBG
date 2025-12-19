@@ -700,9 +700,17 @@
             return;
         }
         
+        // Filter out first move decisions (moveIndex 0) - cannot delete first move of a game
+        const allowedDecisions = decisions.filter(d => d.moveIndex !== 0);
+        
+        if (allowedDecisions.length === 0) {
+            statusBarTextStore.set('Cannot cut first move of a game');
+            return;
+        }
+        
         // Enhance decisions with actual move data BEFORE deleting
         const transcription = get(transcriptionStore);
-        const decisionsWithData = decisions.map(d => {
+        const decisionsWithData = allowedDecisions.map(d => {
             const game = transcription.games[d.gameIndex];
             if (!game) return d;
             
@@ -716,10 +724,15 @@
         // Copy to clipboard with cut flag
         clipboardStore.cut(decisionsWithData);
         
-        // Delete the decisions
+        // Delete the decisions (this will also filter first move decisions, but we already did that)
         await handleDeleteDecision();
         
-        statusBarTextStore.set(`${decisions.length} decision(s) cut to clipboard`);
+        if (allowedDecisions.length < decisions.length) {
+            const filteredCount = decisions.length - allowedDecisions.length;
+            statusBarTextStore.set(`${allowedDecisions.length} decision(s) cut (skipped ${filteredCount} first move decision(s))`);
+        } else {
+            statusBarTextStore.set(`${allowedDecisions.length} decision(s) cut to clipboard`);
+        }
     }
     
     async function handleUndo() {
@@ -780,9 +793,24 @@
         
         if (decisions.length === 0) return;
         
+        // Filter out first move decisions (moveIndex 0) - cannot delete first move of a game
+        const allowedDecisions = decisions.filter(d => d.moveIndex !== 0);
+        
+        if (allowedDecisions.length === 0) {
+            statusBarTextStore.set('Cannot delete first move of a game');
+            return;
+        }
+        
+        if (allowedDecisions.length < decisions.length) {
+            const filteredCount = decisions.length - allowedDecisions.length;
+            statusBarTextStore.set(`Skipped ${filteredCount} first move decision(s) - cannot delete first move`);
+            // Give user time to see the message before proceeding
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
         // Enhance decisions with actual move data BEFORE deleting (for clipboard)
         const transcription = get(transcriptionStore);
-        const decisionsWithData = decisions.map(d => {
+        const decisionsWithData = allowedDecisions.map(d => {
             const game = transcription.games[d.gameIndex];
             if (!game) return d;
             
@@ -799,14 +827,14 @@
         // Save state before the operation
         saveSnapshotBeforeOperation();
         
-        if (decisions.length === 1) {
-            const { gameIndex, moveIndex, player } = decisions[0];
+        if (allowedDecisions.length === 1) {
+            const { gameIndex, moveIndex, player } = allowedDecisions[0];
             deleteDecision(gameIndex, moveIndex, player);
             await invalidatePositionsCacheFrom(gameIndex, moveIndex);
             statusBarTextStore.set(`Decision deleted at game ${gameIndex + 1}, move ${moveIndex + 1}, player ${player}`);
         } else {
-            deleteDecisions(decisions);
-            statusBarTextStore.set(`${decisions.length} decisions deleted`);
+            deleteDecisions(allowedDecisions);
+            statusBarTextStore.set(`${allowedDecisions.length} decisions deleted`);
         }
         
         // Clear selection range completely
