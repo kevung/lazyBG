@@ -488,8 +488,8 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
             
             // Ensure next move exists for the empty slot
             if (moveIndex + 1 >= game.moves.length) {
-                // Use the same moveNumber as current move (it's a continuation of the same game move)
-                const newMoveNumber = currentMove.moveNumber;
+                // Increment moveNumber for the new move
+                const newMoveNumber = currentMove.moveNumber + 1;
                 game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
             }
         }
@@ -516,9 +516,9 @@ export function insertDecisionAfter(gameIndex, moveIndex, player) {
             // Ensure target move exists
             if (targetMoveIndex >= game.moves.length) {
                 // Determine the correct moveNumber for the new entry
-                // It should be the same as the previous move's moveNumber (continuation)
+                // Increment from previous move's moveNumber
                 const prevMove = game.moves[targetMoveIndex - 1];
-                const newMoveNumber = prevMove ? prevMove.moveNumber : 1;
+                const newMoveNumber = prevMove ? prevMove.moveNumber + 1 : 1;
                 game.moves.push({ moveNumber: newMoveNumber, player1Move: null, player2Move: null, cubeAction: null });
             }
             

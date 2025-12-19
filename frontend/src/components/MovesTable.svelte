@@ -48,6 +48,15 @@
     let originalMove = '';
     let originalIsIllegal = false;
     let originalIsGala = false;
+    
+    // Subscribe to candidate preview moves to auto-fill move input for empty decisions
+    candidatePreviewMoveStore.subscribe(move => {
+        // Only update if we're in inline edit mode and the move was originally empty
+        if (editingMove && move && originalMove === '' && inlineEditMove === '') {
+            console.log('[MovesTable] Auto-filling move from candidatePreviewMoveStore:', move);
+            inlineEditMove = move;
+        }
+    });
 
     // Context menu state
     let showContextMenu = false;
@@ -1049,11 +1058,24 @@
             inlineEditMove = '';
         }
         
-        // Focus on dice input after render
+        // Focus on dice input after render - use longer timeout to ensure DOM is ready
         setTimeout(() => {
             if (diceInputElement) {
+                console.log('[MovesTable] Focusing dice input for:', { gameIndex, moveIndex, player });
                 diceInputElement.focus();
                 diceInputElement.select();
+            } else {
+                console.log('[MovesTable] diceInputElement not found yet for:', { gameIndex, moveIndex, player });
+                // Try again with a longer delay
+                setTimeout(() => {
+                    if (diceInputElement) {
+                        console.log('[MovesTable] Second attempt - focusing dice input');
+                        diceInputElement.focus();
+                        diceInputElement.select();
+                    } else {
+                        console.log('[MovesTable] diceInputElement still not found');
+                    }
+                }, 150);
             }
         }, 50);
         
@@ -1096,6 +1118,11 @@
         if (!editingMove) return;
         
         const { gameIndex, moveIndex, player } = editingMove;
+        console.log('[MovesTable] ========================================');
+        console.log('[MovesTable] validateInlineEdit called');
+        console.log('[MovesTable] Editing:', { gameIndex, moveIndex, player });
+        console.log('[MovesTable] Dice:', inlineEditDice, 'Move:', inlineEditMove);
+        
         const game = games[gameIndex];
         if (!game || !game.moves[moveIndex]) return;
         
@@ -1118,9 +1145,6 @@
         // Invalidate position cache from this move onwards
         await invalidatePositionsCacheFrom(gameIndex, moveIndex);
         
-        // Force recalculation
-        selectedMoveStore.set({ gameIndex, moveIndex, player });
-        
         statusBarTextStore.set(`Move updated at game ${gameIndex + 1}, move ${move.moveNumber}. Tab=exit edit mode`);
         
         // Clear candidate preview
@@ -1136,6 +1160,10 @@
     }
     
     async function moveToNextDecision(currentGameIndex, currentMoveIndex, currentPlayer) {
+        console.log('[MovesTable] ========================================');
+        console.log('[MovesTable] moveToNextDecision called');
+        console.log('[MovesTable] Current:', { currentGameIndex, currentMoveIndex, currentPlayer });
+        
         const transcription = get(transcriptionStore);
         if (!transcription || !transcription.games) return;
         
@@ -1145,6 +1173,7 @@
         // Try to move to next decision
         if (currentPlayer === 1) {
             // Move to player 2 of same move
+            console.log('[MovesTable] Moving to player 2 of same move');
             selectedMoveStore.set({ 
                 gameIndex: currentGameIndex, 
                 moveIndex: currentMoveIndex, 
@@ -1152,6 +1181,7 @@
             });
         } else if (currentMoveIndex < currentGame.moves.length - 1) {
             // Move to player 1 of next move in same game
+            console.log('[MovesTable] Moving to player 1 of next move:', currentMoveIndex + 1);
             selectedMoveStore.set({ 
                 gameIndex: currentGameIndex, 
                 moveIndex: currentMoveIndex + 1, 
@@ -1159,6 +1189,7 @@
             });
         } else if (currentGameIndex < transcription.games.length - 1) {
             // Move to first move of next game
+            console.log('[MovesTable] Moving to first move of next game');
             selectedMoveStore.set({ 
                 gameIndex: currentGameIndex + 1, 
                 moveIndex: 0, 
@@ -1166,21 +1197,23 @@
             });
         } else {
             // We're at the last decision - insert a new empty decision after it
-            saveSnapshotBeforeOperation();
-            insertDecisionAfter(currentGameIndex, currentMoveIndex, currentPlayer);
+            console.log('[MovesTable] At last decision - inserting new empty decision');
             
             // Calculate the new move index for the inserted decision
             const newMoveIndex = currentMoveIndex + 1;
             
-            // Invalidate cache and force recalculation
-            await invalidatePositionsCacheFrom(currentGameIndex, newMoveIndex);
-            
-            // Select the newly inserted decision
+            // Update selectedMoveStore FIRST so reactive statement uses correct value
             selectedMoveStore.set({ 
                 gameIndex: currentGameIndex, 
                 moveIndex: newMoveIndex, 
                 player: 1 
             });
+            
+            saveSnapshotBeforeOperation();
+            insertDecisionAfter(currentGameIndex, currentMoveIndex, currentPlayer);
+            
+            // Invalidate cache and force recalculation
+            await invalidatePositionsCacheFrom(currentGameIndex, newMoveIndex);
             
             statusBarTextStore.set('Last decision reached - new empty decision inserted. Tab=exit edit mode');
             return;
@@ -1256,8 +1289,11 @@
             setTimeout(() => {
                 console.log('[MovesTable] First timeout - moveInputElement:', !!moveInputElement);
                 if (moveInputElement) {
-                    // Only auto-fill if move is currently empty
-                    if (!inlineEditMove || inlineEditMove.trim() === '') {
+                    // Check if this was an empty decision (no move existed before)
+                    const wasEmptyDecision = !originalMove || originalMove.trim() === '';
+                    
+                    // Only auto-fill if move is currently empty AND it was an empty decision
+                    if ((!inlineEditMove || inlineEditMove.trim() === '') && wasEmptyDecision) {
                         // Auto-fill with best candidate move (wait for analysis)
                         setTimeout(() => {
                             console.log('[MovesTable] Second timeout - getting best move from candidate panel');
@@ -1273,11 +1309,15 @@
                                 if (moveText) {
                                     console.log('[MovesTable] Setting inlineEditMove to:', moveText);
                                     inlineEditMove = moveText;
+                                    
+                                    // Set the candidate preview store to display arrows on the board
+                                    console.log('[MovesTable] Setting candidatePreviewMoveStore for arrows:', moveText);
+                                    candidatePreviewMoveStore.set(moveText);
                                 }
                             }
                         }, 100);
                     } else {
-                        console.log('[MovesTable] Move already exists, not auto-filling:', inlineEditMove);
+                        console.log('[MovesTable] Move already exists or was not empty decision, not auto-filling:', inlineEditMove);
                     }
                     
                     // Always focus and select the move input
@@ -1301,6 +1341,19 @@
         if (!editingMove) {
             console.log('[MovesTable] Not editing, skipping update');
             return;
+        }
+
+        // Verify editingMove matches selectedMoveStore to avoid updating wrong decision
+        const currentSelection = get(selectedMoveStore);
+        if (!currentSelection || 
+            editingMove.gameIndex !== currentSelection.gameIndex ||
+            editingMove.moveIndex !== currentSelection.moveIndex ||
+            editingMove.player !== currentSelection.player) {
+            console.log('[MovesTable] editingMove mismatch with selectedMoveStore!');
+            console.log('[MovesTable] editingMove:', editingMove);
+            console.log('[MovesTable] selectedMoveStore:', currentSelection);
+            console.log('[MovesTable] Updating editingMove to match selectedMoveStore');
+            editingMove = { ...currentSelection };
         }
 
         const { gameIndex, moveIndex, player } = editingMove;
@@ -1349,7 +1402,6 @@
         console.log('[MovesTable] Position cache invalidated from moveIndex:', moveIndex);
         
         // Force selectedMoveStore to re-trigger so App.svelte recalculates position with new dice
-        const currentSelection = get(selectedMoveStore);
         selectedMoveStore.set({...currentSelection});
         console.log('[MovesTable] Triggered selectedMoveStore refresh');
     }

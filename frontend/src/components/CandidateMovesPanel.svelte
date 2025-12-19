@@ -416,19 +416,48 @@
                 const moveInputEl = document.getElementById('move-input') || document.querySelector('.inline-move-input');
                 const currentInputValue = moveInputEl?.value?.trim() || '';
                 
-                selectedIndex = findMatchingMoveIndex(currentInputValue);
+                // Check if this was an empty decision (no move existed in transcription before editing)
+                // Use the selMove parameter that was passed in
+                const transcription = get(transcriptionStore);
+                const game = transcription?.games[selMove.gameIndex];
+                const move = game?.moves[selMove.moveIndex];
+                const playerMove = selMove.player === 1 ? move?.player1Move : move?.player2Move;
+                const wasEmptyDecision = !playerMove?.move || playerMove.move.trim() === '';
                 
-                // Don't auto-fill when browsing - only highlight matching moves
-                if (selectedIndex >= 0) {
-                    // Found matching candidate - keep the input as-is, just highlight in panel
-                    console.log('[CandidateMovesPanel] Found matching candidate at index:', selectedIndex);
-                } else if (currentInputValue === '') {
-                    // Empty input - select first candidate but don't preview it
-                    console.log('[CandidateMovesPanel] Empty input, selecting first candidate without preview');
+                console.log('[CandidateMovesPanel] Analysis check:', {
+                    gameIndex: selMove.gameIndex,
+                    moveIndex: selMove.moveIndex,
+                    player: selMove.player,
+                    playerMove: playerMove,
+                    move: playerMove?.move,
+                    wasEmptyDecision: wasEmptyDecision,
+                    currentInputValue: currentInputValue
+                });
+                
+                // Handle empty input first (before calling findMatchingMoveIndex which also returns 0 for empty)
+                if (currentInputValue === '') {
+                    // Empty input - select first candidate and preview it if it was an empty decision
+                    console.log('[CandidateMovesPanel] Empty input, selecting first candidate. Was empty decision:', wasEmptyDecision);
                     selectedIndex = 0;
+                    
+                    // If this was an empty decision, set preview to show arrows
+                    if (wasEmptyDecision && moves[0]?.move) {
+                        console.log('[CandidateMovesPanel] ✅ Setting preview for empty decision:', moves[0].move);
+                        candidatePreviewMoveStore.set(moves[0].move);
+                    } else {
+                        console.log('[CandidateMovesPanel] ❌ NOT setting preview. wasEmptyDecision:', wasEmptyDecision, 'has move:', !!moves[0]?.move);
+                    }
                 } else {
-                    // No matching candidate found (selectedIndex = -1), don't change the input
-                    console.log('[CandidateMovesPanel] No matching candidate for:', currentInputValue);
+                    // Non-empty input - try to find matching move
+                    selectedIndex = findMatchingMoveIndex(currentInputValue);
+                    
+                    if (selectedIndex >= 0) {
+                        // Found matching candidate - keep the input as-is, just highlight in panel
+                        console.log('[CandidateMovesPanel] Found matching candidate at index:', selectedIndex);
+                    } else {
+                        // No matching candidate found (selectedIndex = -1), don't change the input
+                        console.log('[CandidateMovesPanel] No matching candidate for:', currentInputValue);
+                    }
                 }
             } else {
                 candidateMoves = [];
