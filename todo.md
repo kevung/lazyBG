@@ -25,8 +25,6 @@ Contextual menu on the board
 
 Why player1 displays move though empty decision, after having browser player2 decision. Edge effect
 
-Board edition with mouse in Edit mode?
-
 Coherence control, dice value but with no checker move. If it is not last move, it cannot be a resign.
 
 Erase dice with backspace. If so, erase any checker move

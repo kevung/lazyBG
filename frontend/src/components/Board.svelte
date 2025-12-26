@@ -140,8 +140,8 @@
         event.preventDefault(); // Prevent text or element selection
         if (mode !== "EDIT") return;
         
-        // Prevent board editing with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all board editing with mouse in EDIT mode
+        return;
 
         const rect = canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
@@ -159,8 +159,8 @@
         event.preventDefault(); // Prevent text or element selection
         if (mode !== "EDIT") return;
         
-        // Prevent board editing with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all board editing with mouse in EDIT mode
+        return;
 
         // No longer dynamically filling checkers during mouse move
     }
@@ -169,8 +169,8 @@
         event.preventDefault(); // Prevent text or element selection
         if (mode !== "EDIT") return;
         
-        // Prevent board editing with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all board editing with mouse in EDIT mode
+        return;
 
         isMouseDown = false;
         const rect = canvas.getBoundingClientRect();
@@ -363,8 +363,8 @@
     function handleDoubleClick(event) {
         if (mode !== "EDIT") return;
         
-        // Prevent board reset with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all board reset with mouse in EDIT mode
+        return;
 
         const rect = canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
@@ -385,8 +385,8 @@
     function handleDoublingCubeClick(event) {
         if (mode !== "EDIT") return;
         
-        // Prevent cube editing with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all cube editing with mouse in EDIT mode
+        return;
 
         const rect = canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
@@ -425,8 +425,8 @@
     function handleRectangleAndDiceClick(event) {
         if (mode !== "EDIT") return;
         
-        // Prevent dice editing with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all dice editing with mouse in EDIT mode
+        return;
 
         const rect = canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
@@ -530,8 +530,8 @@
     function handleScoreClick(event) {
         if (mode !== "EDIT") return;
         
-        // Prevent score editing with mouse in BoardEditPanel mode (EDIT with moves table closed)
-        if (mode === "EDIT" && !showMovesTable) return;
+        // Prevent all score editing with mouse in EDIT mode
+        return;
 
         const rect = canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
