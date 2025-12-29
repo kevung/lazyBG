@@ -102,11 +102,20 @@
 
         hasAutoFocused = true;
 
-        // Set status bar message
+        // Set status bar message based on edit mode
         const currentMove = get(selectedMoveStore);
-        let statusMessage = 'EDIT MODE: Type dice (d/t/p/r/g/b or 1-6), j/k=cycle moves, f=fail, space=manual, Enter=next, Esc=exit';
-        if (currentMove && currentMove.moveIndex === 0 && currentMove.player === 1) {
+        const isRapidMode = isEditingLastNonEmptyDecision();
+        
+        let statusMessage;
+        if (isRapidMode) {
+            // Rapid editing mode for last non-empty decision
+            statusMessage = 'EDIT MODE (RAPID): Type dice, j/k=moves, Enter=next. After move selected, type next dice to continue. Backspace=clear, Esc=exit';
+        } else if (currentMove && currentMove.moveIndex === 0 && currentMove.player === 1) {
+            // First move special case
             statusMessage = 'EDIT MODE: Type dice (1-6) or leave empty if player2 starts. d/t/p=cube, r/g/b=resign. j/k=cycle, f=fail, space=manual, Enter=next, Esc=exit';
+        } else {
+            // Normal editing mode
+            statusMessage = 'EDIT MODE: Type dice (d/t/p/r/g/b or 1-6), j/k=cycle moves, f=fail, space=manual, Enter=next, Esc=exit';
         }
         statusBarTextStore.set(statusMessage);
     }
@@ -287,30 +296,43 @@
             event.preventDefault();
             cancelEditing();
         } else if (event.key === 'Backspace') {
-            // Backspace = erase dice and any associated checker move
+            // Backspace behavior depends on edit mode:
+            // - Rapid mode (last non-empty decision): Just clear input fields to allow re-entry
+            // - Normal mode: Erase dice and move from transcription
             event.preventDefault();
             if (diceInput) {
-                console.log('[BoardEditPanel] Backspace - erasing dice and move');
-                diceInput = '';
-                manualMoveInput = '';
+                const isRapidMode = isEditingLastNonEmptyDecision();
                 
-                // Clear dice and move in transcription
-                const transcription = get(transcriptionStore);
-                const selectedMove = get(selectedMoveStore);
-                if (transcription && selectedMove) {
-                    const { gameIndex, moveIndex, player } = selectedMove;
-                    const move = transcription.games[gameIndex]?.moves[moveIndex];
-                    const playerMove = player === 1 ? move?.player1Move : move?.player2Move;
-                    const isIllegal = playerMove?.isIllegal || false;
-                    const isGala = playerMove?.isGala || false;
+                if (isRapidMode) {
+                    // Rapid mode: Just reset input fields without updating transcription
+                    console.log('[BoardEditPanel] Backspace (rapid mode) - clearing input fields');
+                    diceInput = '';
+                    manualMoveInput = '';
+                    statusBarTextStore.set('Input cleared - type new dice to continue');
+                } else {
+                    // Normal mode: Erase from transcription
+                    console.log('[BoardEditPanel] Backspace (normal mode) - erasing dice and move from transcription');
+                    diceInput = '';
+                    manualMoveInput = '';
                     
-                    // Update with empty dice and move
-                    updateMove(gameIndex, move.moveNumber, player, '', '', isIllegal, isGala);
-                    
-                    // Invalidate position cache to force board to recalculate
-                    invalidatePositionsCacheFrom(gameIndex, moveIndex);
-                    
-                    statusBarTextStore.set('Dice and move erased');
+                    // Clear dice and move in transcription
+                    const transcription = get(transcriptionStore);
+                    const selectedMove = get(selectedMoveStore);
+                    if (transcription && selectedMove) {
+                        const { gameIndex, moveIndex, player } = selectedMove;
+                        const move = transcription.games[gameIndex]?.moves[moveIndex];
+                        const playerMove = player === 1 ? move?.player1Move : move?.player2Move;
+                        const isIllegal = playerMove?.isIllegal || false;
+                        const isGala = playerMove?.isGala || false;
+                        
+                        // Update with empty dice and move
+                        updateMove(gameIndex, move.moveNumber, player, '', '', isIllegal, isGala);
+                        
+                        // Invalidate position cache to force board to recalculate
+                        invalidatePositionsCacheFrom(gameIndex, moveIndex);
+                        
+                        statusBarTextStore.set('Dice and move erased');
+                    }
                 }
             }
         } else if (event.key === 'Enter') {
@@ -338,6 +360,7 @@
 
     function handleDiceKeyPress(key) {
         const value = key.toLowerCase();
+        const isRapidMode = isEditingLastNonEmptyDecision();
         
         // Check for cube decisions and resign decisions first
         if (value === 'd' || value === 't' || value === 'p' || value === 'r' || value === 'g' || value === 'b') {
@@ -357,15 +380,85 @@
                 diceInput = value;
             } else if (diceInput.length === 1 && /^[1-6]$/.test(diceInput)) {
                 // Second digit - complete the dice
-                diceInput = diceInput + value;
+                const completedDice = diceInput + value;
+                diceInput = completedDice;
                 
-                // Immediately update transcription with new dice
-                if (validateDiceInput(diceInput)) {
-                    updateDiceOnly(diceInput);
+                // Check if this is the first decision of the game
+                const selectedMove = get(selectedMoveStore);
+                const isFirstDecision = selectedMove && selectedMove.moveIndex === 0 && selectedMove.player === 1;
+                
+                if (isFirstDecision && validateDiceInput(completedDice)) {
+                    // Opening roll convention: doubles are impossible (players re-roll if same)
+                    const die1 = parseInt(completedDice[0]);
+                    const die2 = parseInt(completedDice[1]);
+                    
+                    if (die1 === die2) {
+                        // Doubles on opening roll are impossible - reject
+                        console.log('[BoardEditPanel] Opening roll error: doubles are impossible');
+                        diceInput = '';
+                        statusBarTextStore.set('ERROR: Opening roll cannot be doubles - players must re-roll if same');
+                        return;
+                    } else if (die1 < die2) {
+                        // Player2 is on roll - set player1 as empty and move to player2
+                        console.log('[BoardEditPanel] Opening roll: player2 starts with', completedDice);
+                        
+                        // Set player1's decision as empty (no dice, no move)
+                        const transcription = get(transcriptionStore);
+                        if (transcription && selectedMove) {
+                            const { gameIndex, moveIndex } = selectedMove;
+                            const move = transcription.games[gameIndex]?.moves[moveIndex];
+                            if (move) {
+                                // Clear player1's decision
+                                updateMove(gameIndex, move.moveNumber, 1, '', '', false, false);
+                                
+                                // Move to player2's decision
+                                invalidatePositionsCacheFrom(gameIndex, moveIndex);
+                                selectedMoveStore.set({ 
+                                    gameIndex, 
+                                    moveIndex, 
+                                    player: 2 
+                                });
+                                
+                                // Reset and restart editing for player2 with the dice
+                                hasAutoFocused = false;
+                                
+                                // Wait for selection to update, then set the dice for player2
+                                setTimeout(() => {
+                                    diceInput = completedDice;
+                                    updateDiceOnly(completedDice);
+                                    statusBarTextStore.set('Player 2 starts (opening roll: ' + completedDice + ')');
+                                }, 50);
+                                
+                                return;
+                            }
+                        }
+                    }
+                }
+                
+                // Normal case or player1 starts (die1 >= die2)
+                if (validateDiceInput(completedDice)) {
+                    updateDiceOnly(completedDice);
                 }
             } else {
-                // Already have 2 digits or special character, replace with new digit
-                diceInput = value;
+                // Already have 2 digits or special character
+                // In rapid mode: this means user is typing new dice for next decision
+                // In normal mode: replace current dice with new digit
+                if (isRapidMode && diceInput.length === 2 && /^[1-6]{2}$/.test(diceInput) && manualMoveInput) {
+                    // Rapid mode: User has completed previous decision (dice + move)
+                    // This new digit starts the next decision
+                    console.log('[BoardEditPanel] Rapid mode - auto-validating and starting next decision');
+                    
+                    // First, validate current decision
+                    validateEditing();
+                    
+                    // Wait a bit for validation to complete, then start new dice
+                    setTimeout(() => {
+                        diceInput = value;
+                    }, 50);
+                } else {
+                    // Normal mode or rapid mode without completed move: replace with new digit
+                    diceInput = value;
+                }
             }
         }
     }
@@ -405,6 +498,44 @@
         // This forces the reactive subscription to fire and board to update
         selectedMoveStore.set({ ...selectedMove });
         console.log('[BoardEditPanel] updateMove completed, cache invalidated, triggered candidate analysis');
+    }
+
+    /**
+     * Check if the current decision is the last non-empty decision in the current game
+     * Returns true if we're editing the last decision that has dice or move data
+     */
+    function isEditingLastNonEmptyDecision() {
+        const transcription = get(transcriptionStore);
+        const selectedMove = get(selectedMoveStore);
+        
+        if (!transcription || !selectedMove) return false;
+        
+        const { gameIndex, moveIndex, player } = selectedMove;
+        const game = transcription.games[gameIndex];
+        if (!game) return false;
+        
+        // Find the last non-empty decision in this game
+        // Go through moves in reverse to find last decision with dice or move
+        for (let i = game.moves.length - 1; i >= 0; i--) {
+            const move = game.moves[i];
+            
+            // Check player 2 first (later in turn order)
+            const p2Move = move.player2Move;
+            if (p2Move && (p2Move.dice || p2Move.move || p2Move.cubeAction || p2Move.resignAction)) {
+                // This is the last non-empty decision
+                return moveIndex === i && player === 2;
+            }
+            
+            // Check player 1
+            const p1Move = move.player1Move;
+            if (p1Move && (p1Move.dice || p1Move.move || p1Move.cubeAction || p1Move.resignAction)) {
+                // This is the last non-empty decision
+                return moveIndex === i && player === 1;
+            }
+        }
+        
+        // No non-empty decision found, so this could be the first one
+        return true;
     }
 
     function validateDiceInput(dice) {
