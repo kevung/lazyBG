@@ -36,31 +36,20 @@ Editer une position
 -------------------
 
 Pour éditer une position, basculer en mode EDIT à l'aide de la touche *TAB*.
-Editer la position à la souris:
 
-* cliquer sur les points pour ajouter des pions. Le clic gauche attribue les
-  pions au joueur 1. Le clic droit attribue les pions au joueur 2. Pour insérer
-  une prime, cliquer sur le point de départ, maintenir le bouton appuyé,
-  relacher sur le point d'arrivée. Cliquer sur la barre pour mettre des
-  pions à la barre.
+Le mode EDIT permet de modifier les décisions de backgammon (les dés et les coups joués)
+en utilisant le clavier uniquement. Vous ne pouvez pas modifier directement la position
+du plateau avec la souris - la position est mise à jour automatiquement en fonction des
+décisions que vous saisissez.
 
-* pour effacer la position, double-clic sur une zone vide en dehors du board ou
-  appuyer sur la touche *RETOUR ARRIERE*.
+Pour éditer une décision:
 
-* pour envoyer le cube vers le joueur 1, clic gauche sur le cube. Pour envoyer
-  le cube vers le joueur 2, click droit sur le cube.
-
-* pour indiquer le joueur qui a le trait, cliquer à l'emplacement prévu des dés.
-
-* pour éditer les dés, clic gauche pour augmenter la valeur d'un dé, clic droit
-  pour augmenter la valeur d'un dé. Si la face des dés est vide, cela signifie
-  que la position est une décision de cube.
-
-* pour éditer le score des joueurs, clic gauche pour augmenter le score, clic
-  droit pour réduire le score.
-
-.. tip:: La saisie de la position avec la souris pour les pions se fait de la
-   même manière que dans XG.
+* Tapez les valeurs des dés (1-6) ou les lettres de décision (**d** = double, **t** = take, 
+  **p** = pass, **r** = resign, **g** = resign gammon, **b** = resign backgammon)
+* Utilisez **j**/**k** pour naviguer entre les coups candidats suggérés par gnubg
+* Appuyez sur **Espace** pour saisir manuellement un coup en notation
+* Appuyez sur **Entrée** pour valider et passer à la décision suivante
+* Appuyez sur **Echap** pour quitter le mode EDIT
 
 Ajouter une position à la base de données
 -----------------------------------------

@@ -19,8 +19,6 @@
     let width;
     let height;
     let unsubscribe;
-    let isMouseDown = false;
-    let startMousePos = null;
     let cubePosition = { x: 0, y: 0 };
     
     let canvasCfg = {
@@ -128,197 +126,25 @@
         }
     });
 
-    let previousDice = get(positionStore).dice; // Save previous dice values
-
     // Reactive statement: redraw board when currentMoveText changes (for candidate preview arrows)
     $: if (two && currentMoveText !== undefined) {
         console.log('[Board] currentMoveText changed, redrawing board:', currentMoveText);
         drawBoard();
     }
 
-    function handleMouseDown(event) {
-        event.preventDefault(); // Prevent text or element selection
-        if (mode !== "EDIT") return;
-        
-        // Prevent all board editing with mouse in EDIT mode
-        return;
-
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        isMouseDown = true;
-        startMousePos = {
-            x: mouseX,
-            y: mouseY,
-            button: event.button
-        };
+    function setBoardOrientation(orientation) {
+        boardCfg.orientation = orientation;
+        drawBoard();
     }
 
-    function handleMouseMove(event) {
-        event.preventDefault(); // Prevent text or element selection
-        if (mode !== "EDIT") return;
-        
-        // Prevent all board editing with mouse in EDIT mode
-        return;
-
-        // No longer dynamically filling checkers during mouse move
-    }
-
-    function handleMouseUp(event) {
-        event.preventDefault(); // Prevent text or element selection
-        if (mode !== "EDIT") return;
-        
-        // Prevent all board editing with mouse in EDIT mode
-        return;
-
-        isMouseDown = false;
-        const rect = canvas.getBoundingClientRect();
-        const endMousePos = {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-            button: event.button
-        };
-
-        fillCheckersBetween(startMousePos, endMousePos);
-    }
-
-    function fillCheckersBetween(startPos, endPos) {
-        const startChecker = getCheckerPointAndCount(startPos.x, startPos.y, startPos.button);
-        const endChecker = getCheckerPointAndCount(endPos.x, endPos.y, startPos.button);
-
-        const maxCheckers = Math.max(startChecker.checkerCount, endChecker.checkerCount);
-
-        const startPoint = Math.min(startChecker.checkerPoint, endChecker.checkerPoint);
-        const endPoint = Math.max(startChecker.checkerPoint, endChecker.checkerPoint);
-
-        for (let point = startPoint; point <= endPoint; point++) {
-            updateCheckerPositionByPoint(point, maxCheckers, startPos.button);
+    function handleOrientationChange(event) {
+        const isAnyModalOpen = get(isAnyModalOpenStore);
+        if (isAnyModalOpen) return; // Disable orientation change when any modal is open
+        if (event.ctrlKey && event.key === 'ArrowLeft') {
+            setBoardOrientation("left");
+        } else if (event.ctrlKey && event.key === 'ArrowRight') {
+            setBoardOrientation("right");
         }
-    }
-
-    function getCheckerPointAndCount(x_mouse, y_mouse, button) {
-        const boardAspectFactor = 11 / 13;
-        const boardWidth = boardCfg.widthFactor * width;
-        const boardHeight = boardAspectFactor * boardWidth;
-        const boardCheckerSize = boardHeight / 11;
-        const boardOrigXpos = width / 2;
-        const boardOrigYpos = height / 2;
-
-        const x = Math.round((x_mouse - boardOrigXpos) / boardCheckerSize);
-        const y = Math.round((y_mouse - boardOrigYpos) / boardCheckerSize);
-
-        let checkerCount = 0;
-        if (Math.abs(x) <= 6 && Math.abs(y) > 0 && Math.abs(y) <= 6) {
-            if (Math.abs(y) == 0 || Math.abs(y) == 6) {
-                checkerCount = 0;
-            } else if (Math.abs(y) <= 5) {
-                if (x != 0) {
-                    checkerCount = 6 - Math.abs(y);
-                } else {
-                    checkerCount = Math.abs(y);
-                }
-            }
-
-            let checkerPoint = 0;
-            if (boardCfg.orientation == "right") {
-                if (y < 0) {
-                    if (x > 0) {
-                        checkerPoint = 18 + x;
-                    } else if (x < 0) {
-                        checkerPoint = 19 + x;
-                    } else {
-                        checkerPoint = 25;
-                    }
-                } else if (y > 0) {
-                    if (x > 0) {
-                        checkerPoint = 7 - x;
-                    } else if (x < 0) {
-                        checkerPoint = 6 - x;
-                    } else {
-                        checkerPoint = 0;
-                    }
-                }
-            } else {
-                if (y < 0) {
-                    if (x > 0) {
-                        checkerPoint = 19 - x;
-                    } else if (x < 0) {
-                        checkerPoint = 18 - x;
-                    } else {
-                        checkerPoint = 25;
-                    }
-                } else if (y > 0) {
-                    if (x > 0) {
-                        checkerPoint = 6 + x;
-                    } else if (x < 0) {
-                        checkerPoint = 7 + x;
-                    } else {
-                        checkerPoint = 0;
-                    }
-                }
-            }
-
-            return { checkerPoint, checkerCount };
-        }
-        return { checkerPoint: -1, checkerCount: 0 };
-    }
-
-    function updateCheckerPositionByPoint(checkerPoint, checkerCount, button) {
-        const color = (checkerPoint === 0 || checkerPoint === 25) ? (checkerPoint === 0 ? 1 : 0) : (button === 2 ? 1 : 0);
-
-        positionStore.update(pos => {
-            pos.board.points = pos.board.points.map((point, index) => {
-                if (index === checkerPoint) {
-                    if (point.checkers >= 5 && point.color === color) {
-                        // Only add more checkers if clicked on the 5th checker
-                        if (checkerCount === 5) {
-                            return {
-                                ...point,
-                                checkers: point.checkers + 1
-                            };
-                        } else {
-                            return {
-                                ...point,
-                                checkers: Math.min(checkerCount, 5),
-                                color: color
-                            };
-                        }
-                    } else {
-                        return {
-                            ...point,
-                            checkers: Math.min(checkerCount, 5),
-                            color: color
-                        };
-                    }
-                }
-                return point;
-            });
-
-            // Set color to -1 if no checkers on a point
-            pos.board.points = pos.board.points.map(point => {
-                if (point.checkers === 0) {
-                    return {
-                        ...point,
-                        color: -1
-                    };
-                }
-                return point;
-            });
-
-            return pos;
-        });
-
-        const position = get(positionStore);
-        const player1Checkers = position.board.points.reduce((acc, point) => acc + (point.color === 0 ? point.checkers : 0), 0);
-        const player2Checkers = position.board.points.reduce((acc, point) => acc + (point.color === 1 ? point.checkers : 0), 0);
-        position.board.bearoff[0] = 15 - player1Checkers;
-        position.board.bearoff[1] = 15 - player2Checkers;
-
-        positionStore.update(pos => {
-            pos.board.bearoff = [position.board.bearoff[0], position.board.bearoff[1]];
-            return pos;
-        });
     }
 
     function resizeBoard() {
@@ -346,273 +172,11 @@
         two.update();
     }
 
-    function resetBoard() {
-        positionStore.update(pos => {
-            pos.board.points.forEach(point => point.checkers = 0);
-            pos.board.bearoff = [15, 15]; // Reset bearoff
-            pos.cube.value = 0; // Set cube in the middle
-            pos.cube.owner = -1; // Reset cube owner
-            pos.score = [7, 7]; // Reset score to 7 away for both players
-            pos.dice = [3, 1]; // Set dice to 3 and 1
-            pos.decision_type = 0; // Checker decision
-            pos.player_on_roll = 0; // Player on roll is below
-            return pos;
-        });
-    }
-
-    function handleDoubleClick(event) {
-        if (mode !== "EDIT") return;
-        
-        // Prevent all board reset with mouse in EDIT mode
-        return;
-
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        const boardOrigXpos = width / 2;
-        const boardOrigYpos = height / 2;
-        const boardWidth = boardCfg.widthFactor * width;
-        const boardHeight = (11 / 13) * boardWidth;
-
-        // Check if the click is outside of the board
-        if (mouseX < boardOrigXpos - boardWidth / 2 || mouseX > boardOrigXpos + boardWidth / 2 ||
-            mouseY < boardOrigYpos - boardHeight / 2 || mouseY > boardOrigYpos + boardHeight / 2) {
-            resetBoard();
-        }
-    }
-
-    function handleDoublingCubeClick(event) {
-        if (mode !== "EDIT") return;
-        
-        // Prevent all cube editing with mouse in EDIT mode
-        return;
-
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        // Check if the click is within the doubling cube
-        if (mouseX >= cubePosition.x - cubePosition.size / 2 && mouseX <= cubePosition.x + cubePosition.size / 2 &&
-            mouseY >= cubePosition.y - cubePosition.size / 2 && mouseY <= cubePosition.y + cubePosition.size / 2) {
-            positionStore.update(pos => {
-                if (pos.cube.owner === -1) {
-                    pos.cube.value = Math.min(pos.cube.value + 1, 6);
-                    pos.cube.owner = event.button === 0 ? 0 : 1;
-                } else if (pos.cube.owner === 0) {
-                    if (event.button === 0) {
-                        pos.cube.value = Math.min(pos.cube.value + 1, 6);
-                    } else if (event.button === 2) {
-                        pos.cube.value = Math.max(pos.cube.value - 1, 0);
-                    }
-                } else if (pos.cube.owner === 1) {
-                    if (event.button === 0) {
-                        pos.cube.value = Math.max(pos.cube.value - 1, 0);
-                    } else if (event.button === 2) {
-                        pos.cube.value = Math.min(pos.cube.value + 1, 6);
-                    }
-                }
-
-                if (pos.cube.value === 0) {
-                    pos.cube.owner = -1;
-                }
-
-                return pos;
-            });
-        }
-    }
-
-    function handleRectangleAndDiceClick(event) {
-        if (mode !== "EDIT") return;
-        
-        // Prevent all dice editing with mouse in EDIT mode
-        return;
-
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        console.log("Rectangle or Dice click detected at:", mouseX, mouseY); // Debug log
-
-        const boardOrigXpos = width / 2;
-        const boardOrigYpos = height / 2;
-        const boardWidth = boardCfg.widthFactor * width;
-        const boardCheckerSize = (11 / 13) * (boardCfg.widthFactor * width) / 11;
-        const boardHeight = (11 / 13) * boardWidth;
-        const gap = 1.2 * boardCheckerSize;
-
-        const bearoff1Xpos = boardOrigXpos + boardWidth / 2 + gap;
-        const bearoff1Ypos = boardOrigYpos + boardHeight / 2 - 3.7 * boardCheckerSize;
-        const score1Ypos = boardOrigYpos + boardHeight / 2 + 0.2 * boardCheckerSize;
-
-        const bearoff2Xpos = boardOrigXpos + boardWidth / 2 + gap;
-        const bearoff2Ypos = boardOrigYpos - boardHeight / 2 + 3.7 * boardCheckerSize;
-        const score2Ypos = boardOrigYpos - boardHeight / 2 - 0.2 * boardCheckerSize;
-
-        const isInsideTopPlayerRectangle = mouseX >= bearoff1Xpos - 0.75 * boardCheckerSize && mouseX <= bearoff1Xpos + 0.75 * boardCheckerSize &&
-            mouseY >= Math.min(bearoff1Ypos, score1Ypos) && mouseY <= Math.max(bearoff1Ypos, score1Ypos);
-
-        const isInsideBottomPlayerRectangle = mouseX >= bearoff2Xpos - 0.75 * boardCheckerSize && mouseX <= bearoff2Xpos + 0.75 * boardCheckerSize &&
-            mouseY >= Math.min(bearoff2Ypos, score2Ypos) && mouseY <= Math.max(bearoff2Ypos, score2Ypos);
-
-        const rectangle1Xpos = bearoff1Xpos;
-        const rectangle1Ypos = (bearoff1Ypos + score1Ypos) / 2;
-        const rectangle2Xpos = bearoff2Xpos;
-        const rectangle2Ypos = (bearoff2Ypos + score2Ypos) / 2;
-        const rectangleWidth = 1.5 * boardCheckerSize;
-        const rectangleHeight1 = Math.abs(bearoff1Ypos - score1Ypos);
-        const rectangleHeight2 = Math.abs(bearoff2Ypos - score2Ypos);
-
-        const diceGap = 0.325 * boardCheckerSize;
-        const diceSize = 0.7 * boardCheckerSize;
-        const diceXpos = boardOrigXpos + boardWidth / 2 + 2 * diceGap;
-        const diceYpos = get(positionStore).player_on_roll === 0 ? boardOrigYpos + 0.5 * boardHeight - 1.5 * boardCheckerSize : boardOrigYpos - 0.5 * boardHeight + 1.5 * boardCheckerSize;
-        
-        let isInsideDie1 = false;
-        let isInsideDie2 = false;
-
-        for (let index = 0; index < 2; index++) {
-            const dieXpos = diceXpos + index * (diceSize + diceGap);
-            if (mouseX >= dieXpos - diceSize / 2 && mouseX <= dieXpos + diceSize / 2 &&
-                mouseY >= diceYpos - diceSize / 2 && mouseY <= diceYpos + diceSize / 2) {
-                if (index === 0) {
-                    isInsideDie1 = true;
-                } else {
-                    isInsideDie2 = true;
-                }
-            }
-        }
-
-        if (isInsideDie1 || isInsideDie2) {
-            console.log("Die clicked"); // Debug log
-        }
-
-        positionStore.update(pos => {
-            if (isInsideTopPlayerRectangle && !isInsideDie1 && !isInsideDie2) {
-                console.log("Top player's rectangle clicked"); // Debug log
-                pos.player_on_roll = 0;
-                pos.decision_type = 1; // Set decision type to doubling cube
-                previousDice = pos.dice; // Save previous dice values
-                pos.dice = [0, 0];
-                console.log("Updated decision_type to 1 for top player"); // Debug log
-            } else if (isInsideBottomPlayerRectangle && !isInsideDie1 && !isInsideDie2) {
-                console.log("Bottom player's rectangle clicked"); // Debug log
-                pos.player_on_roll = 1;
-                pos.decision_type = 1; // Set decision type to doubling cube
-                pos.dice = [0, 0];
-                console.log("Updated decision_type to 1 for bottom player"); // Debug log
-            } else if (isInsideDie1) {
-                console.log("Die 1 clicked"); // Debug log
-                pos.decision_type = 0;
-                pos.dice = previousDice; // Restore previous dice values
-                if (event.button === 0) {
-                    pos.dice[0] = (pos.dice[0] % 6) + 1; // Left click to increase
-                } else if (event.button === 2) {
-                    pos.dice[0] = (pos.dice[0] === 1 ? 6 : pos.dice[0] - 1); // Right click to decrease
-                }
-            } else if (isInsideDie2) {
-                console.log("Die 2 clicked"); // Debug log
-                pos.decision_type = 0;
-                pos.dice = previousDice; // Restore previous dice values
-                if (event.button === 0) {
-                    pos.dice[1] = (pos.dice[1] % 6) + 1; // Left click to increase
-                } else if (event.button === 2) {
-                    pos.dice[1] = (pos.dice[1] === 1 ? 6 : pos.dice[1] - 1); // Right click to decrease
-                }
-            }
-
-            console.log("Updated dice values:", pos.dice); // Debug log
-            console.log("Updated position store:", pos); // Log the updated position store
-            return pos;
-        });
-    }
-
-    function handleScoreClick(event) {
-        if (mode !== "EDIT") return;
-        
-        // Prevent all score editing with mouse in EDIT mode
-        return;
-
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        const boardOrigXpos = width / 2;
-        const boardOrigYpos = height / 2;
-        const boardWidth = boardCfg.widthFactor * width;
-        const boardCheckerSize = (11 / 13) * (boardCfg.widthFactor * width) / 11;
-        const boardHeight = (11 / 13) * boardWidth; // Define boardHeight
-
-        const score1Xpos = boardOrigXpos + boardWidth / 2 + 1.2 * boardCheckerSize;
-        const score1Ypos = boardOrigYpos + boardHeight / 2 + 0.2 * boardCheckerSize;
-        const score2Xpos = boardOrigXpos + boardWidth / 2 + 1.2 * boardCheckerSize;
-        const score2Ypos = boardOrigYpos - boardHeight / 2 - 0.2 * boardCheckerSize;
-
-        const scoreWidth = 1.5 * boardCheckerSize;
-        const scoreHeight = 0.5 * boardCheckerSize;
-
-        // Check if the click is inside the top player's green rectangle
-        if (mouseX >= score1Xpos - scoreWidth / 2 && mouseX <= score1Xpos + scoreWidth / 2 &&
-            mouseY >= score1Ypos - scoreHeight / 2 && mouseY <= score1Ypos + scoreHeight / 2) {
-            positionStore.update(pos => {
-                if (event.button === 0) {
-                    pos.score[0] = Math.max(pos.score[0] - 1, -1); // Decrement score
-                } else if (event.button === 2) {
-                    pos.score[0] = Math.min(pos.score[0] + 1, 99); // Increment score, max 99
-                }
-                if (pos.score[0] === -1) {
-                    pos.score[1] = -1; // Set other player's score to unlimited
-                }
-                return pos;
-            });
-        }
-
-        // Check if the click is inside the bottom player's green rectangle
-        if (mouseX >= score2Xpos - scoreWidth / 2 && mouseX <= score2Xpos + scoreWidth / 2 &&
-            mouseY >= score2Ypos - scoreHeight / 2 && mouseY <= score2Ypos + scoreHeight / 2) {
-            positionStore.update(pos => {
-                if (event.button === 0) {
-                    pos.score[1] = Math.max(pos.score[1] - 1, -1); // Decrement score
-                } else if (event.button === 2) {
-                    pos.score[1] = Math.min(pos.score[1] + 1, 99); // Increment score, max 99
-                }
-                if (pos.score[1] === -1) {
-                    pos.score[0] = -1; // Set other player's score to unlimited
-                }
-                return pos;
-            });
-        }
-    }
-
     function logCanvasSize() {
         const actualWidth = canvas.clientWidth;
         const actualHeight = canvas.clientHeight;
         console.log("Actual canvas width: ", actualWidth, "Actual canvas height: ", actualHeight);
         console.log("Two.js width: ", two.width, "Two.js height: ", two.height);
-    }
-
-    function setBoardOrientation(orientation) {
-        boardCfg.orientation = orientation;
-        drawBoard();
-    }
-
-    function handleOrientationChange(event) {
-        const isAnyModalOpen = get(isAnyModalOpenStore);
-        if (isAnyModalOpen) return; // Disable orientation change when any modal is open
-        if (event.ctrlKey && event.key === 'ArrowLeft') {
-            setBoardOrientation("left");
-        } else if (event.ctrlKey && event.key === 'ArrowRight') {
-            setBoardOrientation("right");
-        }
-    }
-
-    function handleKeyDown(event) {
-        if (mode !== "EDIT" || showMetadataModal) return; // Disable shortcuts when metadata modal is open
-
-        if (event.key === "Backspace" && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-            event.preventDefault();
-            resetBoard();
-        }
     }
 
     onMount(() => {
@@ -642,18 +206,9 @@
         two.height = height;
         two.renderer.setSize(width, height);
 
-        canvas.addEventListener("mousedown", handleMouseDown);
-        canvas.addEventListener("mousemove", handleMouseMove);
-        canvas.addEventListener("mouseup", handleMouseUp);
-        canvas.addEventListener("dblclick", handleDoubleClick);
-        canvas.addEventListener("mousedown", handleDoublingCubeClick);
-        canvas.addEventListener("mousedown", handleRectangleAndDiceClick);
-        canvas.addEventListener("mousedown", handleScoreClick);
-        canvas.addEventListener("contextmenu", event => event.preventDefault()); // Deactivate contextual menu
         drawBoard();
         window.addEventListener("resize", resizeBoard);
         window.addEventListener("keydown", handleOrientationChange);
-        window.addEventListener("keydown", handleKeyDown);
 
         // Add ResizeObserver to detect container size changes
         const resizeObserver = new ResizeObserver(() => {
@@ -695,18 +250,9 @@
     });
 
     onDestroy(() => {
-        canvas.removeEventListener("mousedown", handleMouseDown);
-        canvas.removeEventListener("mousemove", handleMouseMove);
-        canvas.removeEventListener("mouseup", handleMouseUp);
-        canvas.removeEventListener("dblclick", handleDoubleClick);
-        canvas.removeEventListener("mousedown", handleDoublingCubeClick);
-        canvas.removeEventListener("mousedown", handleRectangleAndDiceClick);
-        canvas.removeEventListener("mousedown", handleScoreClick);
-        canvas.removeEventListener("contextmenu", event => event.preventDefault()); // Remove event listener
         window.removeEventListener("resize", resizeBoard);
         window.removeEventListener("resize", logCanvasSize);
         window.removeEventListener("keydown", handleOrientationChange);
-        window.removeEventListener("keydown", handleKeyDown);
         if (unsubscribe) unsubscribe();
     });
 

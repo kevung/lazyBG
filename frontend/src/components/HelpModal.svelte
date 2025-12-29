@@ -172,7 +172,7 @@
                     <p>lazyBG has three main modes:</p>
                     <ul>
                         <li><strong>NORMAL mode:</strong> Navigate and view positions</li>
-                        <li><strong>EDIT mode:</strong> Modify the board position using the mouse</li>
+                        <li><strong>EDIT mode:</strong> Modify backgammon decisions (dice and moves) using the keyboard</li>
                         <li><strong>COMMAND mode:</strong> Execute commands via the command line interface</li>
                     </ul>
                     
