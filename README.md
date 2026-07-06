@@ -15,9 +15,11 @@ uncertain ones for you to confirm. Exports a standard **`.mat` (Jellyfish)** mat
 > an observed board against the engine's legal moves; and `fusion`/`gate` turn the evidence into an
 > auto-filled or needs-review `.mat` move. The engine data is embedded (`//go:embed all:data`), so
 > `go build ./cmd/lazybg` produces a **self-contained offline binary**; `go run ./cmd/lazybg` plays
-> a few turns through the real gnubg engine and prints the `.mat`. All pure Go (no OpenCV yet).
-> Video ingestion, the remaining detectors, and the UI are next. The previous manual-transcription
-> app is archived on branch `legacy_v0`.
+> a few turns through the real gnubg engine and prints the `.mat`. On the video side, `capture`
+> defines the frame stream and `stableframe` finds the still moments worth reading (motion
+> gating) — the ffmpeg-backed frame source and the remaining detectors (clock/commit, dice, cube)
+> land once a corpus clip exists. All pure Go (no OpenCV yet). The UI is next. The previous
+> manual-transcription app is archived on branch `legacy_v0`.
 
 ## Documentation
 
