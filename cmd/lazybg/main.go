@@ -1,79 +1,129 @@
-// Command lazybg is, for now, a walking-skeleton demo of the inference spine:
-// it drives the pipeline with synthetic Cues (standing in for the not-yet-built
-// video front-end), fuses and gates each turn, prints the resulting .mat, and
-// lists any turns queued for human review.
+// Command lazybg is, for now, an end-to-end demo of the transcription spine
+// driven by the real gnubg engine. For each turn it simulates a strong player
+// playing the engine's top move, "observes" the resulting board (standing in for
+// the not-yet-built video front-end), then recovers the move via boarddiff +
+// fusion and gates it — finally exporting a Jellyfish .mat.
 //
-// This is scaffolding: the real app (video scrubber ↔ move list ↔ review queue)
-// arrives at the UI milestone (docs/architecture.md §3, §8).
+// The real app (video scrubber ↔ move list ↔ review queue) arrives at the UI
+// milestone (docs/architecture.md §3, §8).
 package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
+	"lazybg"
 	"lazybg/internal/bg"
 	"lazybg/internal/cue"
+	"lazybg/internal/engine"
 	"lazybg/internal/fusion"
 	"lazybg/internal/gate"
 	"lazybg/internal/matexport"
-	"lazybg/internal/pipeline"
+	"lazybg/internal/perceive"
+	"lazybg/internal/perceive/boarddiff"
 )
 
 func main() {
-	prior := func(m map[string]float64) func(fusion.Candidate) float64 {
-		return func(c fusion.Candidate) float64 { return m[c.Notation] }
+	if err := engine.Init(lazybg.DataFS); err != nil {
+		log.Fatalf("engine init: %v", err)
 	}
 
-	turns := []pipeline.Turn{
-		{
-			Player: bg.P2, Tick: 1000,
-			Cues: []cue.Cue{
-				{Kind: cue.BoardDiff, Confidence: 0.95, Notation: "24/23 13/11"},
-				{Kind: cue.DiceValue, Confidence: 0.95, Dice: bg.Dice{2, 1}},
-			},
-			Legal: []fusion.Candidate{
-				{Dice: bg.Dice{2, 1}, Notation: "24/23 13/11"},
-				{Dice: bg.Dice{2, 1}, Notation: "13/11 6/5"},
-			},
-			Prior: prior(map[string]float64{"24/23 13/11": 1.0, "13/11 6/5": 0.3}),
-		},
-		{
-			Player: bg.P1, Tick: 2000,
-			Cues: []cue.Cue{
-				{Kind: cue.BoardDiff, Confidence: 0.9, Notation: "8/5 6/5"},
-				{Kind: cue.DiceValue, Confidence: 0.9, Dice: bg.Dice{3, 1}},
-			},
-			Legal: []fusion.Candidate{{Dice: bg.Dice{3, 1}, Notation: "8/5 6/5"}},
-			Prior: prior(map[string]float64{"8/5 6/5": 1.0}),
-		},
-		{
-			Player: bg.P2, Tick: 3000,
-			Legal: []fusion.Candidate{
-				{Dice: bg.Dice{5, 2}, Notation: "24/22 13/8"},
-				{Dice: bg.Dice{5, 2}, Notation: "13/8 13/11"},
-			},
-			Prior: prior(map[string]float64{"24/22 13/8": 0.52, "13/8 13/11": 0.5}),
-		},
+	// A fixed sequence of rolls; the engine chooses each move.
+	rolls := []struct {
+		who  bg.Player
+		dice bg.Dice
+	}{
+		{bg.P1, bg.Dice{3, 1}},
+		{bg.P2, bg.Dice{6, 5}},
+		{bg.P1, bg.Dice{5, 4}},
+		{bg.P2, bg.Dice{3, 2}},
 	}
 
-	res := pipeline.Run(turns, fusion.DefaultWeights(), gate.Default())
+	board := bg.StandardStart()
+	policy := gate.Default()
+	var plies []bg.Ply
+	tick := 0
+
+	for _, r := range rolls {
+		tick += 1000
+		ply, next, dec, err := playTurn(board, r.dice, r.who, tick)
+		if err != nil {
+			log.Fatalf("turn (%v %v): %v", r.who, r.dice, err)
+		}
+		outcome, _ := policy.Classify(dec)
+		fmt.Fprintf(os.Stderr, "tick %5d  %-5s rolls %s → %-14s conf=%.2f  [%s]\n",
+			tick, playerName(r.who), r.dice, dec.Top.Notation, dec.Confidence, outcome)
+		plies = append(plies, ply)
+		board = next
+	}
 
 	m := bg.Match{
 		Length:  3,
 		Players: [2]string{"Alice", "Bob"},
 		Meta: []bg.MetaField{
-			{Key: "Site", Value: "lazyBG skeleton demo"},
+			{Key: "Site", Value: "lazyBG engine demo"},
 			{Key: "Player 1", Value: "Alice"},
 			{Key: "Player 2", Value: "Bob"},
 		},
-		Games: []bg.Game{{Number: 1, Plies: res.Plies}},
+		Games: []bg.Game{{Number: 1, Plies: plies}},
+	}
+	fmt.Fprint(os.Stdout, matexport.Write(m))
+}
+
+// playTurn asks the engine for the best move, "observes" its result (simulating
+// perception), then recovers the move via boarddiff + fusion — exercising the
+// real pipeline end-to-end. Returns the auto-fill ply, the resulting board, and
+// the decision.
+func playTurn(board bg.Board, dice bg.Dice, who bg.Player, tick int) (bg.Ply, bg.Board, cue.MoveDecision, error) {
+	pre := bg.Position{Board: board, Dice: dice, PlayerOnRoll: who}
+	moves, err := engine.LegalMoves(pre)
+	if err != nil {
+		return bg.Ply{}, board, cue.MoveDecision{}, err
+	}
+	if len(moves) == 0 { // dance
+		ply := bg.Ply{Player: who, Dice: dice, CannotMove: true, Tick: tick}
+		return ply, board, cue.MoveDecision{Player: who, Tick: tick}, nil
 	}
 
-	fmt.Fprint(os.Stdout, matexport.Write(m))
-	fmt.Fprintf(os.Stderr, "\n— auto-filled %d move(s); %d queued for review —\n",
-		len(res.Plies), len(res.Review))
-	for _, ri := range res.Review {
-		fmt.Fprintf(os.Stderr, "  review @tick %d: top=%q conf=%.2f (%s)\n",
-			ri.Decision.Tick, ri.Decision.Top.Notation, ri.Decision.Confidence, ri.Reason)
+	played := moves[0]                 // a strong player plays the engine's best move
+	observed := observe(played.Result) // stand-in for the board-state reader
+	dec, err := boarddiff.Decide(pre, observed, &dice, tick, fusion.DefaultWeights())
+	if err != nil {
+		return bg.Ply{}, board, cue.MoveDecision{}, err
 	}
+	ply := bg.Ply{
+		Player:     who,
+		Dice:       dice,
+		Notation:   dec.Top.Notation,
+		Tick:       tick,
+		Confidence: dec.Confidence,
+	}
+	return ply, played.Result, dec, nil
+}
+
+// observe fabricates a clean, fully-confident reading of a board (stand-in for
+// the board-state reader).
+func observe(b bg.Board) perceive.ObservedBoard {
+	var ob perceive.ObservedBoard
+	for p := 1; p <= 24; p++ {
+		c := b.Pts[p]
+		if c.N == 0 {
+			ob.Points[p] = perceive.PointObs{Confidence: 1}
+			continue
+		}
+		side := perceive.A
+		if c.Owner == bg.P2 {
+			side = perceive.B
+		}
+		ob.Points[p] = perceive.PointObs{Count: c.N, Side: side, Confidence: 1}
+	}
+	return ob
+}
+
+func playerName(p bg.Player) string {
+	if p == bg.P1 {
+		return "Alice"
+	}
+	return "Bob"
 }

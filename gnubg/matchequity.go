@@ -1,11 +1,11 @@
 package gnubg
 
 import (
-	"lazybg/gnubg/math32"
-	"lazybg/gnubg/met"
 	"encoding/xml"
 	"io/fs"
 	"io/ioutil"
+	"lazybg/gnubg/math32"
+	"lazybg/gnubg/met"
 )
 
 const _MAXSCORE = 64

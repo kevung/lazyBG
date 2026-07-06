@@ -1,9 +1,9 @@
 package gnubg
 
 import (
-	"lazybg/gnubg/sigmoid"
 	"fmt"
 	"io/fs"
+	"lazybg/gnubg/sigmoid"
 )
 
 const _WEIGHTS_VERSION = "1.00"

@@ -1,10 +1,10 @@
 package gnubg
 
 import (
-	"lazybg/gnubg/math32"
 	"crypto/md5"
 	"fmt"
 	"io/fs"
+	"lazybg/gnubg/math32"
 	"math/bits"
 	"sort"
 )
