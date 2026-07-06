@@ -232,4 +232,5 @@ offline binary. Engine tests reference the on-disk `data/` via a relative path (
 - **State of the art / stack decision:** `docs/research/video-analysis-survey.md`.
 - **Concepts:** `docs/domain-model.md`.
 - **Design:** `docs/architecture.md`.
+- **Corpus, labeling & evaluation:** `docs/experiment-plan.md`.
 - **Legacy reference (ideas only):** branch `legacy_v0`.
