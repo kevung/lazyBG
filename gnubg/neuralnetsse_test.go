@@ -20,7 +20,7 @@ func _openFile(filename string) *os.File {
 
 func Test_neuralNetEvaluateSSE(t *testing.T) {
 	var nnContact _NeuralNet
-	pfWeights := _openFile("../../cmd/bgweb-api/data/gnubg.weights")
+	pfWeights := _openFile("../data/gnubg.weights")
 	defer pfWeights.Close()
 	if err := neuralNetLoad(&nnContact, pfWeights); err != nil {
 		t.Errorf("error while loading nnContact: %v", err)

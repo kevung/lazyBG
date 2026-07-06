@@ -22,7 +22,7 @@ func Test_bearoffInit(t *testing.T) {
 		{
 			name: "should init one-sided",
 			args: args{
-				dataDir:    os.DirFS("../../cmd/bgweb-api/data"),
+				dataDir:    os.DirFS("../data"),
 				szFilename: "gnubg_os0.bd",
 				bo:         _BO_MUST_BE_ONE_SIDED,
 			},
@@ -43,7 +43,7 @@ func Test_bearoffInit(t *testing.T) {
 		{
 			name: "should init two-sided",
 			args: args{
-				dataDir:    os.DirFS("../../cmd/bgweb-api/data"),
+				dataDir:    os.DirFS("../data"),
 				szFilename: "gnubg_ts0.bd",
 				bo:         _BO_MUST_BE_TWO_SIDED,
 			},
@@ -105,7 +105,7 @@ func Test_bearoffInit(t *testing.T) {
 // }
 
 func Test_bearoffDist(t *testing.T) {
-	dataDir := os.DirFS("../../cmd/bgweb-api/data")
+	dataDir := os.DirFS("../data")
 	pbc, err := bearoffInit(dataDir, "gnubg_os0.bd", _BO_MUST_BE_ONE_SIDED)
 	if err != nil {
 		panic(err)

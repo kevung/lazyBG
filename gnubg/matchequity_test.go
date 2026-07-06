@@ -22,7 +22,7 @@ func Test_readMET(t *testing.T) {
 			name: "Read Kazaross-XG2",
 			args: args{
 				met:      &met.METData{},
-				dataDir:  os.DirFS("../../cmd/bgweb-api/data"),
+				dataDir:  os.DirFS("../data"),
 				filename: "met/Kazaross-XG2.xml",
 			},
 			want: 0,
@@ -49,7 +49,7 @@ func Test_initMatchEquity(t *testing.T) {
 		{
 			name: "Read Kazaross-XG2",
 			args: args{
-				dataDir:    os.DirFS("../../cmd/bgweb-api/data"),
+				dataDir:    os.DirFS("../data"),
 				szFileName: "met/Kazaross-XG2.xml",
 			},
 		},
