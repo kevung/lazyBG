@@ -7,9 +7,10 @@ Feed it a match video; for each turn it proposes the dice and the checker move p
 with a confidence score and the video timecode — auto-filling the confident ones and queuing the
 uncertain ones for you to confirm. Exports a standard **`.mat` (Jellyfish)** match file.
 
-> **Status: fresh rebuild in progress.** This branch (`main`) currently contains only the
-> salvaged, self-contained **gnubg engine** (a pure-Go port used offline for legality checking
-> and move ranking) plus the design docs. The video pipeline, computer vision, and UI are being
+> **Status: fresh rebuild in progress.** `main` contains the salvaged, self-contained **gnubg
+> engine** (a pure-Go port used offline for legality checking and move ranking), the design docs,
+> and a **walking-skeleton inference spine**: synthetic cues → `fusion` → `gate` → transcription →
+> `.mat` export (`go run ./cmd/lazybg`). The video pipeline, computer vision, and UI are being
 > built on top. The previous manual-transcription app is archived on branch `legacy_v0`.
 
 ## Documentation
