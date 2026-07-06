@@ -1,0 +1,8 @@
+# github.com/kevung/gnubgparser v0.0.0 => ../../tmp/blunderDB/gnubgparser
+## explicit; go 1.21
+github.com/kevung/gnubgparser
+# github.com/kevung/xgparser v0.0.0 => ../../tmp/blunderDB/xgparser
+## explicit; go 1.21
+github.com/kevung/xgparser/xgparser
+# github.com/kevung/xgparser => ../../tmp/blunderDB/xgparser
+# github.com/kevung/gnubgparser => ../../tmp/blunderDB/gnubgparser
