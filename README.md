@@ -13,9 +13,11 @@ uncertain ones for you to confirm. Exports a standard **`.mat` (Jellyfish)** mat
 > homography; `boardstate` reads checker counts per point by classical color-segmentation; the
 > `engine` seam wraps the gnubg port (legal moves + equity + resulting boards); `boarddiff` matches
 > an observed board against the engine's legal moves; and `fusion`/`gate` turn the evidence into an
-> auto-filled or needs-review `.mat` move (`go run ./cmd/lazybg` for the synthetic-cue spine demo).
-> All pure Go (no OpenCV yet). Video ingestion, the remaining detectors, and the UI are next. The
-> previous manual-transcription app is archived on branch `legacy_v0`.
+> auto-filled or needs-review `.mat` move. The engine data is embedded (`//go:embed all:data`), so
+> `go build ./cmd/lazybg` produces a **self-contained offline binary**; `go run ./cmd/lazybg` plays
+> a few turns through the real gnubg engine and prints the `.mat`. All pure Go (no OpenCV yet).
+> Video ingestion, the remaining detectors, and the UI are next. The previous manual-transcription
+> app is archived on branch `legacy_v0`.
 
 ## Documentation
 

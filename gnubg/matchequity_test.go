@@ -1,8 +1,8 @@
 package gnubg
 
 import (
-	"lazybg/gnubg/met"
 	"io/fs"
+	"lazybg/gnubg/met"
 	"os"
 	"testing"
 )

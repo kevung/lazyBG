@@ -1,9 +1,9 @@
 package gnubg
 
 import (
-	"lazybg/gnubg/math32"
 	"fmt"
 	"io/fs"
+	"lazybg/gnubg/math32"
 	"strconv"
 )
 
