@@ -18,8 +18,10 @@ uncertain ones for you to confirm. Exports a standard **`.mat` (Jellyfish)** mat
 > a few turns through the real gnubg engine and prints the `.mat`. On the video side, `capture`
 > defines the frame stream and `stableframe` finds the still moments worth reading (motion
 > gating) — the ffmpeg-backed frame source and the remaining detectors (clock/commit, dice, cube)
-> land once a corpus clip exists. All pure Go (no OpenCV yet). The UI is next. The previous
-> manual-transcription app is archived on branch `legacy_v0`.
+> land once a corpus clip exists. For the labeled corpus, `matimport` reads a `.mat` (round-trips
+> with the writer) and `derive` replays it to reconstruct the board + dice at every turn — the
+> "labels for free" step (see `docs/experiment-plan.md`). All pure Go (no OpenCV yet). The UI is
+> next. The previous manual-transcription app is archived on branch `legacy_v0`.
 
 ## Documentation
 
