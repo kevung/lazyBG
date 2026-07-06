@@ -63,11 +63,22 @@ These are settled. Revisit them explicitly with the user, not silently.
    baseline confidence. First-class domain concept.
 9. **Process = TDD + git worktrees + ~500-line docs** (see §7).
 
-**Deferred to the deep-research survey** (`docs/research/video-analysis-survey.md`): the concrete
-tech stack/language of the new build, and the concrete technique behind each detector. Leading
-hypothesis to validate: a single self-contained Go binary + engine in-process, CV via OpenCV
-bindings and/or small ONNX detectors for CPU inference, Python dev-time-only for model training.
-**Do not lock the stack until the survey is written and reviewed.**
+**Resolved by the deep-research survey** (`docs/research/video-analysis-survey.md`, now written):
+
+10. **Shipped stack = one Go app.** gnubg engine in-process; small ONNX detectors via
+    `onnxruntime_go` for CPU inference; classical CV in Go (`gocv`/hand-rolled); **video decode via
+    a bundled `ffmpeg`**. **Python is dev-time-only** (model training + synthetic rendering).
+    Honest caveat: not a literal single static file — a Go binary + ONNX Runtime shared lib +
+    `ffmpeg`, bundled per platform (a lightweight *offline bundle*, not one file).
+11. **Calibrated-classical-first perception (MVP).** Lean on Session Priors + a one-time
+    user-assisted **Board Calibration** (fixed camera) + classical color-segmentation checker
+    counting. Learned models are a later upgrade — the survey showed fully-automatic readers
+    collapse (~99%→65%) on heterogeneous real footage, so single learned readers are not shipped.
+
+Still open (decided at their milestone, not up front): the **UI toolkit** (leading candidate
+Wails v2 + a fresh minimal frontend; see `docs/architecture.md` §3), and the concrete per-detector
+techniques for the **evidence-gap** areas — dice/cube reading, clock-hit (incl. audio) detection,
+occlusion handling, confidence calibration — which are **prototype-first** (survey §12–§13).
 
 ---
 
