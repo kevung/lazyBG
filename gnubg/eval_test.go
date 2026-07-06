@@ -11,7 +11,7 @@ import (
 var once sync.Once
 
 func setup() {
-	dataDir := os.DirFS("../../cmd/bgweb-api/data")
+	dataDir := os.DirFS("../data")
 	initMatchEquity(dataDir, "met/Kazaross-XG2.xml")
 	if err := evalInitialise(dataDir); err != nil {
 		panic(err)

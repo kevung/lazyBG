@@ -17,7 +17,7 @@ func openFile(filename string) *os.File {
 }
 
 func Test_neuralNetLoad(t *testing.T) {
-	pf := openFile("../../cmd/bgweb-api/data/gnubg.weights")
+	pf := openFile("../data/gnubg.weights")
 	defer pf.Close()
 	type args struct {
 		pnn *_NeuralNet
@@ -77,7 +77,7 @@ func Test_neuralNetLoad(t *testing.T) {
 }
 
 func Test_neuralNetEvaluate(t *testing.T) {
-	pf := openFile("../../cmd/bgweb-api/data/gnubg.weights")
+	pf := openFile("../data/gnubg.weights")
 	defer pf.Close()
 	pnn := _NeuralNet{}
 	if err := neuralNetLoad(&pnn, pf); err != nil {

@@ -1,4 +1,16 @@
-build/bin
-node_modules
-frontend/dist
-*.lbg
+# Build output
+/bin/
+*.exe
+
+# Large raw video corpus (referenced by manifest, never committed) — see CLAUDE.md §7
+/corpus/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

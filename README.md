@@ -1,38 +1,34 @@
 # lazyBG
 
-lazyBG is a backgammon match transcription assistant. It uses [GNU
-Backgammon](https://www.gnu.org/software/gnubg), a sophisticated neural net
-based multi-ply evalution engine to get candidate checker moves during the
-transcription process.
+**Offline, lightweight, cross-platform tool to accelerate and semi-automate transcribing a
+backgammon match from its video capture.**
 
-## File Format
+Feed it a match video; for each turn it proposes the dice and the checker move played — each
+with a confidence score and the video timecode — auto-filling the confident ones and queuing the
+uncertain ones for you to confirm. Exports a standard **`.mat` (Jellyfish)** match file.
 
-LazyBG uses a versioned JSON file format (`.lbg` extension) to store match transcriptions. The current format version is **1.0.0**.
+> **Status: fresh rebuild in progress.** This branch (`main`) currently contains only the
+> salvaged, self-contained **gnubg engine** (a pure-Go port used offline for legality checking
+> and move ranking) plus the design docs. The video pipeline, computer vision, and UI are being
+> built on top. The previous manual-transcription app is archived on branch `legacy_v0`.
 
-### Version Management
+## Documentation
 
-All `.lbg` files include a `version` field to track the file format and ensure compatibility:
+- [`CLAUDE.md`](CLAUDE.md) — project overview, decisions, and working conventions.
+- [`docs/research/video-analysis-survey.md`](docs/research/video-analysis-survey.md) — state of
+  the art (pending).
+- [`docs/domain-model.md`](docs/domain-model.md) — ubiquitous language.
+- [`docs/architecture.md`](docs/architecture.md) — design.
 
-```json
-{
-  "version": "1.0.0",
-  "metadata": { ... },
-  "games": [ ... ]
-}
+## Build & test
+
+```bash
+go build ./...
+go test ./gnubg/...   # engine reuse contract
 ```
 
-**Key Features:**
-- **Backward compatibility**: Older files are automatically migrated when opened
-- **Forward compatibility check**: Warns if file was created with newer version
-- **Validation**: Ensures file structure integrity
-- **Semantic versioning**: Clear version progression (major.minor.patch)
+## Credits
 
-For detailed information about version management, migrations, and file format specifications, see:
-- [Version Management Documentation](doc/VERSION_MANAGEMENT.md)
-- [Migration Example](doc/MIGRATION_EXAMPLE.js)
-
-# Acknowledgements
-
-I cheerfully thank Rami Keränen alias [foochu](https://github.com/foochu) for
-porting GNU Backgammon engine checker evaluation to Go.
-
+The engine is a port of [GNU Backgammon](https://www.gnu.org/software/gnubg/); the Go checker
+evaluation port is credited to Rami Keränen (foochu) via the bgweb-api project. lazyBG is
+licensed under the terms in [`LICENSE`](LICENSE).
