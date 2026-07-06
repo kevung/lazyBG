@@ -44,15 +44,31 @@ frames, inference on synthetic cues, core on pure game logic (`CLAUDE.md` §7).
 ## 2. Capture context
 
 ### Capture
-The source video of a single match. Immutable input. Identified by a content hash + path.
+The source video — one video file. Immutable input. Identified by a content hash + path.
 Attributes: container/codec, resolution, aspect ratio, frame rate, duration, and (optionally) an
 **audio track**. Everything downstream is keyed by **Tick**.
+
+### Recording & Part (multi-part captures)
+A **Recording** is one match's video as an **ordered list of Parts** — a match may be filmed in
+several files (a mechanical split of one continuous setup, or separate resumptions where the
+camera/board may have shifted; both occur). Each **Part** wraps one Capture with its **own** Active
+Span, Board Calibration, and Session Priors — each **inheriting** from the previous Part when the
+setup is unchanged. A single-file match is just a Recording with one Part. The **Transcription**
+attaches to the Recording; every turn is tagged **(part, tick)**.
+
+### Active Span
+The `[begin, end]` interval within a Part where match play actually happens — matches rarely start
+at video-start (players talk / set up) and Parts have dead ends. **Match begin** = the first Part's
+span-begin; **Match end** = the last Part's span-end. In the corpus these are user-labeled;
+auto-detecting them (first roll / final bear-off / handshake) is a later, evaluated capability.
+*Rule: perception and export ignore everything outside the Active Spans.*
 
 ### Tick (video timecode)
 The canonical time coordinate — a precise position in the Capture (frame index and/or
 milliseconds). Every piece of evidence, every Move Decision, and every review item carries the
 **Tick** at which it occurred, so the user can always jump to the exact video moment. Ticks are
-the join key across all contexts. *Rule: a Tick is meaningless without its Capture.*
+the join key across all contexts. For a multi-part Recording a Tick is a **Recording-global
+coordinate `(part, offsetMs)`**. *Rule: a Tick is meaningless without its Capture.*
 
 ### Frame
 The decoded image at a Tick. Frames are transient (decoded on demand, not all held in memory).
@@ -79,8 +95,9 @@ The mapping from Capture pixels to the **canonical rectified board** (a top-down
 coordinate system with fixed positions for the 24 points, bar, and bearoff trays). In the MVP the
 user clicks the board corners/landmarks **once** (fixed-camera assumption) and lazyBG computes one
 **homography**; it is reused for every Tick. Attributes: source corner points, homography matrix,
-the canonical grid definition, and a validity confidence. Later: semi- or fully-automatic
-calibration (survey §1). *Rule: board reading is undefined without a Board Calibration.*
+the canonical grid definition, and a validity confidence. It is held **per Part** and inherits from
+the previous Part when the camera is unchanged. Later: semi- or fully-automatic calibration
+(survey §1). *Rule: board reading is undefined without a Board Calibration.*
 
 ---
 
@@ -259,18 +276,33 @@ translation seam (the trickiest integration point).
 ## 7. Transcription (aggregate root) & Export
 
 ### Transcription
-The whole match being rebuilt from a Capture — the **aggregate root** tying every context
-together. Owns: the Capture reference, the Capture Profile, the Board Calibration, the ordered
-**Move Decisions** (auto-filled + human-resolved), the **Review queue**, and Match metadata. A
-Transcription is the editable working document; it is *not* the export format. *Invariant: every
-move in a Transcription is either auto-filled above threshold or human-resolved — nothing enters
-silently below the Gate.*
+The whole match being rebuilt from a **Recording** — the **aggregate root** tying every context
+together. Owns: the Recording (its ordered Parts, each with a Capture Profile and Board
+Calibration), the ordered **Move Decisions** (auto-filled + human-resolved), the **Review queue**,
+and Match metadata. A Transcription is the editable working document; it is *not* the export
+format. *Invariant: every move in a Transcription is either auto-filled above threshold or
+human-resolved — nothing enters silently below the Gate.*
 
 ### Export (.mat / Jellyfish)
 The canonical output (`CLAUDE.md` §3.2): a **`.mat` (Jellyfish) / `.txt`** match file readable by
 gnubg, XG, and BGBlitz. Export maps the Transcription's Games/Turns/Moves/Cube actions + Match
 metadata into the Jellyfish text layout. *Rule: the `.mat` is a projection of the Transcription;
 round-tripping (import a `.mat`, re-export) should be stable.*
+
+### Ground-Truth Derivation
+The reverse direction, used to build the labeled corpus (`experiment-plan.md`): **import** a `.mat`
+and **replay** it move-by-move to reconstruct, per turn, the exact **Position**, **Dice**, and
+resulting **Board**. A `.mat` thus supplies board-state and dice labels *for free* — the only label
+it lacks is **when** (the turn's Tick). Paired with a labeled Tick and the Part's calibration, each
+turn yields a `(commit-frame, board-state, dice, commit-tick)` record that feeds both **validation**
+(compare to what perception read) and **training** (crops for learned readers).
+
+### Corpus / Manifest
+The **Corpus** is the collection of labeled **Recordings** used to measure and train the pipeline.
+Its **Manifest** is the committed JSON index — Recordings → Parts (file, span, priors, calibration
+corners, inherit flags) → transcript ref → per-turn `(part, tick)` labels + matrix **cell** tags.
+Large raw videos stay gitignored under `corpus/`; small hand-labeled golden frames are committed
+under `testdata/` (`CLAUDE.md` §7).
 
 ---
 
