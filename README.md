@@ -9,10 +9,12 @@ uncertain ones for you to confirm. Exports a standard **`.mat` (Jellyfish)** mat
 
 > **Status: fresh rebuild in progress.** `main` contains the salvaged, self-contained **gnubg
 > engine** (a pure-Go port used offline for legality checking and move ranking), the design docs,
-> and a **walking-skeleton inference spine**: synthetic cues → `fusion` → `gate` → transcription →
-> `.mat` export (`go run ./cmd/lazybg`). Perception has begun: `geom`/`calibrate` rectify a board
-> via a homography, and `boardstate` reads checker counts per point by classical color-segmentation
-> (pure Go, no OpenCV yet). Video ingestion, the remaining detectors, and the UI are next. The
+> and a working **inference + perception core**: `geom`/`calibrate` rectify a board via a
+> homography; `boardstate` reads checker counts per point by classical color-segmentation; the
+> `engine` seam wraps the gnubg port (legal moves + equity + resulting boards); `boarddiff` matches
+> an observed board against the engine's legal moves; and `fusion`/`gate` turn the evidence into an
+> auto-filled or needs-review `.mat` move (`go run ./cmd/lazybg` for the synthetic-cue spine demo).
+> All pure Go (no OpenCV yet). Video ingestion, the remaining detectors, and the UI are next. The
 > previous manual-transcription app is archived on branch `legacy_v0`.
 
 ## Documentation
