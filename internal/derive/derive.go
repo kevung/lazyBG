@@ -147,7 +147,8 @@ func pointOf(s string) (int, error) {
 	switch {
 	case strings.EqualFold(s, "bar"):
 		return barPt, nil
-	case strings.EqualFold(s, "off"):
+	case strings.EqualFold(s, "off"), s == "0":
+		// "0" is the .mat/Jellyfish numeric bear-off destination (e.g. "6/0").
 		return offPt, nil
 	}
 	n, err := strconv.Atoi(s)

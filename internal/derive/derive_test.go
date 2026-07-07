@@ -125,6 +125,26 @@ func TestApplyNotation_BearOff(t *testing.T) {
 	}
 }
 
+// The .mat/Jellyfish numeric bear-off form writes the destination "off" as
+// point 0 (e.g. "6/0"), as produced by our xg2mat converter. It must behave
+// identically to "6/off". Regression for the bug that made every game go
+// board-unknown from its first bear-off.
+func TestApplyNotation_BearOffNumericZero(t *testing.T) {
+	got, err := ApplyNotation(bearoffPosition(), bg.P1, "6/0 5/0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Pts[6].N != 4 || got.Pts[5].N != 3 {
+		t.Errorf("after 6/0 5/0: p6=%+v p5=%+v, want 4 and 3", got.Pts[6], got.Pts[5])
+	}
+	if got.Off[bg.P1] != 2 {
+		t.Errorf("P1 off = %d, want 2", got.Off[bg.P1])
+	}
+	if got.Checkers(bg.P1) != 15 {
+		t.Errorf("conservation: P1 = %d, want 15", got.Checkers(bg.P1))
+	}
+}
+
 // Full real-match replay: every derivable turn conserves 15 checkers per side;
 // the two "????" games flag exactly at the unrecorded move.
 func TestReplay_RealMatch(t *testing.T) {
