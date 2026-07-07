@@ -89,24 +89,39 @@ func (cb CanonicalBoard) OffRegion() image.Rectangle {
 
 // BoardCalibration maps between a source frame and the canonical board.
 type BoardCalibration struct {
-	Board     CanonicalBoard
-	canon2src geom.Mat3 // canonical pixel → source pixel (used to sample during Rectify)
-	src2canon geom.Mat3 // source pixel → canonical pixel (used to place detections)
-	ok        bool
+	Board       CanonicalBoard
+	canon2ideal geom.Mat3 // canonical pixel → undistorted (ideal) source pixel
+	ideal2canon geom.Mat3 // ideal source pixel → canonical pixel
+	lens        Lens      // radial distortion between ideal and recorded source
+	ok          bool
 }
 
 // New builds a calibration from four source-image corners of the board, given in
 // order top-left, top-right, bottom-right, bottom-left. Returns ok=false if the
-// corners are degenerate.
+// corners are degenerate. No lens distortion is applied.
 func New(srcCorners [4]geom.Pt, cb CanonicalBoard) (BoardCalibration, bool) {
+	return NewWithLens(srcCorners, cb, Lens{})
+}
+
+// NewWithLens is New with radial lens distortion. The clicked corners are on the
+// recorded (distorted) frame; they are undistorted to ideal space before the
+// homography, and Rectify re-distorts when sampling the real source. An inactive
+// lens (zero value) makes this identical to New.
+func NewWithLens(srcCorners [4]geom.Pt, cb CanonicalBoard, lens Lens) (BoardCalibration, bool) {
 	w, h := cb.Size()
+	ideal := srcCorners
+	if lens.active() {
+		for i := range ideal {
+			ideal[i] = lens.undistort(srcCorners[i])
+		}
+	}
 	canon := [4]geom.Pt{geom.P(0, 0), geom.P(float64(w), 0), geom.P(float64(w), float64(h)), geom.P(0, float64(h))}
-	c2s, ok1 := geom.Homography(canon, srcCorners)
-	s2c, ok2 := geom.Homography(srcCorners, canon)
+	c2i, ok1 := geom.Homography(canon, ideal)
+	i2c, ok2 := geom.Homography(ideal, canon)
 	if !ok1 || !ok2 {
 		return BoardCalibration{}, false
 	}
-	return BoardCalibration{Board: cb, canon2src: c2s, src2canon: s2c, ok: true}, true
+	return BoardCalibration{Board: cb, canon2ideal: c2i, ideal2canon: i2c, lens: lens, ok: true}, true
 }
 
 // PointRegion delegates to the canonical board.
@@ -114,8 +129,11 @@ func (c BoardCalibration) PointRegion(p int) (image.Rectangle, StackDir) {
 	return c.Board.PointRegion(p)
 }
 
-// ToCanonical maps a source-frame point into canonical board coordinates.
-func (c BoardCalibration) ToCanonical(p geom.Pt) geom.Pt { return c.src2canon.Apply(p) }
+// ToCanonical maps a source-frame point into canonical board coordinates,
+// undistorting first when a lens is set.
+func (c BoardCalibration) ToCanonical(p geom.Pt) geom.Pt {
+	return c.ideal2canon.Apply(c.lens.undistort(p))
+}
 
 // Rectify warps src into the canonical top-down board image via inverse mapping
 // and bilinear sampling. Pixels that fall outside src become transparent black.
@@ -128,7 +146,8 @@ func (c BoardCalibration) Rectify(src image.Image) *image.RGBA {
 	b := src.Bounds()
 	for v := 0; v < h; v++ {
 		for u := 0; u < w; u++ {
-			sp := c.canon2src.Apply(geom.Pt{X: float64(u), Y: float64(v)})
+			ideal := c.canon2ideal.Apply(geom.Pt{X: float64(u), Y: float64(v)})
+			sp := c.lens.distort(ideal)
 			dst.SetRGBA(u, v, bilinear(src, b, sp.X, sp.Y))
 		}
 	}
