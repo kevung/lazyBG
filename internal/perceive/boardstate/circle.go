@@ -17,7 +17,8 @@ import (
 // checkers from felt, so it survives low-contrast and marbled checker sets.
 type CircleReader struct {
 	Profile profile.CaptureProfile
-	Radius  int // checker radius in rectified px; 0 -> cb.PointW/2
+	Radius  int            // checker radius in rectified px; 0 -> cb.PointW/2
+	Params  checker.Params // detector tuning; zero value uses checker defaults
 }
 
 // Read produces an ObservedBoard for points 1..24 from the rectified image.
@@ -41,7 +42,7 @@ func (cr CircleReader) readPoint(img image.Image, region image.Rectangle, r int)
 	const margin = 4
 	crop := region.Inset(-margin).Intersect(img.Bounds())
 	gray := toGray(img, crop)
-	circles := checker.Detect(gray, r)
+	circles := checker.DetectWith(gray, r, cr.Params)
 
 	var aVotes, bVotes int
 	for _, c := range circles {
