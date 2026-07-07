@@ -80,6 +80,63 @@ func Render(cb calibrate.CanonicalBoard, layout map[int]Stack, col Colors) *imag
 	return img
 }
 
+// RenderDiscs is like Render but draws each checker as a filled circle with a
+// thin darker rim, spread along the point axis — the shape a circle detector
+// expects. Solid squares (Render) merge into bars with no internal rims; real
+// checkers are rimmed discs. Backs the shape-based CircleReader's tests and is a
+// step toward realistic synthetic training data.
+func RenderDiscs(cb calibrate.CanonicalBoard, layout map[int]Stack, col Colors) *image.RGBA {
+	w, h := cb.Size()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	Fill(img, img.Bounds(), col.Background)
+	r := cb.PointW / 2
+	for p, st := range layout {
+		region, dir := cb.PointRegion(p)
+		c := col.A
+		if st.Side == perceive.B {
+			c = col.B
+		}
+		cx := (region.Min.X + region.Max.X) / 2
+		for k := 0; k < st.N; k++ {
+			var cy int
+			if dir == calibrate.StackDown {
+				cy = region.Min.Y + k*cb.PointW + r
+			} else {
+				cy = region.Max.Y - k*cb.PointW - r
+			}
+			fillDisc(img, cx, cy, r-1, c)
+			outlineDisc(img, cx, cy, r-1, darken(c)) // rim separates touching discs
+		}
+	}
+	return img
+}
+
+func fillDisc(img *image.RGBA, cx, cy, r int, c color.RGBA) {
+	for y := cy - r; y <= cy+r; y++ {
+		for x := cx - r; x <= cx+r; x++ {
+			dx, dy := x-cx, y-cy
+			if dx*dx+dy*dy <= r*r && image.Pt(x, y).In(img.Bounds()) {
+				img.SetRGBA(x, y, c)
+			}
+		}
+	}
+}
+
+func outlineDisc(img *image.RGBA, cx, cy, r int, c color.RGBA) {
+	for y := cy - r; y <= cy+r; y++ {
+		for x := cx - r; x <= cx+r; x++ {
+			d := (x-cx)*(x-cx) + (y-cy)*(y-cy)
+			if d <= r*r && d >= (r-1)*(r-1) && image.Pt(x, y).In(img.Bounds()) {
+				img.SetRGBA(x, y, c)
+			}
+		}
+	}
+}
+
+func darken(c color.RGBA) color.RGBA {
+	return color.RGBA{c.R / 2, c.G / 2, c.B / 2, 255}
+}
+
 // WarpToSource renders a canonical image into a w×h source frame such that the
 // canonical corners land on srcCorners — the inverse of calibrate.Rectify. The
 // area outside the board is filled with bg.
