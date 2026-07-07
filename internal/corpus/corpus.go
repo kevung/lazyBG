@@ -1,0 +1,153 @@
+// Package corpus loads and validates a Recording manifest — the labeling
+// artifact that ties a match's video Part(s) to its .mat transcript, capture
+// cell, per-Part Session Priors + Board Calibration, and the per-turn commit
+// ticks (docs/experiment-plan.md §7). One Recording = one match; a Part is one
+// ordered video file. Priors/calibration may be inherited from the prior Part
+// when the setup is unchanged.
+package corpus
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// SchemaVersion is the manifest format version this package understands.
+const SchemaVersion = 1
+
+// Manifest is one Recording's labels.
+type Manifest struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	ID            string `json:"id"`
+	Transcript    string `json:"transcript"` // path to the .mat ground truth
+	Cell          Cell   `json:"cell"`
+	Parts         []Part `json:"parts"`
+	Turns         []Turn `json:"turns"`
+}
+
+// Cell records the corpus variety-matrix labels for per-cell reporting.
+type Cell struct {
+	Angle      string `json:"angle"`
+	Colors     string `json:"colors"`
+	Resolution string `json:"resolution"`
+	Dice       string `json:"dice"`
+	Audio      string `json:"audio"`
+}
+
+// Part is one ordered video file with its setup.
+type Part struct {
+	File        string      `json:"file"`
+	Priors      Priors      `json:"priors"`
+	Calibration Calibration `json:"calibration"`
+	Span        Span        `json:"span"`
+}
+
+// Priors are the user-declared Session Priors for a Part. Inherit copies the
+// prior Part's (resolved) priors.
+type Priors struct {
+	Inherit     bool   `json:"inherit,omitempty"`
+	Clock       bool   `json:"clock,omitempty"`
+	MatchLength int    `json:"matchLength,omitempty"`
+	CheckerA    string `json:"checkerA,omitempty"`
+	CheckerB    string `json:"checkerB,omitempty"`
+	Orientation string `json:"orientation,omitempty"`
+}
+
+// Calibration is the four board corners in this Part's frame (order
+// TL,TR,BR,BL). Inherit copies the prior Part's (resolved) calibration.
+type Calibration struct {
+	Inherit bool         `json:"inherit,omitempty"`
+	Corners [][2]float64 `json:"corners,omitempty"`
+}
+
+// Span is the active play region within a Part, in milliseconds.
+type Span struct {
+	BeginMs int `json:"beginMs"`
+	EndMs   int `json:"endMs"`
+}
+
+// Turn is one labeled commit: which Part and video tick the turn was committed.
+type Turn struct {
+	Index  int `json:"index"`
+	Part   int `json:"part"`
+	TickMs int `json:"tickMs"`
+}
+
+// Load unmarshals, resolves inheritance, and validates a manifest.
+func Load(data []byte) (Manifest, error) {
+	var m Manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return Manifest{}, fmt.Errorf("parse manifest: %w", err)
+	}
+	if err := m.resolveInherit(); err != nil {
+		return Manifest{}, err
+	}
+	if err := m.validate(); err != nil {
+		return Manifest{}, err
+	}
+	return m, nil
+}
+
+// resolveInherit copies priors/calibration forward from the previous Part where
+// a Part declares inherit. Inheriting on the first Part is an error.
+func (m *Manifest) resolveInherit() error {
+	for i := range m.Parts {
+		if m.Parts[i].Priors.Inherit {
+			if i == 0 {
+				return fmt.Errorf("part 0: priors cannot inherit (no prior part)")
+			}
+			p := m.Parts[i-1].Priors
+			p.Inherit = false
+			m.Parts[i].Priors = p
+		}
+		if m.Parts[i].Calibration.Inherit {
+			if i == 0 {
+				return fmt.Errorf("part 0: calibration cannot inherit (no prior part)")
+			}
+			c := m.Parts[i-1].Calibration
+			c.Inherit = false
+			m.Parts[i].Calibration = c
+		}
+	}
+	return nil
+}
+
+func (m *Manifest) validate() error {
+	if m.SchemaVersion != SchemaVersion {
+		return fmt.Errorf("schemaVersion %d, want %d", m.SchemaVersion, SchemaVersion)
+	}
+	if m.ID == "" {
+		return fmt.Errorf("id is required")
+	}
+	if m.Transcript == "" {
+		return fmt.Errorf("transcript is required")
+	}
+	if len(m.Parts) == 0 {
+		return fmt.Errorf("at least one part is required")
+	}
+	for i, p := range m.Parts {
+		if p.File == "" {
+			return fmt.Errorf("part %d: file is required", i)
+		}
+		if len(p.Calibration.Corners) != 4 {
+			return fmt.Errorf("part %d: calibration needs 4 corners, got %d", i, len(p.Calibration.Corners))
+		}
+		if p.Span.BeginMs < 0 || p.Span.EndMs <= p.Span.BeginMs {
+			return fmt.Errorf("part %d: span [%d,%d] is empty or negative", i, p.Span.BeginMs, p.Span.EndMs)
+		}
+	}
+	prevIndex := 0
+	for k, tn := range m.Turns {
+		if tn.Part < 0 || tn.Part >= len(m.Parts) {
+			return fmt.Errorf("turn %d: part %d out of range", tn.Index, tn.Part)
+		}
+		sp := m.Parts[tn.Part].Span
+		if tn.TickMs < sp.BeginMs || tn.TickMs > sp.EndMs {
+			return fmt.Errorf("turn %d: tick %d outside part %d span [%d,%d]", tn.Index, tn.TickMs, tn.Part, sp.BeginMs, sp.EndMs)
+		}
+		if tn.Index <= prevIndex {
+			return fmt.Errorf("turn %d (position %d): index must strictly increase", tn.Index, k)
+		}
+		prevIndex = tn.Index
+	}
+	return nil
+}
