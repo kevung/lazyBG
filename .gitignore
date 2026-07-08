@@ -3,7 +3,8 @@
 *.exe
 
 # Large raw video corpus (referenced by manifest, never committed) — see CLAUDE.md §7
-/corpus/
+/corpus/*
+!/corpus/manifest/
 
 # Go
 *.test
