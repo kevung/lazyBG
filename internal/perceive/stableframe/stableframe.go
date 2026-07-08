@@ -68,34 +68,48 @@ type Detector struct {
 // least MinFrames frames. The representative frame of each is its last (settled)
 // frame — a strong player's committed position is the last stable one.
 func (d Detector) Windows(src capture.Source) []Window {
-	frames := capture.Drain(src)
-	if len(frames) == 0 {
-		return nil
-	}
+	var windows []Window
+	d.EachWindow(src, func(w Window) bool {
+		windows = append(windows, w)
+		return true
+	})
+	return windows
+}
+
+// EachWindow scans the stream and calls fn for each maximal still run with at
+// least MinFrames frames, holding only the current frame pair in memory — the
+// O(1)-memory path for whole-match scans. fn returning false stops the scan.
+func (d Detector) EachWindow(src capture.Source, fn func(Window) bool) {
 	minF := d.MinFrames
 	if minF < 1 {
 		minF = 1
 	}
-
-	var windows []Window
-	segStart := 0
-	flush := func(end int) {
-		n := end - segStart + 1
-		if n >= minF {
-			windows = append(windows, Window{
-				StartTick: frames[segStart].Tick,
-				EndTick:   frames[end].Tick,
-				Frames:    n,
-				Rep:       frames[end],
-			})
-		}
+	prev, ok := src.Next()
+	if !ok {
+		return
 	}
-	for i := 1; i < len(frames); i++ {
-		if Motion(frames[i-1].Img, frames[i].Img, d.ROI) > d.MaxMotion {
-			flush(i - 1)
-			segStart = i
+	startTick := prev.Tick
+	n := 1
+	flush := func() bool {
+		if n < minF {
+			return true
 		}
+		return fn(Window{StartTick: startTick, EndTick: prev.Tick, Frames: n, Rep: prev})
 	}
-	flush(len(frames) - 1)
-	return windows
+	for {
+		f, ok := src.Next()
+		if !ok {
+			flush()
+			return
+		}
+		if Motion(prev.Img, f.Img, d.ROI) > d.MaxMotion {
+			if !flush() {
+				return
+			}
+			startTick = f.Tick
+			n = 0
+		}
+		prev = f
+		n++
+	}
 }

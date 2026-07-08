@@ -112,3 +112,38 @@ func TestWindows_Empty(t *testing.T) {
 		t.Errorf("empty source should yield nil, got %+v", ws)
 	}
 }
+
+// EachWindow must produce exactly what Windows produces, without draining the
+// source (it is the O(1)-memory path for whole-match scans).
+func TestEachWindow_MatchesWindows(t *testing.T) {
+	d := Detector{MaxMotion: 2, MinFrames: 3}
+	want := d.Windows(capture.NewSliceSource(sequence()))
+
+	var got []Window
+	d.EachWindow(capture.NewSliceSource(sequence()), func(w Window) bool {
+		got = append(got, w)
+		return true
+	})
+	if len(got) != len(want) {
+		t.Fatalf("got %d windows, want %d", len(got), len(want))
+	}
+	for i := range got {
+		if got[i].StartTick != want[i].StartTick || got[i].EndTick != want[i].EndTick ||
+			got[i].Frames != want[i].Frames || got[i].Rep.Tick != want[i].Rep.Tick {
+			t.Errorf("window %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+// Returning false stops the scan early.
+func TestEachWindow_StopEarly(t *testing.T) {
+	d := Detector{MaxMotion: 2, MinFrames: 3}
+	n := 0
+	d.EachWindow(capture.NewSliceSource(sequence()), func(w Window) bool {
+		n++
+		return false
+	})
+	if n != 1 {
+		t.Errorf("callback ran %d times after returning false, want 1", n)
+	}
+}
