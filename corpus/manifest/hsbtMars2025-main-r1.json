@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "hsbtMars2025-main-r1",
+  "transcript": "corpus/2025-05_hsbtMarseille/main-r1_PavicevicNina/main-r1_PavicevicNina.mat",
+  "cell": {
+    "angle": "overhead",
+    "colors": "teal-yellow-grey",
+    "resolution": "720p",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-05_hsbtMarseille/main-r1_PavicevicNina/HsbtMarseille main ronde1 UngerKevin PavicevicNina 7p [L32IorELSwk].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom"
+      },
+      "calibration": {
+        "corners": [[203, 54], [825, 46], [818, 614], [200, 628]],
+        "canonical": { "marginX": 16, "marginY": 18, "pointW": 58, "quadH": 300, "barGap": 60, "offW": 24 }
+      },
+      "span": { "beginMs": 6000, "endMs": 4180000 }
+    }
+  ],
+  "turns": []
+}

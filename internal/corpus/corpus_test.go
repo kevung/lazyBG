@@ -67,3 +67,27 @@ func TestLoad_Rejects(t *testing.T) {
 	// non-increasing turn indices
 	mustFail(t, `{"schemaVersion":1,"id":"x","transcript":"t","parts":[{"file":"a","calibration":{"corners":[[0,0],[1,0],[1,1],[0,1]]},"span":{"beginMs":0,"endMs":100}}],"turns":[{"index":2,"part":0,"tickMs":10},{"index":2,"part":0,"tickMs":20}]}`, "non-increasing turn index")
 }
+
+// Canonical geometry is optional, parsed, and inherited with calibration.
+func TestLoad_CanonicalGeometry(t *testing.T) {
+	doc := `{
+	  "schemaVersion": 1, "id": "x", "transcript": "t",
+	  "parts": [
+	    {"file":"a","calibration":{"corners":[[0,0],[1,0],[1,1],[0,1]],
+	      "canonical":{"marginX":16,"marginY":18,"pointW":58,"quadH":300,"barGap":60,"offW":24}},
+	      "span":{"beginMs":0,"endMs":1}},
+	    {"file":"b","calibration":{"inherit":true},"span":{"beginMs":0,"endMs":1}}
+	  ]}`
+	m, err := Load([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := m.Parts[0].Calibration.Canonical
+	if c == nil || c.PointW != 58 || c.QuadH != 300 {
+		t.Fatalf("canonical not parsed: %+v", c)
+	}
+	inh := m.Parts[1].Calibration.Canonical
+	if inh == nil || inh.PointW != 58 {
+		t.Fatalf("canonical not inherited: %+v", inh)
+	}
+}

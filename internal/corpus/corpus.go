@@ -54,9 +54,24 @@ type Priors struct {
 
 // Calibration is the four board corners in this Part's frame (order
 // TL,TR,BR,BL). Inherit copies the prior Part's (resolved) calibration.
+// Canonical optionally overrides the rectified-board geometry — tuned per
+// capture so rectification preserves the source's aspect (circles stay
+// circular for the shape-first reader); absent means the library default.
 type Calibration struct {
-	Inherit bool         `json:"inherit,omitempty"`
-	Corners [][2]float64 `json:"corners,omitempty"`
+	Inherit   bool         `json:"inherit,omitempty"`
+	Corners   [][2]float64 `json:"corners,omitempty"`
+	Canonical *Canonical   `json:"canonical,omitempty"`
+}
+
+// Canonical mirrors calibrate.CanonicalBoard for the manifest (kept as a
+// plain struct so the schema package stays dependency-free).
+type Canonical struct {
+	MarginX int `json:"marginX"`
+	MarginY int `json:"marginY"`
+	PointW  int `json:"pointW"`
+	QuadH   int `json:"quadH"`
+	BarGap  int `json:"barGap"`
+	OffW    int `json:"offW"`
 }
 
 // Span is the active play region within a Part, in milliseconds.
