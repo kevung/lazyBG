@@ -155,6 +155,7 @@ func runAutocal(args []string) {
 	outManifest := fs.String("out-manifest", "", "manifest JSON to write (required)")
 	checkerA := fs.String("checkerA", "#e1ded2", "CheckerA (P1) hex color prior")
 	checkerB := fs.String("checkerB", "#464850", "CheckerB (P2) hex color prior")
+	minOpening := fs.Int("min-opening", 19, "reject calibrations whose opening read (of 24) is below this; the per-turn 0.80 crop filter still guards label quality downstream")
 	fs.Parse(args)
 	if *video == "" || *transcript == "" || *id == "" || *outManifest == "" {
 		fs.Usage()
@@ -171,6 +172,7 @@ func runAutocal(args []string) {
 	}
 
 	o := autocal.DefaultOptions()
+	o.MinOpening = *minOpening
 	ca, err := profile.ParseHex(*checkerA)
 	if err != nil {
 		log.Fatal(err)
