@@ -724,3 +724,30 @@ func RowQuad(mask []bool, w, h int) ([4]geom.Pt, bool) {
 		back(minX, minY), back(maxX, minY), back(maxX, maxY), back(minX, maxY),
 	}, true
 }
+
+// CalibrateAssisted runs the oracle half of the loop on HUMAN-provided
+// initial corners: find the settled opening, refine the corners against it,
+// re-settle the opening tick. This is the "4 clicks + polish" mode the
+// board-detection survey recommends as the universal fallback — the human
+// (or an operator reading one frame) supplies the quad the mask stage could
+// not, and the standard-start oracle does the rest.
+func CalibrateAssisted(video string, initial [4]geom.Pt, o Options) (Result, error) {
+	tick, _, err := FindOpening(video, initial, o, 0)
+	if err != nil {
+		return Result{}, err
+	}
+	frame, err := capture.FrameAt(video, tick)
+	if err != nil {
+		return Result{}, err
+	}
+	corners := RefineCorners(frame, initial, o)
+	tick, score, err := FindOpening(video, corners, o, 0)
+	if err != nil {
+		return Result{}, err
+	}
+	res := Result{Corners: corners, SpanBeginMs: tick, OpeningScore: score}
+	if score < o.MinOpening {
+		return res, fmt.Errorf("autocal assisted: best opening read %d/24 below %d", score, o.MinOpening)
+	}
+	return res, nil
+}
