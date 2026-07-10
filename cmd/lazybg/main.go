@@ -33,6 +33,7 @@ import (
 	"lazybg/internal/eval"
 	"lazybg/internal/fusion"
 	"lazybg/internal/gate"
+	"lazybg/internal/geom"
 	"lazybg/internal/matexport"
 	"lazybg/internal/matimport"
 	"lazybg/internal/perceive"
@@ -156,6 +157,7 @@ func runAutocal(args []string) {
 	checkerA := fs.String("checkerA", "#e1ded2", "CheckerA (P1) hex color prior")
 	checkerB := fs.String("checkerB", "#464850", "CheckerB (P2) hex color prior")
 	minOpening := fs.Int("min-opening", 19, "reject calibrations whose opening read (of 24) is below this; the per-turn 0.80 crop filter still guards label quality downstream")
+	initCorners := fs.String("init-corners", "", "assisted mode: 8 comma-separated numbers (TLx,TLy,TRx,TRy,BRx,BRy,BLx,BLy) — skip board detection, refine these corners against the opening oracle")
 	fs.Parse(args)
 	if *video == "" || *transcript == "" || *id == "" || *outManifest == "" {
 		fs.Usage()
@@ -183,7 +185,18 @@ func runAutocal(args []string) {
 	}
 	o.Profile = profile.CaptureProfile{CheckerA: ca, CheckerB: cb}
 
-	res, err := autocal.Calibrate(*video, o)
+	var res autocal.Result
+	if *initCorners != "" {
+		var v [8]float64
+		if _, e := fmt.Sscanf(*initCorners, "%f,%f,%f,%f,%f,%f,%f,%f",
+			&v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]); e != nil {
+			log.Fatalf("init-corners: %v", e)
+		}
+		initial := [4]geom.Pt{geom.P(v[0], v[1]), geom.P(v[2], v[3]), geom.P(v[4], v[5]), geom.P(v[6], v[7])}
+		res, err = autocal.CalibrateAssisted(*video, initial, o)
+	} else {
+		res, err = autocal.Calibrate(*video, o)
+	}
 	if err != nil {
 		log.Fatalf("autocal %s: %v (got %+v)", *id, err, res)
 	}
