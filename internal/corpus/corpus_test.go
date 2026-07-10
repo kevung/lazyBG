@@ -10,7 +10,7 @@ const twoPart = `{
   "cell": {"angle":"overhead","colors":"green-yellow","resolution":"720p","dice":"opaque","audio":"table"},
   "parts": [
     {"file":"a.mkv",
-     "priors":{"clock":true,"matchLength":7,"checkerA":"#e1ded2","checkerB":"#464850","orientation":"p1-bottom"},
+     "priors":{"clock":true,"matchLength":7,"checkerA":"#e1ded2","checkerB":"#464850","orientation":"p1-bottom","clockROI":[820,210,950,395]},
      "calibration":{"corners":[[203,54],[825,46],[818,614],[200,628]]},
      "span":{"beginMs":6000,"endMs":1380000}},
     {"file":"b.mkv",
@@ -35,6 +35,9 @@ func TestLoad_ValidResolvesInherit(t *testing.T) {
 	// Part 2 must have inherited part 1's priors + calibration.
 	if m.Parts[1].Priors.MatchLength != 7 || m.Parts[1].Priors.CheckerA != "#e1ded2" {
 		t.Errorf("priors not inherited: %+v", m.Parts[1].Priors)
+	}
+	if m.Parts[1].Priors.ClockROI != [4]int{820, 210, 950, 395} {
+		t.Errorf("clockROI not inherited: %+v", m.Parts[1].Priors.ClockROI)
 	}
 	if len(m.Parts[1].Calibration.Corners) != 4 || m.Parts[1].Calibration.Corners[2] != [2]float64{818, 614} {
 		t.Errorf("calibration not inherited: %+v", m.Parts[1].Calibration.Corners)
