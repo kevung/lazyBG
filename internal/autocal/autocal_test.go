@@ -134,3 +134,59 @@ func TestTriangleComponents_FiltersOutliers(t *testing.T) {
 		t.Errorf("bottom-right %v pulled by cube/speck", quad[2])
 	}
 }
+
+// RowQuad must recover a ROTATED board's quad with the right corner order —
+// the case extreme projections get wrong (they return a diamond of extreme
+// pixels whose identity as TL/TR/BR/BL no longer holds under rotation).
+func TestRowQuad_RecoversRotatedRows(t *testing.T) {
+	w, h := 640, 360
+	mask := make([]bool, w*h)
+	deg := 12.0
+	rad := deg * math.Pi / 180
+	cx, cy := 320.0, 180.0
+	rot := func(x, y float64) (int, int) {
+		dx, dy := x-cx, y-cy
+		return int(cx + dx*math.Cos(rad) - dy*math.Sin(rad)),
+			int(cy + dx*math.Sin(rad) + dy*math.Cos(rad))
+	}
+	// two rows of 8 slim "triangles" (as in a board), then rotate every pixel
+	for i := 0; i < 8; i++ {
+		for _, rowY := range []float64{60, 230} {
+			for y := 0.0; y < 70; y++ {
+				for x := 0.0; x < 20; x++ {
+					px, py := rot(140+float64(i)*45+x, rowY+y)
+					if px >= 0 && px < w && py >= 0 && py < h {
+						mask[py*w+px] = true
+					}
+				}
+			}
+		}
+	}
+	quad, ok := RowQuad(mask, w, h)
+	if !ok {
+		t.Fatal("no quad")
+	}
+	// Expected corners: the unrotated triangle-mass rect, rotated.
+	wantRect := [][2]float64{{140, 60}, {475, 60}, {475, 300}, {140, 300}}
+	for i, wc := range wantRect {
+		ex, ey := rot(wc[0], wc[1])
+		d := math.Hypot(quad[i].X-float64(ex), quad[i].Y-float64(ey))
+		if d > 8 {
+			t.Errorf("corner %d = %v, want ≈(%d,%d) (off %.1fpx)", i, quad[i], ex, ey, d)
+		}
+	}
+}
+
+// Too few components = no quad (fall back to the projection method).
+func TestRowQuad_RejectsSparseMask(t *testing.T) {
+	w, h := 640, 360
+	mask := make([]bool, w*h)
+	for y := 100; y < 160; y++ {
+		for x := 100; x < 118; x++ {
+			mask[y*w+x] = true
+		}
+	}
+	if _, ok := RowQuad(mask, w, h); ok {
+		t.Error("a single component must not produce a quad")
+	}
+}
