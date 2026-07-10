@@ -106,13 +106,24 @@ func Calibrate(video string, o Options) (Result, error) {
 	// read wins. Hypothesize-and-verify all the way: a candidate whose PCA
 	// went wrong (few/odd components can produce a wild diagonal axis) just
 	// loses the contest instead of sinking the calibration.
-	var cands [][4]geom.Pt
-	if q, ok := RowQuad(mask, detW, detH); ok && quadInBounds(q, detW, detH) {
-		cands = append(cands, q)
+	var cands, outOfBounds [][4]geom.Pt
+	if q, ok := RowQuad(mask, detW, detH); ok {
+		if quadInBounds(q, detW, detH) {
+			cands = append(cands, q)
+		} else {
+			outOfBounds = append(outOfBounds, clampQuad(q, detW, detH))
+		}
 	}
-	if q, ok := QuadFromMask(mask, detW, detH); ok && quadInBounds(q, detW, detH) {
-		cands = append(cands, q)
+	if q, ok := QuadFromMask(mask, detW, detH); ok {
+		if quadInBounds(q, detW, detH) {
+			cands = append(cands, q)
+		} else {
+			outOfBounds = append(outOfBounds, clampQuad(q, detW, detH))
+		}
 	}
+	// Bounds order preference; a runaway fit still gets its (clamped) shot
+	// rather than aborting the calibration outright.
+	cands = append(cands, outOfBounds...)
 	if len(cands) == 0 {
 		return Result{}, fmt.Errorf("autocal: point-color mask found no plausible board in %s", video)
 	}
@@ -155,7 +166,15 @@ func Calibrate(video string, o Options) (Result, error) {
 	return best, nil
 }
 
-// quadInBounds rejects quads that stray far outside the frame — the sign of
+// clampQuad projects a quad's corners into the frame.
+func clampQuad(q [4]geom.Pt, w, h int) [4]geom.Pt {
+	for i, p := range q {
+		q[i] = geom.P(math.Min(math.Max(p.X, 0), float64(w-1)), math.Min(math.Max(p.Y, 0), float64(h-1)))
+	}
+	return q
+}
+
+// quadInBounds flags quads that stray far outside the frame — the sign of
 // a runaway fit, not a board.
 func quadInBounds(q [4]geom.Pt, w, h int) bool {
 	mx, my := 0.15*float64(w), 0.15*float64(h)
@@ -539,7 +558,11 @@ func AutoColors(med *image.RGBA) (Colors, bool) {
 		return q(r) == feltBin.r && q(g) == feltBin.g && q(bl) == feltBin.b
 	}
 
-	// 2. saturated pixels with felt within reach on at least two sides.
+	// 2. point-color candidates: pixels clearly DIFFERENT from the felt yet
+	// adjacent to it. A hard saturation gate misses dim point colors under
+	// warm light (teal reads (24,72,72): spread 48); distance-from-felt with
+	// only a weak spread floor keeps them while the felt-distance excludes
+	// warm wood and the spread floor excludes white/dark checkers.
 	satBins := map[bin]int{}
 	sums := map[bin][4]int{} // r,g,b,count for cluster averaging
 	const reach = 8
@@ -547,7 +570,13 @@ func AutoColors(med *image.RGBA) (Colors, bool) {
 		for x := x0; x < x1; x++ {
 			r, g, bl := at(x, y)
 			mx, mn := max(r, max(g, bl)), min(r, min(g, bl))
-			if int(mx)-int(mn) < 40 {
+			if int(mx)-int(mn) < 18 {
+				continue
+			}
+			dr := float64(r) - float64(felt.R)
+			dg := float64(g) - float64(felt.G)
+			db := float64(bl) - float64(felt.B)
+			if dr*dr+dg*dg+db*db < 45*45 {
 				continue
 			}
 			adj := 0
