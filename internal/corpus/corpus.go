@@ -50,6 +50,9 @@ type Priors struct {
 	CheckerA    string `json:"checkerA,omitempty"`
 	CheckerB    string `json:"checkerB,omitempty"`
 	Orientation string `json:"orientation,omitempty"`
+	// ClockROI is the chess clock's box in frame coordinates
+	// (x0,y0,x1,y1) — the clock-hit commit detector's search region.
+	ClockROI [4]int `json:"clockROI,omitempty"`
 }
 
 // Calibration is the four board corners in this Part's frame (order

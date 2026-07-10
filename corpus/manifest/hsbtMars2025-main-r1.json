@@ -17,7 +17,8 @@
         "matchLength": 7,
         "checkerA": "#e1ded2",
         "checkerB": "#464850",
-        "orientation": "p1-bottom"
+        "orientation": "p1-bottom",
+        "clockROI": [820, 210, 950, 395]
       },
       "calibration": {
         "corners": [
