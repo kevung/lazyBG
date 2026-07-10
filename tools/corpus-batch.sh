@@ -18,7 +18,7 @@ for dir in corpus/*/*/; do
   manifest="corpus/manifest/${id}.json"
   [ -e "$manifest" ] && continue
   echo "=== autocal $id"
-  if ! $BIN autocal -video "${vids[0]}" -transcript "${mats[0]}" -id "$id" -out-manifest "$manifest"; then
+  if ! $BIN autocal -video "${vids[0]}" -transcript "${mats[0]}" -id "$id" -out-manifest "$manifest" -min-opening "${MIN_OPENING:-18}"; then
     echo "FAILED autocal: $id"
     continue
   fi
