@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 
 	"lazybg/internal/bg"
 	"lazybg/internal/calibrate"
@@ -319,9 +320,35 @@ func RefineCorners(frame image.Image, corners [4]geom.Pt, o Options) [4]geom.Pt 
 					}
 				}
 			}
+			// Rotation moves: tilted captures (extreme-projection initial
+			// quads are axis-biased) need the whole quad to turn — a
+			// translation-only walk stalls on them.
+			for _, deg := range []float64{step / 4, -step / 4} {
+				cand := rotateQuad(corners, deg)
+				if s := openingScore(frame, cand, o); s > best {
+					best, corners = s, cand
+					improved = true
+				}
+			}
 		}
 	}
 	return corners
+}
+
+// rotateQuad turns the quad around its centroid by deg degrees.
+func rotateQuad(q [4]geom.Pt, deg float64) [4]geom.Pt {
+	var cx, cy float64
+	for _, p := range q {
+		cx += p.X / 4
+		cy += p.Y / 4
+	}
+	rad := deg * math.Pi / 180
+	sin, cos := math.Sin(rad), math.Cos(rad)
+	for i, p := range q {
+		dx, dy := p.X-cx, p.Y-cy
+		q[i] = geom.P(cx+dx*cos-dy*sin, cy+dx*sin+dy*cos)
+	}
+	return q
 }
 
 // TriangleComponents keeps only the mask's connected components that look

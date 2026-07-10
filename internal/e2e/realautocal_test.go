@@ -71,9 +71,10 @@ func TestRealCorpus_AutoCalibratePilot(t *testing.T) {
 // generalization check that auto-calibration is not overfit to the pilot's
 // straight-on view. Same physical board, so the color priors carry over.
 func TestRealCorpus_AutoCalibrateOblique(t *testing.T) {
-	t.Skip("WIP: the refinement's translation-only moves cannot absorb this capture's ~10° rotation " +
-		"(best 16/24). Rotation/edge-angle moves — or the line-based initial quad from the board-detection " +
-		"survey — are the next step; kept as an executable record of the target.")
+	t.Skip("WIP: still 16/24 with rotation moves — the residual is upstream of refinement " +
+		"(likely extreme-projection corner ORDER on a rotated board, or the opening-scan frame " +
+		"not being a settled start). Next: line-based initial quad + corner-order disambiguation " +
+		"(docs/research/board-autocalibration-survey.md); kept as the executable target.")
 	if testing.Short() {
 		t.Skip("long: decodes minutes of real video")
 	}

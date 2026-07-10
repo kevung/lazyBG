@@ -24,7 +24,9 @@ import (
 
 	"lazybg"
 	"lazybg/internal/align"
+	"lazybg/internal/autocal"
 	"lazybg/internal/bg"
+	"lazybg/internal/capture"
 	"lazybg/internal/corpus"
 	"lazybg/internal/cue"
 	"lazybg/internal/engine"
@@ -35,6 +37,7 @@ import (
 	"lazybg/internal/matimport"
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boarddiff"
+	"lazybg/internal/profile"
 	"lazybg/internal/transcribe"
 )
 
@@ -55,6 +58,8 @@ func main() {
 		runEval(os.Args[2:])
 	case "align":
 		runAlign(os.Args[2:])
+	case "autocal":
+		runAutocal(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q (want transcribe, eval or demo)\n", cmd)
 		os.Exit(2)
@@ -137,6 +142,87 @@ func runEval(args []string) {
 	fmt.Printf("coverage:         %.3f\n", s.Coverage())
 	fmt.Printf("review rate:      %.3f\n", s.ReviewRate())
 	fmt.Printf("truth cube plays: %d (not yet perceived)\n", s.TruthCubeActions)
+}
+
+// runAutocal auto-calibrates one video and writes a Recording manifest —
+// the scaling step: video + .mat in, committed manifest out; `align` then
+// labels it. Colors are derived from the footage unless declared.
+func runAutocal(args []string) {
+	fs := flag.NewFlagSet("autocal", flag.ExitOnError)
+	video := fs.String("video", "", "video path (required)")
+	transcript := fs.String("transcript", "", "ground-truth .mat path (required)")
+	id := fs.String("id", "", "recording id (required)")
+	outManifest := fs.String("out-manifest", "", "manifest JSON to write (required)")
+	checkerA := fs.String("checkerA", "#e1ded2", "CheckerA (P1) hex color prior")
+	checkerB := fs.String("checkerB", "#464850", "CheckerB (P2) hex color prior")
+	fs.Parse(args)
+	if *video == "" || *transcript == "" || *id == "" || *outManifest == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+
+	matBytes, err := os.ReadFile(*transcript)
+	if err != nil {
+		log.Fatalf("transcript: %v", err)
+	}
+	truth, err := matimport.Parse(string(matBytes))
+	if err != nil {
+		log.Fatalf("transcript: %v", err)
+	}
+
+	o := autocal.DefaultOptions()
+	ca, err := profile.ParseHex(*checkerA)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cb, err := profile.ParseHex(*checkerB)
+	if err != nil {
+		log.Fatal(err)
+	}
+	o.Profile = profile.CaptureProfile{CheckerA: ca, CheckerB: cb}
+
+	res, err := autocal.Calibrate(*video, o)
+	if err != nil {
+		log.Fatalf("autocal %s: %v (got %+v)", *id, err, res)
+	}
+	durMs, err := capture.DurationMs(*video)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprintf(os.Stderr, "%s: opening %d/24 @%dms, corners %v\n", *id, res.OpeningScore, res.SpanBeginMs, res.Corners)
+
+	cornersJSON := make([][2]float64, 4)
+	for i, p := range res.Corners {
+		cornersJSON[i] = [2]float64{p.X, p.Y}
+	}
+	m := corpus.Manifest{
+		SchemaVersion: corpus.SchemaVersion,
+		ID:            *id,
+		Transcript:    *transcript,
+		Cell:          corpus.Cell{Dice: "opaque", Audio: "table"},
+		Parts: []corpus.Part{{
+			File: *video,
+			Priors: corpus.Priors{
+				Clock: true, MatchLength: truth.Length,
+				CheckerA: *checkerA, CheckerB: *checkerB,
+				Orientation: "p1-bottom",
+			},
+			Calibration: corpus.Calibration{
+				Corners: cornersJSON,
+				Canonical: &corpus.Canonical{MarginX: 16, MarginY: 18,
+					PointW: 58, QuadH: 300, BarGap: 60, OffW: 24},
+			},
+			Span: corpus.Span{BeginMs: res.SpanBeginMs, EndMs: durMs},
+		}},
+	}
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := os.WriteFile(*outManifest, append(data, '\n'), 0o644); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprintf(os.Stderr, "wrote %s\n", *outManifest)
 }
 
 func runAlign(args []string) {
