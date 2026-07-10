@@ -153,21 +153,33 @@ def main():
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--val-games", default="", help="comma list like rec:2,rec:5; default = every 3rd game")
+    ap.add_argument("--val-recordings", default="", help="comma list of recording ids held out entirely (stronger than --val-games once several captures exist)")
+    ap.add_argument("--exclude-recordings", default="", help="comma list of recording ids dropped entirely (e.g. duplicate manifests of the same video)")
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args()
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
     rows = load_rows(args.crops)
+    if args.exclude_recordings:
+        dropped = set(args.exclude_recordings.split(","))
+        rows = [r for r in rows if r["rec"] not in dropped]
     if not rows:
         raise SystemExit("no labeled crops found")
     games = sorted({r["game"] for r in rows})
-    if args.val_games:
+    if args.val_recordings:
+        val_recs = set(args.val_recordings.split(","))
+        train = [r for r in rows if r["rec"] not in val_recs]
+        val = [r for r in rows if r["rec"] in val_recs]
+        val_games = {g for g in games if g.split(":")[0] in val_recs}
+    elif args.val_games:
         val_games = set(args.val_games.split(","))
+        train = [r for r in rows if r["game"] not in val_games]
+        val = [r for r in rows if r["game"] in val_games]
     else:
         val_games = set(games[::3])  # every third game held out
-    train = [r for r in rows if r["game"] not in val_games]
-    val = [r for r in rows if r["game"] in val_games]
+        train = [r for r in rows if r["game"] not in val_games]
+        val = [r for r in rows if r["game"] in val_games]
     print(f"{len(rows)} crops, {len(games)} games -> train {len(train)} / val {len(val)} (val games: {sorted(val_games)})")
     print("train class counts:", dict(sorted(Counter(r["cls"] for r in train).items())))
 
