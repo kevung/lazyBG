@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"os"
 	"testing"
 
@@ -97,6 +98,96 @@ func TestFrameRoundTrip(t *testing.T) {
 			if got.Pts[i] != start.Pts[i] {
 				t.Errorf("onRoll=%v round-trip point %d = %+v, want %+v", who, i, got.Pts[i], start.Pts[i])
 			}
+		}
+	}
+}
+
+// The unscored fast path must enumerate exactly the same legal moves as the
+// scored one — only the equity evaluation is skipped.
+func TestLegalMovesUnscored_SameMoveSet(t *testing.T) {
+	pos := bg.Position{Board: bg.StandardStart(), Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	scored, err := LegalMoves(pos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fast, err := LegalMovesUnscored(pos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fast) != len(scored) {
+		t.Fatalf("unscored %d moves, scored %d", len(fast), len(scored))
+	}
+	want := map[string]bool{}
+	for _, m := range scored {
+		want[m.Notation] = true
+	}
+	for _, m := range fast {
+		if !want[m.Notation] {
+			t.Errorf("unscored produced %q, absent from scored set", m.Notation)
+		}
+		if m.Equity != 0 {
+			t.Errorf("unscored move %q has equity %v, want 0", m.Notation, m.Equity)
+		}
+	}
+}
+
+// Player-mapping regression: an asymmetric position (P1 on the bar) forces
+// EVERY P1 move to enter from the bar, while P2 moves freely. The original
+// wrapper passed the on-roll player straight through to gnubg's FindMoves,
+// which actually moves the OTHER slot — invisible on the mirror-symmetric
+// standard start every earlier test used.
+func TestLegalMoves_PlayerMappingAsymmetric(t *testing.T) {
+	b := bg.StandardStart()
+	b.Pts[24] = bg.Point{N: 1, Owner: bg.P1} // one of P1's two back checkers…
+	b.Bar[bg.P1] = 1                         // …is on the bar instead
+
+	p1Moves, err := LegalMoves(bg.Position{Board: b, Dice: bg.Dice{5, 2}, PlayerOnRoll: bg.P1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p1Moves) == 0 {
+		t.Fatal("P1 has legal entries from the bar")
+	}
+	for _, m := range p1Moves {
+		if !strings.HasPrefix(m.Notation, "bar/") {
+			t.Fatalf("P1 is on the bar but got move %q", m.Notation)
+		}
+	}
+
+	p2Moves, err := LegalMoves(bg.Position{Board: b, Dice: bg.Dice{5, 2}, PlayerOnRoll: bg.P2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forced := 0
+	for _, m := range p2Moves {
+		if strings.HasPrefix(m.Notation, "bar/") {
+			forced++
+		}
+	}
+	if forced != 0 {
+		t.Errorf("P2 is not on the bar but %d/%d moves enter from it", forced, len(p2Moves))
+	}
+}
+
+// Route fidelity: a combined hop must be represented via its LEGAL
+// intermediate point so the notation replays outside the engine. (24/17* here
+// must route via the open 20-point, not through the opponent-held 21-point.)
+func TestLegalMoves_ChainedHopUsesLegalIntermediate(t *testing.T) {
+	b := bg.StandardStart()
+	// P2 holds abs 21 (two checkers) and leaves a blot on abs 17.
+	b.Pts[21] = bg.Point{N: 2, Owner: bg.P2}
+	b.Pts[17] = bg.Point{N: 1, Owner: bg.P2}
+	b.Pts[19] = bg.Point{N: 2, Owner: bg.P2} // keep checker count plausible
+	b.Pts[12] = bg.Point{N: 2, Owner: bg.P2}
+	b.Pts[1] = bg.Point{N: 1, Owner: bg.P2}
+
+	moves, err := LegalMoves(bg.Position{Board: b, Dice: bg.Dice{4, 3}, PlayerOnRoll: bg.P1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range moves {
+		if strings.Contains(m.Notation, "24/21") {
+			t.Errorf("move %q routes through the blocked 21-point", m.Notation)
 		}
 	}
 }

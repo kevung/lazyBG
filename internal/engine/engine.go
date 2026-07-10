@@ -26,9 +26,21 @@ type LegalMove struct {
 
 // LegalMoves returns every legal move for the position, ranked best-first by
 // equity. An empty slice means the player cannot move (dance).
-func LegalMoves(pos bg.Position) ([]LegalMove, error) {
+func LegalMoves(pos bg.Position) ([]LegalMove, error) { return legalMoves(pos, true) }
+
+// LegalMovesUnscored enumerates legal moves WITHOUT the neural-net equity
+// evaluation — the fast path for wide hypothesis sweeps (e.g. trying all 21
+// rolls). Equity is 0 on every move; order is gnubg's generation order.
+func LegalMovesUnscored(pos bg.Position) ([]LegalMove, error) { return legalMoves(pos, false) }
+
+func legalMoves(pos bg.Position, score bool) ([]LegalMove, error) {
 	tb := toTanBoard(pos.Board)
-	pml, err := gnubg.FindMoves(tb, [2]int{pos.Dice[0], pos.Dice[1]}, int(pos.PlayerOnRoll), true, false)
+	// gnubg's FindMoves moves anBoard[1]; with player==0 it passes the board
+	// unswapped, so slot 1 (toTanBoard's P2) would be the mover. Our P1-on-roll
+	// therefore needs player==1 and vice versa. The inversion was invisible on
+	// mirror-symmetric positions (the standard start) — see the bar-entry
+	// regression test.
+	pml, err := gnubg.FindMoves(tb, [2]int{pos.Dice[0], pos.Dice[1]}, 1-int(pos.PlayerOnRoll), score, false)
 	if err != nil {
 		return nil, err
 	}

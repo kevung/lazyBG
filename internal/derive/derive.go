@@ -9,6 +9,7 @@ package derive
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -212,4 +213,21 @@ func other(p bg.Player) bg.Player {
 		return bg.P2
 	}
 	return bg.P1
+}
+
+// CanonicalPlays reduces a ply notation to a canonical, order-independent
+// form: groups expanded, hit markers dropped, hops sorted. Two spellings of
+// the same checker play canonicalize identically ("8/5 6/5" == "6/5 8/5*");
+// it is the ply-identity used by the eval alignment.
+func CanonicalPlays(notation string) (string, error) {
+	hops, err := parsePlays(notation)
+	if err != nil {
+		return "", err
+	}
+	toks := make([]string, len(hops))
+	for i, h := range hops {
+		toks[i] = fmt.Sprintf("%d/%d", h.from, h.to)
+	}
+	sort.Strings(toks)
+	return strings.Join(toks, " "), nil
 }

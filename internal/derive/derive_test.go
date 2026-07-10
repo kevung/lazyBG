@@ -181,3 +181,25 @@ func TestReplay_RealMatch(t *testing.T) {
 		t.Errorf("unknown moves = %d, want 2", unknown)
 	}
 }
+
+func TestCanonicalPlays(t *testing.T) {
+	a, err := CanonicalPlays("8/5 6/5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := CanonicalPlays("6/5 8/5*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != b {
+		t.Errorf("%q != %q", a, b)
+	}
+	c, _ := CanonicalPlays("6/5(2)")
+	d, _ := CanonicalPlays("6/5 6/5")
+	if c != d {
+		t.Errorf("grouped %q != expanded %q", c, d)
+	}
+	if _, err := CanonicalPlays("nonsense"); err == nil {
+		t.Error("expected error for bad notation")
+	}
+}
