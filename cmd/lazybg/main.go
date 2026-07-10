@@ -4,6 +4,9 @@
 //	    run the video pipeline over a Recording manifest and write the .mat
 //	lazybg eval -manifest corpus/manifest/X.json [-limit-ms N]
 //	    transcribe, then score against the manifest's ground-truth transcript
+//	lazybg align -manifest corpus/manifest/X.json [-write-manifest] [-crops DIR] [-limit-ms N]
+//	    anchor the ground-truth transcript to the video (per-turn ticks) and
+//	    optionally write the aligned manifest and labeled training crops
 //	lazybg demo
 //	    the original engine-spine demo on synthetic observations
 //
@@ -17,7 +20,10 @@ import (
 	"log"
 	"os"
 
+	"encoding/json"
+
 	"lazybg"
+	"lazybg/internal/align"
 	"lazybg/internal/bg"
 	"lazybg/internal/corpus"
 	"lazybg/internal/cue"
@@ -47,6 +53,8 @@ func main() {
 		runTranscribe(os.Args[2:])
 	case "eval":
 		runEval(os.Args[2:])
+	case "align":
+		runAlign(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q (want transcribe, eval or demo)\n", cmd)
 		os.Exit(2)
@@ -129,6 +137,74 @@ func runEval(args []string) {
 	fmt.Printf("coverage:         %.3f\n", s.Coverage())
 	fmt.Printf("review rate:      %.3f\n", s.ReviewRate())
 	fmt.Printf("truth cube plays: %d (not yet perceived)\n", s.TruthCubeActions)
+}
+
+func runAlign(args []string) {
+	fs := flag.NewFlagSet("align", flag.ExitOnError)
+	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
+	writeManifest := fs.Bool("write-manifest", false, "write aligned per-turn ticks back into the manifest")
+	cropsDir := fs.String("crops", "", "also extract labeled point crops into this directory")
+	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
+	fs.Parse(args)
+	if *manifest == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	m := loadManifest(*manifest)
+	matBytes, err := os.ReadFile(m.Transcript)
+	if err != nil {
+		log.Fatalf("truth transcript: %v", err)
+	}
+	truth, err := matimport.Parse(string(matBytes))
+	if err != nil {
+		log.Fatalf("truth transcript: %v", err)
+	}
+
+	o := transcribe.DefaultRunOptions()
+	o.LimitMs = *limitMs
+	o.Log = os.Stderr
+	events, err := transcribe.ReadEvents(".", m, o)
+	if err != nil {
+		log.Fatalf("read events: %v", err)
+	}
+	turns := align.TruthTurns(truth)
+	assign := align.Align(turns, events)
+
+	aligned := 0
+	for k, turn := range turns {
+		if assign[k] < 0 {
+			fmt.Printf("turn %3d g%d %v %-24q  UNALIGNED\n", turn.Index, turn.Game, turn.Dice, turn.Notation)
+			continue
+		}
+		aligned++
+		fmt.Printf("turn %3d g%d %v %-24q @%dms\n", turn.Index, turn.Game, turn.Dice, turn.Notation, events[assign[k]].Tick)
+	}
+	fmt.Fprintf(os.Stderr, "aligned %d/%d turns over %d events\n", aligned, len(turns), len(events))
+
+	if *writeManifest {
+		m.Turns = nil
+		for k := range turns {
+			if assign[k] < 0 {
+				continue
+			}
+			m.Turns = append(m.Turns, corpus.Turn{Index: turns[k].Index, Part: 0, TickMs: events[assign[k]].Tick})
+		}
+		data, err := json.MarshalIndent(m, "", "  ")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := os.WriteFile(*manifest, append(data, '\n'), 0o644); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprintf(os.Stderr, "wrote %d turn ticks to %s\n", len(m.Turns), *manifest)
+	}
+	if *cropsDir != "" {
+		res, err := align.ExtractCrops(".", m, turns, assign, events, *cropsDir, 0.80)
+		if err != nil {
+			log.Fatalf("crops: %v", err)
+		}
+		fmt.Fprintf(os.Stderr, "wrote %d labeled crops from %d turns to %s\n", res.Crops, res.Turns, *cropsDir)
+	}
 }
 
 func countPlies(m bg.Match) int {
