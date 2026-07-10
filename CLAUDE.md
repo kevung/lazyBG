@@ -24,11 +24,23 @@ and are rebuilding everything else on clean foundations.
 
 ## 2. Current state
 
-- **`main` is an engine-only foundation.** It contains the salvaged gnubg engine, its data
-  files, these docs, and nothing else. The legacy UI, Wails app, Svelte frontend, domain model,
-  and file I/O are gone from `main` (recoverable from `legacy_v0`).
-- The video pipeline, computer vision, new domain model, and UI are **yet to be built.** The
-  build order and rationale live in `docs/` and in the approved plan.
+- **The full video→`.mat` path exists** (`lazybg transcribe/eval/align/demo`): ffmpeg-backed
+  capture (`internal/capture`, incl. one-process low-res streaming), stable-window turn
+  segmentation (`stableframe`), homography calibration (+ optional lens undistortion), the
+  shape-first classical board reader (`perceive/boardstate`, `perceive/checker`), classical dice
+  reader (`perceive/dice`), unknown-dice move inference (`boarddiff.DecideAnyDice`, reading-delta
+  space), the match conductor (`internal/transcribe`: alternation, inferred dances, game
+  boundaries), fusion/gate, `.mat` import/export, and the effort-saved eval harness
+  (`eval.ScoreMatch`; runs in `internal/e2e` against the real pilot video).
+- **Honest baseline on real footage:** turn segmentation and alignment work; the classical
+  reader's ~85% per-point real-frame accuracy is the measured blocker for confident blind
+  inference, so plies currently land in the review queue (coverage 0, auto-fill errors 0 —
+  the gate holds). See `internal/e2e/realtranscribe_test.go`.
+- **The labeling machine is live** (`lazybg align`): truth-forced monotonic alignment anchors a
+  `.mat` to its video (per-turn ticks written into `corpus/manifest/*.json`) and extracts
+  labeled per-point training crops (`corpus/crops/<id>/`). `ml/` holds the dev-time Python
+  training for the learned point reader (ONNX) that should lift the blocker.
+- The review UI and the learned-reader Go integration are **yet to be built.**
 
 Do not reintroduce legacy code wholesale. Reference `legacy_v0` for ideas, port deliberately.
 
@@ -150,6 +162,15 @@ docs/             Design docs (see §7 for the size rule).
   research/       The deep-research survey (unbounded length).
   domain-model.md   Ubiquitous language.
   architecture.md   Pipeline design.
+  experiment-plan.md  Corpus, labeling & evaluation plan.
+cmd/lazybg/       CLI: transcribe / eval / align / demo.
+internal/         The pipeline (bg, engine, capture, calibrate, perceive/*, boarddiff,
+                  fusion, gate, pipeline, transcribe, align, corpus, eval, mat import/export).
+corpus/manifest/  Committed Recording manifests (calibration, priors, spans, aligned ticks).
+                  Everything else under corpus/ (videos, crops) is gitignored, machine-local.
+ml/               Dev-time Python model training (→ ONNX); .venv/ and out/ are gitignored.
+testdata/         Committed golden fixtures (hand-checked frames, .mat samples).
+tools/xg2mat/     Standalone .xg → .mat converter (own module, vendored deps).
 CLAUDE.md         This file.
 go.mod / go.sum   Module `lazybg`. Currently zero external dependencies.
 ```

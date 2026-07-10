@@ -1,0 +1,30 @@
+{
+  "input": {
+    "width": 32,
+    "height": 160,
+    "layout": "NCHW",
+    "range": "[0,1]"
+  },
+  "classes": [
+    "empty",
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6+",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6+"
+  ],
+  "flip_rule": "vertically flip crops of points 1..12 before resize (stacks read top-down)",
+  "val_accuracy": 0.8901515151515151,
+  "val_games": [
+    "hsbtMars2025-main-r1:4",
+    "hsbtMars2025-main-r1:5"
+  ],
+  "train_crops": 1200
+}

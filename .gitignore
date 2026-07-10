@@ -18,3 +18,8 @@ coverage.*
 
 # Local scratch (spike harnesses, reference clones)
 /tmp/
+
+# Dev-time ML training environment + artifacts (models are shipped via data/, not ml/)
+/ml/.venv/
+/ml/out/
+/ml/__pycache__/
