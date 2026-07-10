@@ -43,7 +43,7 @@ type Options struct {
 	Profile   profile.CaptureProfile // checker colors, for the verification reads
 	Canonical calibrate.CanonicalBoard
 
-	ScanEndMs  int     // how deep to look for the opening (default 150s)
+	ScanEndMs  int     // how deep to look for the opening (default 420s — recordings often start minutes before play; the early-exit keeps the cost nil when the opening is early)
 	ColorTol   float64 // per-channel-ish euclidean tolerance for the mask
 	MedianN    int     // frames in the temporal median
 	DetectW    int     // detection resolution (median+mask); corners scale up
@@ -55,7 +55,7 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		Canonical:  calibrate.CanonicalBoard{MarginX: 16, MarginY: 18, PointW: 58, QuadH: 300, BarGap: 60, OffW: 24},
-		ScanEndMs:  150000,
+		ScanEndMs:  420000,
 		ColorTol:   45,
 		MedianN:    24,
 		DetectW:    640,
