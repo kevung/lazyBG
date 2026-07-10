@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"encoding/json"
 
@@ -150,7 +151,7 @@ func runEval(args []string) {
 // labels it. Colors are derived from the footage unless declared.
 func runAutocal(args []string) {
 	fs := flag.NewFlagSet("autocal", flag.ExitOnError)
-	video := fs.String("video", "", "video path (required)")
+	video := fs.String("video", "", "video path(s), comma-separated for multi-part matches (required; part 1 is calibrated, later parts inherit)")
 	transcript := fs.String("transcript", "", "ground-truth .mat path (required)")
 	id := fs.String("id", "", "recording id (required)")
 	outManifest := fs.String("out-manifest", "", "manifest JSON to write (required)")
@@ -163,6 +164,8 @@ func runAutocal(args []string) {
 		fs.Usage()
 		os.Exit(2)
 	}
+
+	videos := strings.Split(*video, ",")
 
 	matBytes, err := os.ReadFile(*transcript)
 	if err != nil {
@@ -193,14 +196,14 @@ func runAutocal(args []string) {
 			log.Fatalf("init-corners: %v", e)
 		}
 		initial := [4]geom.Pt{geom.P(v[0], v[1]), geom.P(v[2], v[3]), geom.P(v[4], v[5]), geom.P(v[6], v[7])}
-		res, err = autocal.CalibrateAssisted(*video, initial, o)
+		res, err = autocal.CalibrateAssisted(videos[0], initial, o)
 	} else {
-		res, err = autocal.Calibrate(*video, o)
+		res, err = autocal.Calibrate(videos[0], o)
 	}
 	if err != nil {
 		log.Fatalf("autocal %s: %v (got %+v)", *id, err, res)
 	}
-	durMs, err := capture.DurationMs(*video)
+	durMs, err := capture.DurationMs(videos[0])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -216,7 +219,7 @@ func runAutocal(args []string) {
 		Transcript:    *transcript,
 		Cell:          corpus.Cell{Dice: "opaque", Audio: "table"},
 		Parts: []corpus.Part{{
-			File: *video,
+			File: videos[0],
 			Priors: corpus.Priors{
 				Clock: true, MatchLength: truth.Length,
 				CheckerA: *checkerA, CheckerB: *checkerB,
@@ -229,6 +232,20 @@ func runAutocal(args []string) {
 			},
 			Span: corpus.Span{BeginMs: res.SpanBeginMs, EndMs: durMs},
 		}},
+	}
+	// Later parts: same table, same calibration (inherit); play resumes
+	// immediately, so the span is the whole file.
+	for _, v := range videos[1:] {
+		d, err := capture.DurationMs(v)
+		if err != nil {
+			log.Fatal(err)
+		}
+		m.Parts = append(m.Parts, corpus.Part{
+			File:        v,
+			Priors:      corpus.Priors{Inherit: true},
+			Calibration: corpus.Calibration{Inherit: true},
+			Span:        corpus.Span{BeginMs: 0, EndMs: d},
+		})
 	}
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -288,7 +305,7 @@ func runAlign(args []string) {
 			if assign[k] < 0 {
 				continue
 			}
-			m.Turns = append(m.Turns, corpus.Turn{Index: turns[k].Index, Part: 0, TickMs: events[assign[k]].Tick})
+			m.Turns = append(m.Turns, corpus.Turn{Index: turns[k].Index, Part: events[assign[k]].Part, TickMs: events[assign[k]].Tick})
 		}
 		data, err := json.MarshalIndent(m, "", "  ")
 		if err != nil {

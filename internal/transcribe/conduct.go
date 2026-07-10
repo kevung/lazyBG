@@ -26,6 +26,7 @@ import (
 // a requirement.
 type Event struct {
 	Tick     int
+	Part     int // which manifest Part the tick belongs to (multi-video matches)
 	Obs      perceive.ObservedBoard
 	Dice     bg.Dice
 	DiceConf float64

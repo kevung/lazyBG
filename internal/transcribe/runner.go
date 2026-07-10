@@ -171,7 +171,7 @@ func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
 				return true
 			}
 			mid := w.StartTick + span/2
-			events = append(events, Event{Tick: mid, Obs: VoteObservations(reads)})
+			events = append(events, Event{Tick: mid, Part: pi, Obs: VoteObservations(reads)})
 			if o.Log != nil {
 				fmt.Fprintf(o.Log, "part %d window %d @%dms (%d frames, %d reads)\n", pi, nWin, mid, w.Frames, len(reads))
 			}
