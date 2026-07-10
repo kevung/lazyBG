@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"lazybg/internal/bg"
+	"lazybg/internal/calibrate"
 	"lazybg/internal/capture"
 	"lazybg/internal/corpus"
 	"lazybg/internal/perceive/boarddiff"
@@ -30,15 +31,21 @@ type CropsResult struct {
 // skipped: a misaligned frame would poison the labels. Only single-Part
 // recordings are supported for now.
 func ExtractCrops(root string, m corpus.Manifest, turns []Turn, assign []int, events []transcribe.Event, outDir string, minScore float64) (CropsResult, error) {
-	if len(m.Parts) != 1 {
-		return CropsResult{}, fmt.Errorf("crops: only single-part recordings supported, got %d parts", len(m.Parts))
+	// Per-part decode setup (inheritance is resolved by corpus.Load, so each
+	// Part carries its own calibration).
+	type partIO struct {
+		cal   calibrate.BoardCalibration
+		cb    calibrate.CanonicalBoard
+		video string
 	}
-	part := m.Parts[0]
-	cal, cb, _, err := transcribe.PartSetup(part)
-	if err != nil {
-		return CropsResult{}, err
+	parts := make([]partIO, len(m.Parts))
+	for i, part := range m.Parts {
+		cal, cb, _, err := transcribe.PartSetup(part)
+		if err != nil {
+			return CropsResult{}, err
+		}
+		parts[i] = partIO{cal, cb, filepath.Join(root, part.File)}
 	}
-	video := filepath.Join(root, part.File)
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return CropsResult{}, err
@@ -63,14 +70,15 @@ func ExtractCrops(root string, m corpus.Manifest, turns []Turn, assign []int, ev
 			continue
 		}
 		tick := events[assign[k]].Tick
-		frame, err := capture.FrameAt(video, tick)
+		pio := parts[events[assign[k]].Part]
+		frame, err := capture.FrameAt(pio.video, tick)
 		if err != nil {
 			continue
 		}
-		rect := cal.Rectify(frame)
+		rect := pio.cal.Rectify(frame)
 		res.Turns++
 		for p := 1; p <= 24; p++ {
-			region, _ := cb.PointRegion(p)
+			region, _ := pio.cb.PointRegion(p)
 			crop := cropImage(rect, region)
 			name := fmt.Sprintf("g%d_i%d_p%d.png", turn.Game, turn.Index, p)
 			f, err := os.Create(filepath.Join(outDir, name))
