@@ -71,9 +71,9 @@ func TestRealCorpus_AutoCalibratePilot(t *testing.T) {
 // generalization check that auto-calibration is not overfit to the pilot's
 // straight-on view. Same physical board, so the color priors carry over.
 func TestRealCorpus_AutoCalibrateOblique(t *testing.T) {
-	t.Skip("WIP at 15/24: felt-distance AutoColors fixed the color stage (teal+yellow found under warm " +
-		"light; was 'no plausible board') — the residual is geometric/opening-frame (span found at 177s " +
-		"is suspicious). Next: verify the opening scan window and per-corner perspective refinement.")
+	t.Skip("WIP: colors fixed (felt-distance), scan window extended to 7min (the 177s 'opening' was " +
+		"mid-setup; play starts later in this recording) — validation pending a quiet machine (the run " +
+		"competes with corpus batches for CPU).")
 	if testing.Short() {
 		t.Skip("long: decodes minutes of real video")
 	}
@@ -83,7 +83,6 @@ func TestRealCorpus_AutoCalibrateOblique(t *testing.T) {
 	}
 	o := pilotAutocalOptions()
 	o.Colors = autocal.Colors{} // exercise automatic color derivation
-	o.ScanEndMs = 240000        // the opening may come later in this recording
 
 	res, err := autocal.Calibrate(video, o)
 	if err != nil {
