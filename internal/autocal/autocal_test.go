@@ -190,3 +190,14 @@ func TestRowQuad_RejectsSparseMask(t *testing.T) {
 		t.Error("a single component must not produce a quad")
 	}
 }
+
+func TestQuadInBounds(t *testing.T) {
+	good := [4]geom.Pt{geom.P(10, 10), geom.P(600, 12), geom.P(590, 350), geom.P(15, 340)}
+	if !quadInBounds(good, 640, 360) {
+		t.Error("in-frame quad rejected")
+	}
+	wild := [4]geom.Pt{geom.P(32, 246), geom.P(668, -238), geom.P(1161, 395), geom.P(525, 881)}
+	if quadInBounds(wild, 640, 360) {
+		t.Error("runaway quad accepted")
+	}
+}

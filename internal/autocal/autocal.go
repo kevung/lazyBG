@@ -100,40 +100,71 @@ func Calibrate(video string, o Options) (Result, error) {
 	// 3. Initial quad from the point-color mask, outlier components dropped.
 	mask := ColorMask(med, []color.RGBA{o.Colors.PointA, o.Colors.PointB}, o.ColorTol)
 	mask = TriangleComponents(mask, med, o.Colors.Felt, o.ColorTol, detW, detH)
-	quad, ok := RowQuad(mask, detW, detH)
-	if !ok {
-		quad, ok = QuadFromMask(mask, detW, detH)
+
+	// 4. Candidate initial quads — RowQuad (rotation-aware) and the extreme
+	// projections — each refined against the opening oracle; the best final
+	// read wins. Hypothesize-and-verify all the way: a candidate whose PCA
+	// went wrong (few/odd components can produce a wild diagonal axis) just
+	// loses the contest instead of sinking the calibration.
+	var cands [][4]geom.Pt
+	if q, ok := RowQuad(mask, detW, detH); ok && quadInBounds(q, detW, detH) {
+		cands = append(cands, q)
 	}
-	if !ok {
+	if q, ok := QuadFromMask(mask, detW, detH); ok && quadInBounds(q, detW, detH) {
+		cands = append(cands, q)
+	}
+	if len(cands) == 0 {
 		return Result{}, fmt.Errorf("autocal: point-color mask found no plausible board in %s", video)
 	}
-	sx := float64(srcW) / float64(detW)
-	var corners [4]geom.Pt
-	for i, p := range quad {
-		corners[i] = geom.P(p.X*sx, p.Y*sx)
-	}
-	corners = expandQuad(corners, 0.045, 0.04)
 
-	// 4. Find the opening frame with the rough corners, then refine the
-	// corners on it, then settle the opening tick with the refined corners.
-	tick, _, err := FindOpening(video, corners, o, 0)
-	if err != nil {
-		return Result{}, err
+	sx := float64(srcW) / float64(detW)
+	best := Result{OpeningScore: -1}
+	for _, quad := range cands {
+		var corners [4]geom.Pt
+		for i, p := range quad {
+			corners[i] = geom.P(p.X*sx, p.Y*sx)
+		}
+		corners = expandQuad(corners, 0.045, 0.04)
+
+		tick, _, err := FindOpening(video, corners, o, 0)
+		if err != nil {
+			continue
+		}
+		frame, err := capture.FrameAt(video, tick)
+		if err != nil {
+			continue
+		}
+		corners = RefineCorners(frame, corners, o)
+		tick, score, err := FindOpening(video, corners, o, 0)
+		if err != nil {
+			continue
+		}
+		if score > best.OpeningScore {
+			best = Result{Corners: corners, SpanBeginMs: tick, OpeningScore: score}
+		}
+		if best.OpeningScore >= o.MinOpening+2 {
+			break // already a confident calibration; skip the other candidate
+		}
 	}
-	frame, err := capture.FrameAt(video, tick)
-	if err != nil {
-		return Result{}, err
+	if best.OpeningScore < 0 {
+		return Result{}, fmt.Errorf("autocal: no candidate quad produced a readable opening in %s", video)
 	}
-	corners = RefineCorners(frame, corners, o)
-	tick, score, err := FindOpening(video, corners, o, 0)
-	if err != nil {
-		return Result{}, err
+	if best.OpeningScore < o.MinOpening {
+		return best, fmt.Errorf("autocal: best opening read %d/24 below %d — calibration not trusted", best.OpeningScore, o.MinOpening)
 	}
-	if score < o.MinOpening {
-		return Result{Corners: corners, SpanBeginMs: tick, OpeningScore: score},
-			fmt.Errorf("autocal: best opening read %d/24 below %d — calibration not trusted", score, o.MinOpening)
+	return best, nil
+}
+
+// quadInBounds rejects quads that stray far outside the frame — the sign of
+// a runaway fit, not a board.
+func quadInBounds(q [4]geom.Pt, w, h int) bool {
+	mx, my := 0.15*float64(w), 0.15*float64(h)
+	for _, p := range q {
+		if p.X < -mx || p.X > float64(w)+mx || p.Y < -my || p.Y > float64(h)+my {
+			return false
+		}
 	}
-	return Result{Corners: corners, SpanBeginMs: tick, OpeningScore: score}, nil
+	return true
 }
 
 // MedianFrame decodes n frames evenly across [beginMs,endMs] at (w,h) and
