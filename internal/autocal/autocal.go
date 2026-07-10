@@ -100,7 +100,10 @@ func Calibrate(video string, o Options) (Result, error) {
 	// 3. Initial quad from the point-color mask, outlier components dropped.
 	mask := ColorMask(med, []color.RGBA{o.Colors.PointA, o.Colors.PointB}, o.ColorTol)
 	mask = TriangleComponents(mask, med, o.Colors.Felt, o.ColorTol, detW, detH)
-	quad, ok := QuadFromMask(mask, detW, detH)
+	quad, ok := RowQuad(mask, detW, detH)
+	if !ok {
+		quad, ok = QuadFromMask(mask, detW, detH)
+	}
 	if !ok {
 		return Result{}, fmt.Errorf("autocal: point-color mask found no plausible board in %s", video)
 	}
@@ -571,4 +574,93 @@ func abs(v int) int {
 		return -v
 	}
 	return v
+}
+
+// RowQuad fits the initial quad as a ROTATED bounding rectangle of the
+// filtered triangle mask: the rotation angle comes from the principal axis
+// of the triangle-component centroids (the two point rows define the board's
+// true orientation), so tilted captures get a correctly-ordered quad where
+// extreme ±x±y projections would return a diamond with scrambled corner
+// identities. Returns false on degenerate masks (fall back to QuadFromMask).
+func RowQuad(mask []bool, w, h int) ([4]geom.Pt, bool) {
+	// component centroids of the (already filtered) mask
+	seen := make([]bool, len(mask))
+	var cents []geom.Pt
+	var stack []int
+	for start := range mask {
+		if !mask[start] || seen[start] {
+			continue
+		}
+		stack = append(stack[:0], start)
+		seen[start] = true
+		var sx, sy, n float64
+		for len(stack) > 0 {
+			i := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			x, y := i%w, i/w
+			sx += float64(x)
+			sy += float64(y)
+			n++
+			for _, j := range [4]int{i - 1, i + 1, i - w, i + w} {
+				if j < 0 || j >= len(mask) || seen[j] || !mask[j] {
+					continue
+				}
+				if (j == i-1 && x == 0) || (j == i+1 && x == w-1) {
+					continue
+				}
+				seen[j] = true
+				stack = append(stack, j)
+			}
+		}
+		if n >= 30 {
+			cents = append(cents, geom.P(sx/n, sy/n))
+		}
+	}
+	if len(cents) < 8 {
+		return [4]geom.Pt{}, false
+	}
+
+	// principal axis of the centroids (2x2 covariance eigenvector)
+	var mx, my float64
+	for _, c := range cents {
+		mx += c.X / float64(len(cents))
+		my += c.Y / float64(len(cents))
+	}
+	var sxx, sxy, syy float64
+	for _, c := range cents {
+		dx, dy := c.X-mx, c.Y-my
+		sxx += dx * dx
+		sxy += dx * dy
+		syy += dy * dy
+	}
+	theta := 0.5 * math.Atan2(2*sxy, sxx-syy)
+	// clamp to ±45°: beyond that the corner-order convention breaks anyway
+	if theta > math.Pi/4 {
+		theta -= math.Pi / 2
+	}
+	if theta < -math.Pi/4 {
+		theta += math.Pi / 2
+	}
+
+	// rotated bounding rect of ALL mask pixels
+	sin, cos := math.Sin(-theta), math.Cos(-theta)
+	minX, minY := math.Inf(1), math.Inf(1)
+	maxX, maxY := math.Inf(-1), math.Inf(-1)
+	for i, on := range mask {
+		if !on {
+			continue
+		}
+		x, y := float64(i%w)-mx, float64(i/w)-my
+		rx := x*cos - y*sin
+		ry := x*sin + y*cos
+		minX, maxX = math.Min(minX, rx), math.Max(maxX, rx)
+		minY, maxY = math.Min(minY, ry), math.Max(maxY, ry)
+	}
+	sin, cos = math.Sin(theta), math.Cos(theta)
+	back := func(x, y float64) geom.Pt {
+		return geom.P(mx+x*cos-y*sin, my+x*sin+y*cos)
+	}
+	return [4]geom.Pt{
+		back(minX, minY), back(maxX, minY), back(maxX, maxY), back(minX, maxY),
+	}, true
 }
