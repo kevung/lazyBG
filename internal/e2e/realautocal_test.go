@@ -71,10 +71,9 @@ func TestRealCorpus_AutoCalibratePilot(t *testing.T) {
 // generalization check that auto-calibration is not overfit to the pilot's
 // straight-on view. Same physical board, so the color priors carry over.
 func TestRealCorpus_AutoCalibrateOblique(t *testing.T) {
-	t.Skip("WIP: still 16/24 with rotation moves — the residual is upstream of refinement " +
-		"(likely extreme-projection corner ORDER on a rotated board, or the opening-scan frame " +
-		"not being a settled start). Next: line-based initial quad + corner-order disambiguation " +
-		"(docs/research/board-autocalibration-survey.md); kept as the executable target.")
+	t.Skip("WIP at 15/24: felt-distance AutoColors fixed the color stage (teal+yellow found under warm " +
+		"light; was 'no plausible board') — the residual is geometric/opening-frame (span found at 177s " +
+		"is suspicious). Next: verify the opening scan window and per-corner perspective refinement.")
 	if testing.Short() {
 		t.Skip("long: decodes minutes of real video")
 	}
