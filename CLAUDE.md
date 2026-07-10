@@ -38,9 +38,15 @@ and are rebuilding everything else on clean foundations.
   the gate holds). See `internal/e2e/realtranscribe_test.go`.
 - **The labeling machine is live** (`lazybg align`): truth-forced monotonic alignment anchors a
   `.mat` to its video (per-turn ticks written into `corpus/manifest/*.json`) and extracts
-  labeled per-point training crops (`corpus/crops/<id>/`). `ml/` holds the dev-time Python
-  training for the learned point reader (ONNX) that should lift the blocker.
-- The review UI and the learned-reader Go integration are **yet to be built.**
+  labeled per-point training crops (`corpus/crops/<id>/`).
+- **The learned point reader exists end-to-end**: `ml/` trains a tiny CNN on the aligned crops
+  (89% per-crop on held-out games from the pilot's 1464 crops), exports ONNX + a flat weight
+  file, and `internal/perceive/pointnet` runs it in pure Go (no cgo, torch-parity-tested);
+  `transcribe.RunOptions.ModelPath` swaps it in (model embedded from `data/models/`). It already
+  beats the classical baseline on blind transcription (3 vs 0 matched plies over the pilot's
+  first minutes) but needs **more corpus manifests** (diversity) to lift auto-fill coverage.
+- The review UI is **yet to be built.** Next milestones: more per-capture manifests → retrain,
+  dice-value cue on real footage, cube perception, clock-hit commit cue.
 
 Do not reintroduce legacy code wholesale. Reference `legacy_v0` for ideas, port deliberately.
 
@@ -174,9 +180,6 @@ tools/xg2mat/     Standalone .xg → .mat converter (own module, vendored deps).
 CLAUDE.md         This file.
 go.mod / go.sum   Module `lazybg`. Currently zero external dependencies.
 ```
-
-New code (video ingestion, cues, fusion, review UI, `.mat` export) will be added per the build
-order once the survey confirms the stack.
 
 ---
 
