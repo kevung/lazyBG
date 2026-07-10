@@ -13,6 +13,7 @@ import (
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boardstate"
 	"lazybg/internal/perceive/checker"
+	"lazybg/internal/perceive/pointnet"
 	"lazybg/internal/perceive/stableframe"
 	"lazybg/internal/profile"
 )
@@ -28,6 +29,11 @@ type RunOptions struct {
 	MaxMotion        float64 // stableframe threshold on the low-res stream
 	MinFrames        int     // minimum still frames per stable window
 	PeakFrac         float64 // circle-detector peak threshold
+
+	// ModelPath, when set, reads points with the learned classifier
+	// (internal/perceive/pointnet) instead of the classical shape-first
+	// reader.
+	ModelPath string
 
 	// LimitMs stops each Part this long after its span begins (0 = full
 	// span) — the knob that keeps integration tests short.
@@ -97,8 +103,21 @@ func Recording(root string, m corpus.Manifest, o RunOptions) (Outcome, error) {
 	return RunEvents(events, o.Conduct), nil
 }
 
+// boardReader is the per-frame reading seam: classical or learned.
+type boardReader interface {
+	Read(img image.Image, cb calibrate.CanonicalBoard) perceive.ObservedBoard
+}
+
 // ReadEvents extracts the observed stable-board events of every Part.
 func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
+	var learned *pointnet.Net
+	if o.ModelPath != "" {
+		var err error
+		learned, err = pointnet.Load(o.ModelPath)
+		if err != nil {
+			return nil, err
+		}
+	}
 	var events []Event
 	for pi, part := range m.Parts {
 		cal, cb, prof, err := PartSetup(part)
@@ -127,7 +146,10 @@ func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
 		}
 
 		roi := scaledBBox(part.Calibration.Corners, srcW, srcH, o.StreamW, o.StreamH)
-		reader := boardstate.CircleReader{Profile: prof, Params: checker.Params{PeakFrac: o.PeakFrac}}
+		var reader boardReader = boardstate.CircleReader{Profile: prof, Params: checker.Params{PeakFrac: o.PeakFrac}}
+		if learned != nil {
+			reader = pointnet.Reader{Net: learned}
+		}
 		d := stableframe.Detector{ROI: roi, MaxMotion: o.MaxMotion, MinFrames: o.MinFrames}
 
 		nWin := 0
