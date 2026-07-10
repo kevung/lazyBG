@@ -195,3 +195,37 @@ func TestRunEvents_NoisyPointStillRecovers(t *testing.T) {
 func sameDice(a, b bg.Dice) bool {
 	return (a[0] == b[0] && a[1] == b[1]) || (a[0] == b[1] && a[1] == b[0])
 }
+
+// Observed dice on the events must flow into the decisions: same clean
+// sequence, but with dice observations attached — the plies keep the right
+// moves and gain confidence over the blind run.
+func TestRunEvents_ObservedDiceBoostConfidence(t *testing.T) {
+	boards, _, dice := script(t)
+	blind := events(boards)
+	hinted := events(boards)
+	for i := range hinted {
+		hinted[i].Dice = dice[i]
+		hinted[i].DiceConf = 0.9
+	}
+
+	outBlind := RunEvents(blind, DefaultOptions())
+	outHinted := RunEvents(hinted, DefaultOptions())
+
+	pb := outBlind.Match.Games[0].Plies
+	ph := outHinted.Match.Games[0].Plies
+	if len(ph) != len(pb) {
+		t.Fatalf("hinted plies %d != blind %d", len(ph), len(pb))
+	}
+	better := 0
+	for i := range ph {
+		if !sameDice(ph[i].Dice, dice[i]) {
+			t.Errorf("ply %d: hinted dice %v, want %v", i, ph[i].Dice, dice[i])
+		}
+		if ph[i].Confidence > pb[i].Confidence {
+			better++
+		}
+	}
+	if better < len(ph)/2 {
+		t.Errorf("only %d/%d plies gained confidence from dice observations", better, len(ph))
+	}
+}

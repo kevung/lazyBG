@@ -20,10 +20,23 @@ import (
 	"lazybg/internal/pipeline"
 )
 
-// Event is one distinct stable-board observation, in match order.
+// Event is one distinct stable-board observation, in match order. Dice, when
+// non-zero, is the dice roll observed on the felt for this turn (from the
+// dice-event detector + pip reading) with its confidence — a fusion cue, not
+// a requirement.
 type Event struct {
-	Tick int
-	Obs  perceive.ObservedBoard
+	Tick     int
+	Obs      perceive.ObservedBoard
+	Dice     bg.Dice
+	DiceConf float64
+}
+
+// diceCue renders the event's observed dice as a fusion cue (nil if absent).
+func (e Event) diceCue() *cue.Cue {
+	if e.Dice == (bg.Dice{}) || e.DiceConf <= 0 {
+		return nil
+	}
+	return &cue.Cue{Kind: cue.DiceValue, Tick: e.Tick, Dice: e.Dice, Confidence: e.DiceConf}
 }
 
 // Options tunes the conductor. Observations must already be in the canonical
@@ -165,7 +178,7 @@ func (c *conductor) step(ev Event) {
 	var hs []hypo
 	try := func(who bg.Player, discount float64) {
 		d, err := boarddiff.DecideAnyDice(
-			bg.Position{Board: c.state, PlayerOnRoll: who}, prev, ev.Obs, ev.Tick, c.o.Weights)
+			bg.Position{Board: c.state, PlayerOnRoll: who}, prev, ev.Obs, ev.Tick, c.o.Weights, ev.diceCue())
 		if err != nil || d.Top.Notation == "" {
 			return
 		}
