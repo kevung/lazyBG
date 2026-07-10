@@ -115,3 +115,101 @@ func TestDecide_NoisyObservation_Robust(t *testing.T) {
 		t.Errorf("noisy match should be high-but-imperfect, got %.3f", scored[0].Match)
 	}
 }
+
+// DecideAnyDice must recover BOTH the dice and the move from a board
+// transition alone — the "infer the dice from the diff" rescue path
+// (docs/architecture.md §5) used whenever the dice cue is absent.
+func TestDecideAnyDice_RecoversDiceAndMove(t *testing.T) {
+	pre := bg.Position{Board: bg.StandardStart(), PlayerOnRoll: bg.P1}
+	// A strong, distinctive play: 3-1 -> 8/5 6/5.
+	truth := bg.Position{Board: bg.StandardStart(), Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	played := bestResult(t, truth)
+	post := obsFromBoard(played.Result)
+
+	d, err := DecideAnyDice(pre, obsFromBoard(pre.Board), post, 42, fusion.DefaultWeights())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Top.Dice; !(got == bg.Dice{3, 1} || got == bg.Dice{1, 3}) {
+		t.Errorf("dice = %v, want 3-1", got)
+	}
+	if d.Top.Notation != played.Notation {
+		t.Errorf("notation = %q, want %q", d.Top.Notation, played.Notation)
+	}
+	if d.Player != bg.P1 || d.Tick != 42 {
+		t.Errorf("player/tick = %v/%d, want P1/42", d.Player, d.Tick)
+	}
+	if d.Confidence < 0.5 {
+		t.Errorf("confidence %.3f too low for a clean unambiguous transition", d.Confidence)
+	}
+}
+
+// Reading-to-reading shift: identical readings are 0 even when both carry the
+// same systematic misread; a real move shows up as a shift.
+func TestReadingShift(t *testing.T) {
+	start := bg.StandardStart()
+	clean := obsFromBoard(start)
+	if s := ReadingShift(clean, clean); s != 0 {
+		t.Errorf("identical readings shift = %v, want 0", s)
+	}
+
+	// Same systematic bias in both readings (point 6 always read one short).
+	biased := clean
+	biased.Points[6].Count = 4
+	if s := ReadingShift(biased, biased); s != 0 {
+		t.Errorf("stable bias shift = %v, want 0 (bias must cancel)", s)
+	}
+
+	pre := bg.Position{Board: start, Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	post := obsFromBoard(bestResult(t, pre).Result)
+	if s := ReadingShift(clean, post); s <= 0 {
+		t.Errorf("real move shift = %v, want > 0", s)
+	}
+}
+
+// Delta matching must see through a stable per-point misread: the same bias
+// in the previous and current readings cancels, and the true move is
+// recovered with confidence.
+func TestDecideAnyDice_StableBiasCancels(t *testing.T) {
+	start := bg.StandardStart()
+	pre := bg.Position{Board: start, Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	played := bestResult(t, pre) // 8/5 6/5
+
+	bias := func(ob perceive.ObservedBoard) perceive.ObservedBoard {
+		ob.Points[24].Count = 1 // corner stack always under-read
+		ob.Points[12].Count = 4 // opponent mid stack always under-read
+		return ob
+	}
+	prev := bias(obsFromBoard(start))
+	cur := bias(obsFromBoard(played.Result))
+
+	d, err := DecideAnyDice(bg.Position{Board: start, PlayerOnRoll: bg.P1}, prev, cur, 0, fusion.DefaultWeights())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Top.Notation != played.Notation {
+		t.Errorf("recovered %q, want %q despite stable bias", d.Top.Notation, played.Notation)
+	}
+	if d.Confidence < 0.5 {
+		t.Errorf("confidence %.3f, want >= 0.5 — stable bias should not cost confidence", d.Confidence)
+	}
+}
+
+// WholeBoardMatch is the tolerant landmark check: a biased reading of the
+// start is still close to it, a mid-game board is not.
+func TestWholeBoardMatch(t *testing.T) {
+	start := bg.StandardStart()
+	biased := obsFromBoard(start)
+	biased.Points[24].Count = 1
+	biased.Points[6].Count = 4
+	if m := WholeBoardMatch(start, biased); m < 0.85 {
+		t.Errorf("biased start reads %.3f vs start, want >= 0.85", m)
+	}
+	pre := bg.Position{Board: start, Dice: bg.Dice{6, 5}, PlayerOnRoll: bg.P1}
+	mid := obsFromBoard(bestResult(t, pre).Result)
+	pre2 := bg.Position{Board: bestResult(t, pre).Result, Dice: bg.Dice{6, 5}, PlayerOnRoll: bg.P2}
+	mid = obsFromBoard(bestResult(t, pre2).Result)
+	if m := WholeBoardMatch(start, mid); m > 0.95 {
+		t.Errorf("mid-game board reads %.3f vs start, too close", m)
+	}
+}

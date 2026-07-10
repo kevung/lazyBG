@@ -1,33 +1,145 @@
-// Command lazybg is, for now, an end-to-end demo of the transcription spine
-// driven by the real gnubg engine. For each turn it simulates a strong player
-// playing the engine's top move, "observes" the resulting board (standing in for
-// the not-yet-built video front-end), then recovers the move via boarddiff +
-// fusion and gates it — finally exporting a Jellyfish .mat.
+// Command lazybg transcribes backgammon match videos.
 //
-// The real app (video scrubber ↔ move list ↔ review queue) arrives at the UI
+//	lazybg transcribe -manifest corpus/manifest/X.json [-out X.mat] [-limit-ms N]
+//	    run the video pipeline over a Recording manifest and write the .mat
+//	lazybg eval -manifest corpus/manifest/X.json [-limit-ms N]
+//	    transcribe, then score against the manifest's ground-truth transcript
+//	lazybg demo
+//	    the original engine-spine demo on synthetic observations
+//
+// The review UI (video scrubber ↔ move list ↔ review queue) arrives at the UI
 // milestone (docs/architecture.md §3, §8).
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
 
 	"lazybg"
 	"lazybg/internal/bg"
+	"lazybg/internal/corpus"
 	"lazybg/internal/cue"
 	"lazybg/internal/engine"
+	"lazybg/internal/eval"
 	"lazybg/internal/fusion"
 	"lazybg/internal/gate"
 	"lazybg/internal/matexport"
+	"lazybg/internal/matimport"
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boarddiff"
+	"lazybg/internal/transcribe"
 )
 
 func main() {
 	if err := engine.Init(lazybg.DataFS); err != nil {
 		log.Fatalf("engine init: %v", err)
 	}
+	cmd := "demo"
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+	}
+	switch cmd {
+	case "demo":
+		runDemo()
+	case "transcribe":
+		runTranscribe(os.Args[2:])
+	case "eval":
+		runEval(os.Args[2:])
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q (want transcribe, eval or demo)\n", cmd)
+		os.Exit(2)
+	}
+}
+
+// loadManifest reads a Recording manifest; paths inside are relative to the
+// current directory (run from the repository root).
+func loadManifest(path string) corpus.Manifest {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatalf("read manifest: %v", err)
+	}
+	m, err := corpus.Load(data)
+	if err != nil {
+		log.Fatalf("manifest: %v", err)
+	}
+	return m
+}
+
+func runPipeline(manifest string, limitMs int) (transcribe.Outcome, corpus.Manifest) {
+	m := loadManifest(manifest)
+	o := transcribe.DefaultRunOptions()
+	o.LimitMs = limitMs
+	o.Log = os.Stderr
+	out, err := transcribe.Recording(".", m, o)
+	if err != nil {
+		log.Fatalf("transcribe: %v", err)
+	}
+	fmt.Fprintf(os.Stderr, "plies: %d games: %d review: %d skipped: %d unexplained: %d\n",
+		countPlies(out.Match), len(out.Match.Games), len(out.Review), out.Skipped, out.Unexplained)
+	return out, m
+}
+
+func runTranscribe(args []string) {
+	fs := flag.NewFlagSet("transcribe", flag.ExitOnError)
+	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
+	outPath := fs.String("out", "", ".mat output path (default stdout)")
+	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
+	fs.Parse(args)
+	if *manifest == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	out, _ := runPipeline(*manifest, *limitMs)
+	mat := matexport.Write(out.Match)
+	if *outPath == "" {
+		fmt.Print(mat)
+		return
+	}
+	if err := os.WriteFile(*outPath, []byte(mat), 0o644); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runEval(args []string) {
+	fs := flag.NewFlagSet("eval", flag.ExitOnError)
+	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
+	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
+	fs.Parse(args)
+	if *manifest == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	out, m := runPipeline(*manifest, *limitMs)
+	matBytes, err := os.ReadFile(m.Transcript)
+	if err != nil {
+		log.Fatalf("truth transcript: %v", err)
+	}
+	truth, err := matimport.Parse(string(matBytes))
+	if err != nil {
+		log.Fatalf("truth transcript: %v", err)
+	}
+	threshold := transcribe.DefaultOptions().Policy.Threshold
+	s := eval.ScoreMatch(out.Match, truth, threshold)
+	fmt.Printf("games:            %d produced / %d truth\n", s.GamesOut, s.GamesTruth)
+	fmt.Printf("checker plies:    %d produced / %d truth\n", s.OutCheckerPlies, s.TruthCheckerPlies)
+	fmt.Printf("matched:          %d\n", s.Matched)
+	fmt.Printf("auto-filled:      %d (errors %d, rate %.3f)\n", s.AutoFilled, s.AutoFillErrors(), s.ErrorRate())
+	fmt.Printf("coverage:         %.3f\n", s.Coverage())
+	fmt.Printf("review rate:      %.3f\n", s.ReviewRate())
+	fmt.Printf("truth cube plays: %d (not yet perceived)\n", s.TruthCubeActions)
+}
+
+func countPlies(m bg.Match) int {
+	n := 0
+	for _, g := range m.Games {
+		n += len(g.Plies)
+	}
+	return n
+}
+
+func runDemo() {
 
 	// A fixed sequence of rolls; the engine chooses each move.
 	rolls := []struct {
