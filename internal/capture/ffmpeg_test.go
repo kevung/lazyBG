@@ -54,3 +54,16 @@ func TestFFmpegSource_Real(t *testing.T) {
 		t.Errorf("ticks not preserved in order: %d..%d", frames[0].Tick, frames[2].Tick)
 	}
 }
+
+func TestDurationMs(t *testing.T) {
+	if !ffmpegAvailable() {
+		t.Skip("ffmpeg not on PATH")
+	}
+	ms, err := DurationMs(makeTestVideo(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ms < 1800 || ms > 2400 {
+		t.Errorf("duration %dms, want ≈2000", ms)
+	}
+}

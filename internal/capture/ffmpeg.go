@@ -68,3 +68,17 @@ func (s *FFmpegSource) Next() (Frame, bool) {
 	}
 	return Frame{}, false
 }
+
+// DurationMs probes a video's duration via ffprobe (same bundle as ffmpeg).
+func DurationMs(path string) (int, error) {
+	out, err := exec.Command("ffprobe", "-v", "error",
+		"-show_entries", "format=duration", "-of", "csv=p=0", path).Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe %s: %w", path, err)
+	}
+	var sec float64
+	if _, err := fmt.Sscanf(string(bytes.TrimSpace(out)), "%f", &sec); err != nil {
+		return 0, fmt.Errorf("ffprobe %s: parse %q: %w", path, out, err)
+	}
+	return int(sec * 1000), nil
+}
