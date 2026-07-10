@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"lazybg/internal/bg"
+	"lazybg/internal/cue"
 	"lazybg/internal/engine"
 	"lazybg/internal/fusion"
 	"lazybg/internal/perceive"
@@ -126,7 +127,7 @@ func TestDecideAnyDice_RecoversDiceAndMove(t *testing.T) {
 	played := bestResult(t, truth)
 	post := obsFromBoard(played.Result)
 
-	d, err := DecideAnyDice(pre, obsFromBoard(pre.Board), post, 42, fusion.DefaultWeights())
+	d, err := DecideAnyDice(pre, obsFromBoard(pre.Board), post, 42, fusion.DefaultWeights(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +184,7 @@ func TestDecideAnyDice_StableBiasCancels(t *testing.T) {
 	prev := bias(obsFromBoard(start))
 	cur := bias(obsFromBoard(played.Result))
 
-	d, err := DecideAnyDice(bg.Position{Board: start, PlayerOnRoll: bg.P1}, prev, cur, 0, fusion.DefaultWeights())
+	d, err := DecideAnyDice(bg.Position{Board: start, PlayerOnRoll: bg.P1}, prev, cur, 0, fusion.DefaultWeights(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,5 +212,65 @@ func TestWholeBoardMatch(t *testing.T) {
 	mid = obsFromBoard(bestResult(t, pre2).Result)
 	if m := WholeBoardMatch(start, mid); m > 0.95 {
 		t.Errorf("mid-game board reads %.3f vs start, too close", m)
+	}
+}
+
+// An observed dice cue must be able to overturn the within-roll prior when
+// two rolls reach the SAME board: 1-1 played 8/7 7/6 6/5 6/5 equals 3-1
+// played 8/5 6/5; without the cue the prior picks 3-1, with a confident
+// 1-1 observation the decision must follow the dice.
+func TestDecideAnyDice_ObservedDiceDisambiguates(t *testing.T) {
+	start := bg.StandardStart()
+	pre := bg.Position{Board: start, PlayerOnRoll: bg.P1}
+	truth := bg.Position{Board: start, Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	post := obsFromBoard(bestResult(t, truth).Result)
+	prev := obsFromBoard(start)
+	w := fusion.DefaultWeights()
+
+	// Baseline: no cue -> the within-roll prior chooses 3-1.
+	d, err := DecideAnyDice(pre, prev, post, 0, w, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(d.Top.Dice == bg.Dice{3, 1} || d.Top.Dice == bg.Dice{1, 3}) {
+		t.Fatalf("baseline dice = %v, want 3-1", d.Top.Dice)
+	}
+
+	// With a confident 1-1 observation the same transition reads as 1-1.
+	obs := &cue.Cue{Kind: cue.DiceValue, Dice: bg.Dice{1, 1}, Confidence: 0.9}
+	d, err = DecideAnyDice(pre, prev, post, 0, w, obs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if (d.Top.Dice != bg.Dice{1, 1}) {
+		t.Errorf("hinted dice = %v, want 1-1", d.Top.Dice)
+	}
+	if len(d.Top.Support) == 0 {
+		t.Error("decision should record its supporting cues")
+	}
+}
+
+// A dice observation that agrees with the board-diff explanation raises the
+// decision's confidence relative to no observation at all.
+func TestDecideAnyDice_AgreeingDiceRaiseConfidence(t *testing.T) {
+	start := bg.StandardStart()
+	pre := bg.Position{Board: start, PlayerOnRoll: bg.P1}
+	truth := bg.Position{Board: start, Dice: bg.Dice{6, 1}, PlayerOnRoll: bg.P1}
+	post := obsFromBoard(bestResult(t, truth).Result)
+	prev := obsFromBoard(start)
+	w := fusion.DefaultWeights()
+
+	plain, err := DecideAnyDice(pre, prev, post, 0, w, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obs := &cue.Cue{Kind: cue.DiceValue, Dice: bg.Dice{6, 1}, Confidence: 0.9}
+	hinted, err := DecideAnyDice(pre, prev, post, 0, w, obs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hinted.Confidence <= plain.Confidence {
+		t.Errorf("hinted conf %.3f <= plain conf %.3f, want a boost from agreement",
+			hinted.Confidence, plain.Confidence)
 	}
 }

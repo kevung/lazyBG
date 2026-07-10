@@ -278,10 +278,27 @@ func deltaMatch(pre, cand bg.Board, prev, cur perceive.ObservedBoard) float64 {
 // that is a poor play for its roll is an unlikely explanation. pre.Dice is
 // ignored. Confidence uses the fusion runner-up rule.
 //
+// observed, when non-nil, is a DiceValue cue: candidates whose roll matches
+// it earn the fusion dice weight scaled by the cue's confidence — enough to
+// overturn the within-roll prior when two rolls reach the same board, which
+// is exactly the ambiguity a dice reading exists to break.
+//
 // Cost: a fast unscored enumeration prunes the 21 rolls first; the neural-net
 // equity evaluation runs only for rolls that can still win — a roll can
-// overtake the best match only if bestMatch(roll) ≥ maxMatch − w.Engine/w.BoardDiff.
-func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, w fusion.Weights) (cue.MoveDecision, error) {
+// overtake the best match only if it recovers the match deficit through the
+// engine prior and the dice-agreement weight.
+func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, w fusion.Weights, observed *cue.Cue) (cue.MoveDecision, error) {
+	wDice := 0.0
+	if observed != nil && observed.Dice != (bg.Dice{}) {
+		wDice = w.Dice * observed.Confidence
+	}
+	sameRoll := func(d bg.Dice) bool {
+		if observed == nil {
+			return false
+		}
+		o := observed.Dice
+		return (d[0] == o[0] && d[1] == o[1]) || (d[0] == o[1] && d[1] == o[0])
+	}
 	// Phase 1: unscored sweep — best diff match per roll.
 	bestMatch := make([]float64, len(rolls21))
 	maxMatch := -1.0
@@ -316,14 +333,15 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 	// Phase 2: scored evaluation of the rolls that can still win.
 	margin := 1.0 // keep everything when the board-diff weight is degenerate
 	if w.BoardDiff > 0 {
-		margin = w.Engine / w.BoardDiff
+		margin = (w.Engine + wDice) / w.BoardDiff
 	}
 	type cand struct {
-		dice     bg.Dice
-		notation string
-		match    float64
-		prior    float64
-		score    float64
+		dice      bg.Dice
+		notation  string
+		match     float64
+		prior     float64
+		diceAgree float64
+		score     float64
 	}
 	const perRoll = 3 // top matches kept per roll; the rest cannot win
 	var cands []cand
@@ -379,12 +397,18 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 			rcs = rcs[:perRoll]
 		}
 		for _, rc := range rcs {
-			c := cand{d, rc.mv.Notation, rc.match, rc.prior, 0}
+			agree := 0.0
+			if sameRoll(d) {
+				agree = 1
+			}
+			c := cand{d, rc.mv.Notation, rc.match, rc.prior, agree, 0}
 			sig := boardSig(rc.mv.Result)
 			if j, ok := bestBySig[sig]; ok {
 				// Same resulting board under another roll: keep the likelier
-				// explanation; do not let duplicates crush confidence.
-				if c.match+c.prior > cands[j].match+cands[j].prior {
+				// explanation — including what the observed dice say, else
+				// the dedupe silently discards the very interpretation the
+				// dice cue exists to rescue.
+				if c.match+c.prior+c.diceAgree*wDice*4 > cands[j].match+cands[j].prior+cands[j].diceAgree*wDice*4 {
 					cands[j] = c
 				}
 				continue
@@ -397,12 +421,12 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 		return cue.MoveDecision{Player: pre.PlayerOnRoll, Tick: tick}, nil
 	}
 
-	wsum := w.BoardDiff + w.Engine
+	wsum := w.BoardDiff + w.Engine + wDice
 	if wsum <= 0 {
 		wsum = 1
 	}
 	for i := range cands {
-		cands[i].score = (w.BoardDiff*cands[i].match + w.Engine*cands[i].prior) / wsum
+		cands[i].score = (w.BoardDiff*cands[i].match + w.Engine*cands[i].prior + wDice*cands[i].diceAgree) / wsum
 	}
 	for i := 1; i < len(cands); i++ {
 		for j := i; j > 0 && cands[j].score > cands[j-1].score; j-- {
@@ -418,12 +442,16 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 	if conf < 0 {
 		conf = 0
 	}
+	support := []cue.Kind{cue.BoardDiff, cue.EnginePrior}
+	if cands[0].diceAgree > 0 {
+		support = append(support, cue.DiceValue)
+	}
 	d := cue.MoveDecision{
 		Player: pre.PlayerOnRoll,
 		Tick:   tick,
 		Top: cue.MoveHypothesis{
 			Dice: cands[0].dice, Notation: cands[0].notation,
-			Confidence: conf, Support: []cue.Kind{cue.BoardDiff, cue.EnginePrior},
+			Confidence: conf, Support: support,
 		},
 		Confidence: conf,
 	}
