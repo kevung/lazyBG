@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-05_hsbtMarseille_or-r3_GalleGuillaume",
+  "transcript": "corpus/2025-05_hsbtMarseille/or-r3_GalleGuillaume/or-r3_GalleGuillaume.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-05_hsbtMarseille/or-r3_GalleGuillaume/HsbtMarseille or ronde3 UngerKevin GalleGuillaume 7p [iUS-Zgc2x7o].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            327.21,
+            51
+          ],
+          [
+            864.59,
+            44.51999999999998
+          ],
+          [
+            864.59,
+            666.6
+          ],
+          [
+            283.60999999999996,
+            575.88
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 2000,
+        "endMs": 2491021
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 30,
+      "part": 0,
+      "tickMs": 580166
+    },
+    {
+      "index": 63,
+      "part": 0,
+      "tickMs": 584333
+    },
+    {
+      "index": 90,
+      "part": 0,
+      "tickMs": 1488666
+    },
+    {
+      "index": 97,
+      "part": 0,
+      "tickMs": 1568666
+    },
+    {
+      "index": 98,
+      "part": 0,
+      "tickMs": 1575166
+    },
+    {
+      "index": 100,
+      "part": 0,
+      "tickMs": 1581333
+    },
+    {
+      "index": 101,
+      "part": 0,
+      "tickMs": 1587166
+    },
+    {
+      "index": 102,
+      "part": 0,
+      "tickMs": 1591333
+    },
+    {
+      "index": 108,
+      "part": 0,
+      "tickMs": 1610500
+    },
+    {
+      "index": 109,
+      "part": 0,
+      "tickMs": 1625166
+    },
+    {
+      "index": 110,
+      "part": 0,
+      "tickMs": 1630499
+    },
+    {
+      "index": 113,
+      "part": 0,
+      "tickMs": 1689333
+    },
+    {
+      "index": 152,
+      "part": 0,
+      "tickMs": 2110999
+    },
+    {
+      "index": 153,
+      "part": 0,
+      "tickMs": 2112500
+    },
+    {
+      "index": 154,
+      "part": 0,
+      "tickMs": 2129166
+    },
+    {
+      "index": 158,
+      "part": 0,
+      "tickMs": 2157000
+    },
+    {
+      "index": 185,
+      "part": 0,
+      "tickMs": 2406333
+    },
+    {
+      "index": 186,
+      "part": 0,
+      "tickMs": 2411833
+    },
+    {
+      "index": 187,
+      "part": 0,
+      "tickMs": 2418333
+    },
+    {
+      "index": 188,
+      "part": 0,
+      "tickMs": 2438333
+    }
+  ]
+}

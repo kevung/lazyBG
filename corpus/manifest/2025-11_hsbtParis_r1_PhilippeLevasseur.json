@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-11_hsbtParis_r1_PhilippeLevasseur",
+  "transcript": "corpus/2025-11_hsbtParis/r1_PhilippeLevasseur/r1_PhilippeLevasseur.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-11_hsbtParis/r1_PhilippeLevasseur/20251115 ronde1 KevinUnger PhilippeLevasseur 7p [JXE5RyoNbTg].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            380.66999999999996,
+            66.19999999999999
+          ],
+          [
+            934.37,
+            14.359999999999957
+          ],
+          [
+            873.35,
+            673.1600000000001
+          ],
+          [
+            343.60999999999996,
+            580.28
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 1000,
+        "endMs": 3750521
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 76,
+      "part": 0,
+      "tickMs": 1795166
+    },
+    {
+      "index": 78,
+      "part": 0,
+      "tickMs": 1820000
+    },
+    {
+      "index": 82,
+      "part": 0,
+      "tickMs": 1834333
+    },
+    {
+      "index": 86,
+      "part": 0,
+      "tickMs": 1891166
+    },
+    {
+      "index": 214,
+      "part": 0,
+      "tickMs": 3738666
+    }
+  ]
+}

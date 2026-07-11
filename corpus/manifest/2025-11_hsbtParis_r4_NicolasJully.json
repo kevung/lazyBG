@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-11_hsbtParis_r4_NicolasJully",
+  "transcript": "corpus/2025-11_hsbtParis/r4_NicolasJully/r4_NicolasJully.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-11_hsbtParis/r4_NicolasJully/20251115 ronde4 KevinUnger NicolasJully 7p [qKCZK5NpvnQ].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            172.43733301721028,
+            -4.6298656062542705
+          ],
+          [
+            1000.2042887568316,
+            44.00106478820817
+          ],
+          [
+            929.618981573582,
+            795.5125557977583
+          ],
+          [
+            125.85202583396034,
+            722.8816254032959
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 3985541
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 38,
+      "part": 0,
+      "tickMs": 519000
+    },
+    {
+      "index": 111,
+      "part": 0,
+      "tickMs": 1797166
+    },
+    {
+      "index": 179,
+      "part": 0,
+      "tickMs": 3567833
+    },
+    {
+      "index": 269,
+      "part": 0,
+      "tickMs": 3967333
+    },
+    {
+      "index": 270,
+      "part": 0,
+      "tickMs": 3977999
+    }
+  ]
+}

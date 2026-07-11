@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-05_hsbtMarseille_or-r1_HanotinDenis",
+  "transcript": "corpus/2025-05_hsbtMarseille/or-r1_HanotinDenis/or-r1_HanotinDenis.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-05_hsbtMarseille/or-r1_HanotinDenis/HsbtMarseille or ronde1 UngerKevin HanotinDenis 7p [v5SVhyHsjsk].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom"
+      },
+      "calibration": {
+        "corners": [
+          [
+            273.68,
+            39.15999999999997
+          ],
+          [
+            884.1,
+            27.879999999999995
+          ],
+          [
+            867.78,
+            658.6
+          ],
+          [
+            246.44,
+            574.36
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 2354541
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 1,
+      "part": 0,
+      "tickMs": 15833
+    },
+    {
+      "index": 2,
+      "part": 0,
+      "tickMs": 33333
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 51166
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "tickMs": 78500
+    },
+    {
+      "index": 5,
+      "part": 0,
+      "tickMs": 91166
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "tickMs": 99333
+    },
+    {
+      "index": 10,
+      "part": 0,
+      "tickMs": 180833
+    },
+    {
+      "index": 11,
+      "part": 0,
+      "tickMs": 205500
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "tickMs": 221499
+    },
+    {
+      "index": 13,
+      "part": 0,
+      "tickMs": 253833
+    },
+    {
+      "index": 14,
+      "part": 0,
+      "tickMs": 271666
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "tickMs": 293500
+    },
+    {
+      "index": 16,
+      "part": 0,
+      "tickMs": 312833
+    },
+    {
+      "index": 17,
+      "part": 0,
+      "tickMs": 327999
+    },
+    {
+      "index": 19,
+      "part": 0,
+      "tickMs": 353166
+    },
+    {
+      "index": 26,
+      "part": 0,
+      "tickMs": 412500
+    },
+    {
+      "index": 28,
+      "part": 0,
+      "tickMs": 432166
+    },
+    {
+      "index": 29,
+      "part": 0,
+      "tickMs": 442833
+    },
+    {
+      "index": 30,
+      "part": 0,
+      "tickMs": 449000
+    },
+    {
+      "index": 31,
+      "part": 0,
+      "tickMs": 457666
+    },
+    {
+      "index": 32,
+      "part": 0,
+      "tickMs": 462666
+    },
+    {
+      "index": 33,
+      "part": 0,
+      "tickMs": 474499
+    },
+    {
+      "index": 34,
+      "part": 0,
+      "tickMs": 478666
+    },
+    {
+      "index": 37,
+      "part": 0,
+      "tickMs": 498833
+    },
+    {
+      "index": 38,
+      "part": 0,
+      "tickMs": 505499
+    },
+    {
+      "index": 40,
+      "part": 0,
+      "tickMs": 521666
+    },
+    {
+      "index": 42,
+      "part": 0,
+      "tickMs": 534666
+    },
+    {
+      "index": 43,
+      "part": 0,
+      "tickMs": 548499
+    },
+    {
+      "index": 45,
+      "part": 0,
+      "tickMs": 561500
+    },
+    {
+      "index": 47,
+      "part": 0,
+      "tickMs": 567166
+    },
+    {
+      "index": 48,
+      "part": 0,
+      "tickMs": 574000
+    },
+    {
+      "index": 50,
+      "part": 0,
+      "tickMs": 624499
+    },
+    {
+      "index": 51,
+      "part": 0,
+      "tickMs": 635000
+    },
+    {
+      "index": 52,
+      "part": 0,
+      "tickMs": 661500
+    },
+    {
+      "index": 53,
+      "part": 0,
+      "tickMs": 672999
+    },
+    {
+      "index": 54,
+      "part": 0,
+      "tickMs": 693499
+    },
+    {
+      "index": 55,
+      "part": 0,
+      "tickMs": 716000
+    },
+    {
+      "index": 56,
+      "part": 0,
+      "tickMs": 723833
+    },
+    {
+      "index": 57,
+      "part": 0,
+      "tickMs": 738833
+    },
+    {
+      "index": 59,
+      "part": 0,
+      "tickMs": 756666
+    },
+    {
+      "index": 61,
+      "part": 0,
+      "tickMs": 796666
+    },
+    {
+      "index": 65,
+      "part": 0,
+      "tickMs": 886333
+    },
+    {
+      "index": 66,
+      "part": 0,
+      "tickMs": 915500
+    },
+    {
+      "index": 78,
+      "part": 0,
+      "tickMs": 1199500
+    },
+    {
+      "index": 86,
+      "part": 0,
+      "tickMs": 1324666
+    },
+    {
+      "index": 93,
+      "part": 0,
+      "tickMs": 1424666
+    },
+    {
+      "index": 99,
+      "part": 0,
+      "tickMs": 1485499
+    },
+    {
+      "index": 102,
+      "part": 0,
+      "tickMs": 1508833
+    },
+    {
+      "index": 105,
+      "part": 0,
+      "tickMs": 1530499
+    },
+    {
+      "index": 111,
+      "part": 0,
+      "tickMs": 1598333
+    },
+    {
+      "index": 113,
+      "part": 0,
+      "tickMs": 1656833
+    },
+    {
+      "index": 114,
+      "part": 0,
+      "tickMs": 1693833
+    },
+    {
+      "index": 116,
+      "part": 0,
+      "tickMs": 1788666
+    },
+    {
+      "index": 120,
+      "part": 0,
+      "tickMs": 1836333
+    },
+    {
+      "index": 125,
+      "part": 0,
+      "tickMs": 1973833
+    },
+    {
+      "index": 127,
+      "part": 0,
+      "tickMs": 2036666
+    },
+    {
+      "index": 135,
+      "part": 0,
+      "tickMs": 2140166
+    },
+    {
+      "index": 136,
+      "part": 0,
+      "tickMs": 2200333
+    },
+    {
+      "index": 138,
+      "part": 0,
+      "tickMs": 2256499
+    },
+    {
+      "index": 140,
+      "part": 0,
+      "tickMs": 2271333
+    },
+    {
+      "index": 142,
+      "part": 0,
+      "tickMs": 2311166
+    },
+    {
+      "index": 143,
+      "part": 0,
+      "tickMs": 2317833
+    },
+    {
+      "index": 144,
+      "part": 0,
+      "tickMs": 2322666
+    }
+  ]
+}

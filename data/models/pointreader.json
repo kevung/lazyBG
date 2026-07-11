@@ -21,10 +21,10 @@
     "B6+"
   ],
   "flip_rule": "vertically flip crops of points 1..12 before resize (stacks read top-down)",
-  "val_accuracy": 0.8901515151515151,
+  "val_accuracy": 0.9654471544715447,
   "val_games": [
-    "hsbtMars2025-main-r1:4",
-    "hsbtMars2025-main-r1:5"
+    "2025-05_hsbtMarseille_or-r1_HanotinDenis:1",
+    "2025-05_hsbtMarseille_or-r1_HanotinDenis:2"
   ],
-  "train_crops": 1200
+  "train_crops": 5496
 }
