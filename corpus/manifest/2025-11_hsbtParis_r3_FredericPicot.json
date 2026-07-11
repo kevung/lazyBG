@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-11_hsbtParis_r3_FredericPicot",
+  "transcript": "corpus/2025-11_hsbtParis/r3_FredericPicot/r3_FredericPicot.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-11_hsbtParis/r3_FredericPicot/20251116 ronde3 KevinUnger FredericPicot 7p [YM7fdblaKx0].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            329.85999999999996,
+            61.120000000000005
+          ],
+          [
+            939.2,
+            66.63999999999999
+          ],
+          [
+            891.24,
+            693.04
+          ],
+          [
+            315.7,
+            587.2
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 3000,
+        "endMs": 2849021
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 98166
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "tickMs": 103166
+    },
+    {
+      "index": 7,
+      "part": 0,
+      "tickMs": 156999
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "tickMs": 286833
+    },
+    {
+      "index": 18,
+      "part": 0,
+      "tickMs": 361500
+    },
+    {
+      "index": 19,
+      "part": 0,
+      "tickMs": 388333
+    },
+    {
+      "index": 20,
+      "part": 0,
+      "tickMs": 444499
+    },
+    {
+      "index": 36,
+      "part": 0,
+      "tickMs": 646333
+    },
+    {
+      "index": 39,
+      "part": 0,
+      "tickMs": 705166
+    },
+    {
+      "index": 91,
+      "part": 0,
+      "tickMs": 1213499
+    },
+    {
+      "index": 94,
+      "part": 0,
+      "tickMs": 1280166
+    },
+    {
+      "index": 95,
+      "part": 0,
+      "tickMs": 1301333
+    },
+    {
+      "index": 96,
+      "part": 0,
+      "tickMs": 1306499
+    },
+    {
+      "index": 101,
+      "part": 0,
+      "tickMs": 1416499
+    },
+    {
+      "index": 104,
+      "part": 0,
+      "tickMs": 1436500
+    },
+    {
+      "index": 105,
+      "part": 0,
+      "tickMs": 1474999
+    },
+    {
+      "index": 107,
+      "part": 0,
+      "tickMs": 1498500
+    },
+    {
+      "index": 115,
+      "part": 0,
+      "tickMs": 1610333
+    },
+    {
+      "index": 125,
+      "part": 0,
+      "tickMs": 1701166
+    },
+    {
+      "index": 206,
+      "part": 0,
+      "tickMs": 2497833
+    },
+    {
+      "index": 210,
+      "part": 0,
+      "tickMs": 2520500
+    },
+    {
+      "index": 213,
+      "part": 0,
+      "tickMs": 2537166
+    },
+    {
+      "index": 217,
+      "part": 0,
+      "tickMs": 2592166
+    },
+    {
+      "index": 219,
+      "part": 0,
+      "tickMs": 2618500
+    }
+  ]
+}

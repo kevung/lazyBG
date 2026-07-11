@@ -1,0 +1,368 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-05_hsbtMarseille_main-r1_PavicevicNina",
+  "transcript": "corpus/2025-05_hsbtMarseille/main-r1_PavicevicNina/main-r1_PavicevicNina.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-05_hsbtMarseille/main-r1_PavicevicNina/HsbtMarseille main ronde1 UngerKevin PavicevicNina 7p [L32IorELSwk].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom"
+      },
+      "calibration": {
+        "corners": [
+          [
+            208.77999999999997,
+            82.32
+          ],
+          [
+            825.76,
+            71.03999999999996
+          ],
+          [
+            838.84,
+            622.8
+          ],
+          [
+            206.62,
+            615.84
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 2000,
+        "endMs": 4180520
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 1,
+      "part": 0,
+      "tickMs": 14833
+    },
+    {
+      "index": 2,
+      "part": 0,
+      "tickMs": 36166
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 49833
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "tickMs": 68833
+    },
+    {
+      "index": 8,
+      "part": 0,
+      "tickMs": 115999
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "tickMs": 138499
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "tickMs": 197000
+    },
+    {
+      "index": 25,
+      "part": 0,
+      "tickMs": 378833
+    },
+    {
+      "index": 32,
+      "part": 0,
+      "tickMs": 441666
+    },
+    {
+      "index": 40,
+      "part": 0,
+      "tickMs": 502333
+    },
+    {
+      "index": 42,
+      "part": 0,
+      "tickMs": 515333
+    },
+    {
+      "index": 44,
+      "part": 0,
+      "tickMs": 533833
+    },
+    {
+      "index": 46,
+      "part": 0,
+      "tickMs": 549166
+    },
+    {
+      "index": 47,
+      "part": 0,
+      "tickMs": 561833
+    },
+    {
+      "index": 48,
+      "part": 0,
+      "tickMs": 568166
+    },
+    {
+      "index": 49,
+      "part": 0,
+      "tickMs": 580333
+    },
+    {
+      "index": 85,
+      "part": 0,
+      "tickMs": 908499
+    },
+    {
+      "index": 87,
+      "part": 0,
+      "tickMs": 919499
+    },
+    {
+      "index": 89,
+      "part": 0,
+      "tickMs": 933499
+    },
+    {
+      "index": 91,
+      "part": 0,
+      "tickMs": 945833
+    },
+    {
+      "index": 93,
+      "part": 0,
+      "tickMs": 960166
+    },
+    {
+      "index": 94,
+      "part": 0,
+      "tickMs": 966333
+    },
+    {
+      "index": 96,
+      "part": 0,
+      "tickMs": 980666
+    },
+    {
+      "index": 107,
+      "part": 0,
+      "tickMs": 1033333
+    },
+    {
+      "index": 109,
+      "part": 0,
+      "tickMs": 1050000
+    },
+    {
+      "index": 111,
+      "part": 0,
+      "tickMs": 1054333
+    },
+    {
+      "index": 113,
+      "part": 0,
+      "tickMs": 1069166
+    },
+    {
+      "index": 114,
+      "part": 0,
+      "tickMs": 1078833
+    },
+    {
+      "index": 115,
+      "part": 0,
+      "tickMs": 1085666
+    },
+    {
+      "index": 116,
+      "part": 0,
+      "tickMs": 1093833
+    },
+    {
+      "index": 117,
+      "part": 0,
+      "tickMs": 1101166
+    },
+    {
+      "index": 118,
+      "part": 0,
+      "tickMs": 1106500
+    },
+    {
+      "index": 120,
+      "part": 0,
+      "tickMs": 1177999
+    },
+    {
+      "index": 121,
+      "part": 0,
+      "tickMs": 1186499
+    },
+    {
+      "index": 122,
+      "part": 0,
+      "tickMs": 1199166
+    },
+    {
+      "index": 123,
+      "part": 0,
+      "tickMs": 1259000
+    },
+    {
+      "index": 127,
+      "part": 0,
+      "tickMs": 1428166
+    },
+    {
+      "index": 128,
+      "part": 0,
+      "tickMs": 1458166
+    },
+    {
+      "index": 140,
+      "part": 0,
+      "tickMs": 1654666
+    },
+    {
+      "index": 141,
+      "part": 0,
+      "tickMs": 1707999
+    },
+    {
+      "index": 143,
+      "part": 0,
+      "tickMs": 1717333
+    },
+    {
+      "index": 145,
+      "part": 0,
+      "tickMs": 1727000
+    },
+    {
+      "index": 148,
+      "part": 0,
+      "tickMs": 1740000
+    },
+    {
+      "index": 149,
+      "part": 0,
+      "tickMs": 1753166
+    },
+    {
+      "index": 150,
+      "part": 0,
+      "tickMs": 1763499
+    },
+    {
+      "index": 162,
+      "part": 0,
+      "tickMs": 2205333
+    },
+    {
+      "index": 163,
+      "part": 0,
+      "tickMs": 2218000
+    },
+    {
+      "index": 185,
+      "part": 0,
+      "tickMs": 2588666
+    },
+    {
+      "index": 189,
+      "part": 0,
+      "tickMs": 2691999
+    },
+    {
+      "index": 199,
+      "part": 0,
+      "tickMs": 2842833
+    },
+    {
+      "index": 220,
+      "part": 0,
+      "tickMs": 3224999
+    },
+    {
+      "index": 236,
+      "part": 0,
+      "tickMs": 3524166
+    },
+    {
+      "index": 248,
+      "part": 0,
+      "tickMs": 3727499
+    },
+    {
+      "index": 254,
+      "part": 0,
+      "tickMs": 3847500
+    },
+    {
+      "index": 258,
+      "part": 0,
+      "tickMs": 3914333
+    },
+    {
+      "index": 259,
+      "part": 0,
+      "tickMs": 3942666
+    },
+    {
+      "index": 262,
+      "part": 0,
+      "tickMs": 3952166
+    },
+    {
+      "index": 263,
+      "part": 0,
+      "tickMs": 3963499
+    },
+    {
+      "index": 274,
+      "part": 0,
+      "tickMs": 4119499
+    },
+    {
+      "index": 276,
+      "part": 0,
+      "tickMs": 4126000
+    },
+    {
+      "index": 277,
+      "part": 0,
+      "tickMs": 4147666
+    },
+    {
+      "index": 280,
+      "part": 0,
+      "tickMs": 4155333
+    }
+  ]
+}
