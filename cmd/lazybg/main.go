@@ -263,6 +263,7 @@ func runAlign(args []string) {
 	writeManifest := fs.Bool("write-manifest", false, "write aligned per-turn ticks back into the manifest")
 	cropsDir := fs.String("crops", "", "also extract labeled point crops into this directory")
 	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
+	model := fs.String("model", "", "read boards with this learned point-reader weight file instead of the classical reader")
 	fs.Parse(args)
 	if *manifest == "" {
 		fs.Usage()
@@ -280,6 +281,7 @@ func runAlign(args []string) {
 
 	o := transcribe.DefaultRunOptions()
 	o.LimitMs = *limitMs
+	o.ModelPath = *model
 	o.Log = os.Stderr
 	events, err := transcribe.ReadEvents(".", m, o)
 	if err != nil {
