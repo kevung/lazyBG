@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-10_cdfAngers_r1_EricBenichou",
+  "transcript": "corpus/2025-10_cdfAngers/r1_EricBenichou/r1_EricBenichou.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-10_cdfAngers/r1_EricBenichou/2025 10 24 ronde1 KevinUnger EricBenichou 9p [tzDfCe5S8-U].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 9,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            336,
+            95
+          ],
+          [
+            945,
+            88
+          ],
+          [
+            869,
+            686
+          ],
+          [
+            309,
+            612
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 1722541
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 1,
+      "part": 0,
+      "tickMs": 45999
+    },
+    {
+      "index": 2,
+      "part": 0,
+      "tickMs": 53999
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 66333
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "tickMs": 95999
+    },
+    {
+      "index": 5,
+      "part": 0,
+      "tickMs": 105499
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "tickMs": 114333
+    },
+    {
+      "index": 7,
+      "part": 0,
+      "tickMs": 125499
+    },
+    {
+      "index": 8,
+      "part": 0,
+      "tickMs": 165833
+    },
+    {
+      "index": 9,
+      "part": 0,
+      "tickMs": 177333
+    },
+    {
+      "index": 10,
+      "part": 0,
+      "tickMs": 181333
+    },
+    {
+      "index": 11,
+      "part": 0,
+      "tickMs": 199000
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "tickMs": 216666
+    },
+    {
+      "index": 13,
+      "part": 0,
+      "tickMs": 237333
+    },
+    {
+      "index": 14,
+      "part": 0,
+      "tickMs": 266666
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "tickMs": 288333
+    },
+    {
+      "index": 16,
+      "part": 0,
+      "tickMs": 312000
+    },
+    {
+      "index": 17,
+      "part": 0,
+      "tickMs": 335833
+    },
+    {
+      "index": 20,
+      "part": 0,
+      "tickMs": 378333
+    },
+    {
+      "index": 21,
+      "part": 0,
+      "tickMs": 388333
+    },
+    {
+      "index": 22,
+      "part": 0,
+      "tickMs": 400166
+    },
+    {
+      "index": 23,
+      "part": 0,
+      "tickMs": 410999
+    },
+    {
+      "index": 24,
+      "part": 0,
+      "tickMs": 424500
+    },
+    {
+      "index": 25,
+      "part": 0,
+      "tickMs": 430833
+    },
+    {
+      "index": 26,
+      "part": 0,
+      "tickMs": 445333
+    },
+    {
+      "index": 27,
+      "part": 0,
+      "tickMs": 468166
+    },
+    {
+      "index": 28,
+      "part": 0,
+      "tickMs": 511999
+    },
+    {
+      "index": 29,
+      "part": 0,
+      "tickMs": 521000
+    },
+    {
+      "index": 30,
+      "part": 0,
+      "tickMs": 529666
+    },
+    {
+      "index": 31,
+      "part": 0,
+      "tickMs": 538999
+    },
+    {
+      "index": 32,
+      "part": 0,
+      "tickMs": 550000
+    },
+    {
+      "index": 33,
+      "part": 0,
+      "tickMs": 603666
+    },
+    {
+      "index": 34,
+      "part": 0,
+      "tickMs": 609666
+    },
+    {
+      "index": 35,
+      "part": 0,
+      "tickMs": 627499
+    },
+    {
+      "index": 36,
+      "part": 0,
+      "tickMs": 668666
+    },
+    {
+      "index": 37,
+      "part": 0,
+      "tickMs": 683833
+    },
+    {
+      "index": 38,
+      "part": 0,
+      "tickMs": 793166
+    },
+    {
+      "index": 41,
+      "part": 0,
+      "tickMs": 830499
+    },
+    {
+      "index": 42,
+      "part": 0,
+      "tickMs": 848500
+    },
+    {
+      "index": 44,
+      "part": 0,
+      "tickMs": 875333
+    },
+    {
+      "index": 46,
+      "part": 0,
+      "tickMs": 882166
+    },
+    {
+      "index": 47,
+      "part": 0,
+      "tickMs": 891499
+    },
+    {
+      "index": 48,
+      "part": 0,
+      "tickMs": 901166
+    },
+    {
+      "index": 50,
+      "part": 0,
+      "tickMs": 915833
+    },
+    {
+      "index": 52,
+      "part": 0,
+      "tickMs": 923833
+    },
+    {
+      "index": 53,
+      "part": 0,
+      "tickMs": 930166
+    },
+    {
+      "index": 54,
+      "part": 0,
+      "tickMs": 935500
+    },
+    {
+      "index": 55,
+      "part": 0,
+      "tickMs": 944666
+    },
+    {
+      "index": 56,
+      "part": 0,
+      "tickMs": 949166
+    },
+    {
+      "index": 57,
+      "part": 0,
+      "tickMs": 960000
+    },
+    {
+      "index": 58,
+      "part": 0,
+      "tickMs": 966333
+    },
+    {
+      "index": 59,
+      "part": 0,
+      "tickMs": 974333
+    },
+    {
+      "index": 60,
+      "part": 0,
+      "tickMs": 980166
+    },
+    {
+      "index": 61,
+      "part": 0,
+      "tickMs": 986499
+    },
+    {
+      "index": 62,
+      "part": 0,
+      "tickMs": 991499
+    },
+    {
+      "index": 63,
+      "part": 0,
+      "tickMs": 998166
+    },
+    {
+      "index": 64,
+      "part": 0,
+      "tickMs": 1003666
+    },
+    {
+      "index": 65,
+      "part": 0,
+      "tickMs": 1012666
+    },
+    {
+      "index": 66,
+      "part": 0,
+      "tickMs": 1016666
+    },
+    {
+      "index": 67,
+      "part": 0,
+      "tickMs": 1018666
+    },
+    {
+      "index": 68,
+      "part": 0,
+      "tickMs": 1023666
+    },
+    {
+      "index": 69,
+      "part": 0,
+      "tickMs": 1069166
+    },
+    {
+      "index": 70,
+      "part": 0,
+      "tickMs": 1082166
+    },
+    {
+      "index": 71,
+      "part": 0,
+      "tickMs": 1104666
+    },
+    {
+      "index": 72,
+      "part": 0,
+      "tickMs": 1136999
+    },
+    {
+      "index": 73,
+      "part": 0,
+      "tickMs": 1157833
+    },
+    {
+      "index": 74,
+      "part": 0,
+      "tickMs": 1168499
+    },
+    {
+      "index": 75,
+      "part": 0,
+      "tickMs": 1183666
+    },
+    {
+      "index": 76,
+      "part": 0,
+      "tickMs": 1193999
+    },
+    {
+      "index": 77,
+      "part": 0,
+      "tickMs": 1234333
+    },
+    {
+      "index": 78,
+      "part": 0,
+      "tickMs": 1306166
+    },
+    {
+      "index": 79,
+      "part": 0,
+      "tickMs": 1314166
+    },
+    {
+      "index": 80,
+      "part": 0,
+      "tickMs": 1327166
+    },
+    {
+      "index": 81,
+      "part": 0,
+      "tickMs": 1370666
+    },
+    {
+      "index": 82,
+      "part": 0,
+      "tickMs": 1379499
+    },
+    {
+      "index": 83,
+      "part": 0,
+      "tickMs": 1489166
+    },
+    {
+      "index": 86,
+      "part": 0,
+      "tickMs": 1507500
+    },
+    {
+      "index": 87,
+      "part": 0,
+      "tickMs": 1511166
+    },
+    {
+      "index": 88,
+      "part": 0,
+      "tickMs": 1522999
+    },
+    {
+      "index": 90,
+      "part": 0,
+      "tickMs": 1535000
+    },
+    {
+      "index": 91,
+      "part": 0,
+      "tickMs": 1539499
+    },
+    {
+      "index": 92,
+      "part": 0,
+      "tickMs": 1550000
+    },
+    {
+      "index": 94,
+      "part": 0,
+      "tickMs": 1561000
+    },
+    {
+      "index": 96,
+      "part": 0,
+      "tickMs": 1566499
+    },
+    {
+      "index": 98,
+      "part": 0,
+      "tickMs": 1577666
+    },
+    {
+      "index": 100,
+      "part": 0,
+      "tickMs": 1583166
+    },
+    {
+      "index": 102,
+      "part": 0,
+      "tickMs": 1590166
+    },
+    {
+      "index": 104,
+      "part": 0,
+      "tickMs": 1595833
+    },
+    {
+      "index": 106,
+      "part": 0,
+      "tickMs": 1604000
+    },
+    {
+      "index": 108,
+      "part": 0,
+      "tickMs": 1608666
+    },
+    {
+      "index": 109,
+      "part": 0,
+      "tickMs": 1613166
+    },
+    {
+      "index": 110,
+      "part": 0,
+      "tickMs": 1622833
+    },
+    {
+      "index": 111,
+      "part": 0,
+      "tickMs": 1627666
+    },
+    {
+      "index": 112,
+      "part": 0,
+      "tickMs": 1632833
+    },
+    {
+      "index": 113,
+      "part": 0,
+      "tickMs": 1644333
+    },
+    {
+      "index": 114,
+      "part": 0,
+      "tickMs": 1649166
+    },
+    {
+      "index": 115,
+      "part": 0,
+      "tickMs": 1697499
+    },
+    {
+      "index": 116,
+      "part": 0,
+      "tickMs": 1707166
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-10_vbc_r2_DanielRozenberg",
+  "transcript": "corpus/2025-10_vbc/r2_DanielRozenberg/r2_DanielRozenberg.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-10_vbc/r2_DanielRozenberg/20251006 vbc ronde2 KevinUnger DanielRozenberg 11p [UHRjtH-OfRg].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 11,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            432,
+            25
+          ],
+          [
+            985,
+            174
+          ],
+          [
+            890,
+            709
+          ],
+          [
+            414,
+            669
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 6954021
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 51,
+      "part": 0,
+      "tickMs": 662499
+    },
+    {
+      "index": 53,
+      "part": 0,
+      "tickMs": 665166
+    },
+    {
+      "index": 58,
+      "part": 0,
+      "tickMs": 734500
+    },
+    {
+      "index": 59,
+      "part": 0,
+      "tickMs": 739666
+    },
+    {
+      "index": 60,
+      "part": 0,
+      "tickMs": 743166
+    },
+    {
+      "index": 61,
+      "part": 0,
+      "tickMs": 755999
+    },
+    {
+      "index": 148,
+      "part": 0,
+      "tickMs": 4380833
+    },
+    {
+      "index": 150,
+      "part": 0,
+      "tickMs": 4392666
+    },
+    {
+      "index": 152,
+      "part": 0,
+      "tickMs": 4408000
+    },
+    {
+      "index": 154,
+      "part": 0,
+      "tickMs": 4411666
+    },
+    {
+      "index": 155,
+      "part": 0,
+      "tickMs": 4421333
+    },
+    {
+      "index": 156,
+      "part": 0,
+      "tickMs": 4474999
+    },
+    {
+      "index": 158,
+      "part": 0,
+      "tickMs": 4480499
+    },
+    {
+      "index": 160,
+      "part": 0,
+      "tickMs": 4538333
+    },
+    {
+      "index": 229,
+      "part": 0,
+      "tickMs": 4541999
+    },
+    {
+      "index": 230,
+      "part": 0,
+      "tickMs": 4555666
+    },
+    {
+      "index": 270,
+      "part": 0,
+      "tickMs": 4615833
+    },
+    {
+      "index": 340,
+      "part": 0,
+      "tickMs": 4643666
+    },
+    {
+      "index": 341,
+      "part": 0,
+      "tickMs": 4662333
+    },
+    {
+      "index": 342,
+      "part": 0,
+      "tickMs": 4709499
+    },
+    {
+      "index": 343,
+      "part": 0,
+      "tickMs": 5748333
+    },
+    {
+      "index": 440,
+      "part": 0,
+      "tickMs": 6899333
+    }
+  ]
+}

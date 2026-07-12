@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-10_cdfAngers_r2_JacquesRavier",
+  "transcript": "corpus/2025-10_cdfAngers/r2_JacquesRavier/r2_JacquesRavier.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-10_cdfAngers/r2_JacquesRavier/2025 10 24 ronde2 KevinUnger JacquesRavier 9p [oe3MPsLoR3I].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 9,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            814,
+            661
+          ],
+          [
+            222,
+            614
+          ],
+          [
+            248,
+            56
+          ],
+          [
+            862,
+            24
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 5478521
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 72,
+      "part": 0,
+      "tickMs": 831666
+    },
+    {
+      "index": 73,
+      "part": 0,
+      "tickMs": 836166
+    },
+    {
+      "index": 223,
+      "part": 0,
+      "tickMs": 1040666
+    }
+  ]
+}

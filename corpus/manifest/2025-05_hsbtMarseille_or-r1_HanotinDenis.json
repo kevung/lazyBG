@@ -17,7 +17,13 @@
         "matchLength": 7,
         "checkerA": "#e1ded2",
         "checkerB": "#464850",
-        "orientation": "p1-bottom"
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "calibration": {
         "corners": [
@@ -57,7 +63,7 @@
     {
       "index": 1,
       "part": 0,
-      "tickMs": 15833
+      "tickMs": 12166
     },
     {
       "index": 2,
@@ -72,22 +78,27 @@
     {
       "index": 4,
       "part": 0,
-      "tickMs": 78500
+      "tickMs": 64166
     },
     {
       "index": 5,
       "part": 0,
-      "tickMs": 91166
+      "tickMs": 99333
     },
     {
       "index": 6,
       "part": 0,
-      "tickMs": 99333
+      "tickMs": 161833
+    },
+    {
+      "index": 9,
+      "part": 0,
+      "tickMs": 180833
     },
     {
       "index": 10,
       "part": 0,
-      "tickMs": 180833
+      "tickMs": 197500
     },
     {
       "index": 11,
@@ -102,7 +113,7 @@
     {
       "index": 13,
       "part": 0,
-      "tickMs": 253833
+      "tickMs": 241166
     },
     {
       "index": 14,
@@ -125,19 +136,59 @@
       "tickMs": 327999
     },
     {
+      "index": 18,
+      "part": 0,
+      "tickMs": 345666
+    },
+    {
       "index": 19,
       "part": 0,
       "tickMs": 353166
     },
     {
+      "index": 20,
+      "part": 0,
+      "tickMs": 361833
+    },
+    {
+      "index": 21,
+      "part": 0,
+      "tickMs": 369499
+    },
+    {
+      "index": 22,
+      "part": 0,
+      "tickMs": 376499
+    },
+    {
+      "index": 23,
+      "part": 0,
+      "tickMs": 384333
+    },
+    {
+      "index": 24,
+      "part": 0,
+      "tickMs": 390000
+    },
+    {
+      "index": 25,
+      "part": 0,
+      "tickMs": 397833
+    },
+    {
       "index": 26,
       "part": 0,
-      "tickMs": 412500
+      "tickMs": 409666
+    },
+    {
+      "index": 27,
+      "part": 0,
+      "tickMs": 420500
     },
     {
       "index": 28,
       "part": 0,
-      "tickMs": 432166
+      "tickMs": 435166
     },
     {
       "index": 29,
@@ -160,12 +211,12 @@
       "tickMs": 462666
     },
     {
-      "index": 33,
+      "index": 34,
       "part": 0,
       "tickMs": 474499
     },
     {
-      "index": 34,
+      "index": 35,
       "part": 0,
       "tickMs": 478666
     },
@@ -222,7 +273,7 @@
     {
       "index": 52,
       "part": 0,
-      "tickMs": 661500
+      "tickMs": 656833
     },
     {
       "index": 53,
@@ -237,7 +288,7 @@
     {
       "index": 55,
       "part": 0,
-      "tickMs": 716000
+      "tickMs": 708833
     },
     {
       "index": 56,
@@ -250,9 +301,19 @@
       "tickMs": 738833
     },
     {
+      "index": 58,
+      "part": 0,
+      "tickMs": 749500
+    },
+    {
       "index": 59,
       "part": 0,
       "tickMs": 756666
+    },
+    {
+      "index": 60,
+      "part": 0,
+      "tickMs": 771833
     },
     {
       "index": 61,
@@ -260,14 +321,74 @@
       "tickMs": 796666
     },
     {
+      "index": 62,
+      "part": 0,
+      "tickMs": 818333
+    },
+    {
+      "index": 63,
+      "part": 0,
+      "tickMs": 841333
+    },
+    {
+      "index": 64,
+      "part": 0,
+      "tickMs": 870333
+    },
+    {
       "index": 65,
       "part": 0,
-      "tickMs": 886333
+      "tickMs": 884666
     },
     {
       "index": 66,
       "part": 0,
-      "tickMs": 915500
+      "tickMs": 919999
+    },
+    {
+      "index": 69,
+      "part": 0,
+      "tickMs": 932666
+    },
+    {
+      "index": 70,
+      "part": 0,
+      "tickMs": 946666
+    },
+    {
+      "index": 71,
+      "part": 0,
+      "tickMs": 970666
+    },
+    {
+      "index": 72,
+      "part": 0,
+      "tickMs": 984333
+    },
+    {
+      "index": 73,
+      "part": 0,
+      "tickMs": 1016833
+    },
+    {
+      "index": 74,
+      "part": 0,
+      "tickMs": 1054499
+    },
+    {
+      "index": 75,
+      "part": 0,
+      "tickMs": 1073833
+    },
+    {
+      "index": 76,
+      "part": 0,
+      "tickMs": 1091333
+    },
+    {
+      "index": 77,
+      "part": 0,
+      "tickMs": 1146999
     },
     {
       "index": 78,
@@ -275,9 +396,69 @@
       "tickMs": 1199500
     },
     {
+      "index": 79,
+      "part": 0,
+      "tickMs": 1210000
+    },
+    {
+      "index": 80,
+      "part": 0,
+      "tickMs": 1222166
+    },
+    {
+      "index": 81,
+      "part": 0,
+      "tickMs": 1238000
+    },
+    {
+      "index": 82,
+      "part": 0,
+      "tickMs": 1245833
+    },
+    {
+      "index": 83,
+      "part": 0,
+      "tickMs": 1259666
+    },
+    {
+      "index": 84,
+      "part": 0,
+      "tickMs": 1277999
+    },
+    {
+      "index": 85,
+      "part": 0,
+      "tickMs": 1294333
+    },
+    {
       "index": 86,
       "part": 0,
-      "tickMs": 1324666
+      "tickMs": 1335666
+    },
+    {
+      "index": 88,
+      "part": 0,
+      "tickMs": 1354499
+    },
+    {
+      "index": 89,
+      "part": 0,
+      "tickMs": 1361666
+    },
+    {
+      "index": 90,
+      "part": 0,
+      "tickMs": 1377833
+    },
+    {
+      "index": 91,
+      "part": 0,
+      "tickMs": 1387000
+    },
+    {
+      "index": 92,
+      "part": 0,
+      "tickMs": 1406333
     },
     {
       "index": 93,
@@ -285,9 +466,34 @@
       "tickMs": 1424666
     },
     {
+      "index": 95,
+      "part": 0,
+      "tickMs": 1435999
+    },
+    {
+      "index": 96,
+      "part": 0,
+      "tickMs": 1446166
+    },
+    {
+      "index": 97,
+      "part": 0,
+      "tickMs": 1454833
+    },
+    {
       "index": 99,
       "part": 0,
+      "tickMs": 1472666
+    },
+    {
+      "index": 100,
+      "part": 0,
       "tickMs": 1485499
+    },
+    {
+      "index": 101,
+      "part": 0,
+      "tickMs": 1498500
     },
     {
       "index": 102,
@@ -295,9 +501,39 @@
       "tickMs": 1508833
     },
     {
+      "index": 103,
+      "part": 0,
+      "tickMs": 1517166
+    },
+    {
       "index": 105,
       "part": 0,
       "tickMs": 1530499
+    },
+    {
+      "index": 106,
+      "part": 0,
+      "tickMs": 1537500
+    },
+    {
+      "index": 107,
+      "part": 0,
+      "tickMs": 1555499
+    },
+    {
+      "index": 108,
+      "part": 0,
+      "tickMs": 1566999
+    },
+    {
+      "index": 109,
+      "part": 0,
+      "tickMs": 1575499
+    },
+    {
+      "index": 110,
+      "part": 0,
+      "tickMs": 1587000
     },
     {
       "index": 111,
@@ -305,19 +541,44 @@
       "tickMs": 1598333
     },
     {
+      "index": 112,
+      "part": 0,
+      "tickMs": 1609000
+    },
+    {
       "index": 113,
       "part": 0,
-      "tickMs": 1656833
+      "tickMs": 1621166
     },
     {
       "index": 114,
       "part": 0,
-      "tickMs": 1693833
+      "tickMs": 1644166
+    },
+    {
+      "index": 115,
+      "part": 0,
+      "tickMs": 1738833
     },
     {
       "index": 116,
       "part": 0,
-      "tickMs": 1788666
+      "tickMs": 1771166
+    },
+    {
+      "index": 117,
+      "part": 0,
+      "tickMs": 1778833
+    },
+    {
+      "index": 118,
+      "part": 0,
+      "tickMs": 1808166
+    },
+    {
+      "index": 119,
+      "part": 0,
+      "tickMs": 1817166
     },
     {
       "index": 120,
@@ -325,14 +586,59 @@
       "tickMs": 1836333
     },
     {
+      "index": 121,
+      "part": 0,
+      "tickMs": 1853166
+    },
+    {
+      "index": 122,
+      "part": 0,
+      "tickMs": 1864499
+    },
+    {
+      "index": 124,
+      "part": 0,
+      "tickMs": 1909499
+    },
+    {
       "index": 125,
       "part": 0,
-      "tickMs": 1973833
+      "tickMs": 1928499
+    },
+    {
+      "index": 126,
+      "part": 0,
+      "tickMs": 1997500
     },
     {
       "index": 127,
       "part": 0,
-      "tickMs": 2036666
+      "tickMs": 2009166
+    },
+    {
+      "index": 130,
+      "part": 0,
+      "tickMs": 2044666
+    },
+    {
+      "index": 131,
+      "part": 0,
+      "tickMs": 2054833
+    },
+    {
+      "index": 132,
+      "part": 0,
+      "tickMs": 2063833
+    },
+    {
+      "index": 133,
+      "part": 0,
+      "tickMs": 2091500
+    },
+    {
+      "index": 134,
+      "part": 0,
+      "tickMs": 2120999
     },
     {
       "index": 135,
@@ -342,7 +648,12 @@
     {
       "index": 136,
       "part": 0,
-      "tickMs": 2200333
+      "tickMs": 2220166
+    },
+    {
+      "index": 137,
+      "part": 0,
+      "tickMs": 2248833
     },
     {
       "index": 138,
@@ -350,9 +661,19 @@
       "tickMs": 2256499
     },
     {
+      "index": 139,
+      "part": 0,
+      "tickMs": 2266333
+    },
+    {
       "index": 140,
       "part": 0,
-      "tickMs": 2271333
+      "tickMs": 2289000
+    },
+    {
+      "index": 141,
+      "part": 0,
+      "tickMs": 2295666
     },
     {
       "index": 142,
@@ -367,7 +688,12 @@
     {
       "index": 144,
       "part": 0,
-      "tickMs": 2322666
+      "tickMs": 2329500
+    },
+    {
+      "index": 145,
+      "part": 0,
+      "tickMs": 2342333
     }
   ]
 }

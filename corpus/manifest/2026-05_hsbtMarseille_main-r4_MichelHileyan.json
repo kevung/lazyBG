@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-05_hsbtMarseille_main-r4_MichelHileyan",
+  "transcript": "corpus/2026-05_hsbtMarseille/main-r4_MichelHileyan/main-r4_MichelHileyan.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2026-05_hsbtMarseille/main-r4_MichelHileyan/20260523 hsbtMarseille main ronde4 KevinUnger MichelHileyan 7p [j6KMj_nFtZI].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#f0f0f0",
+        "checkerB": "#1c2a52",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            210,
+            114
+          ],
+          [
+            778,
+            66
+          ],
+          [
+            792,
+            600
+          ],
+          [
+            196,
+            612
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 237000,
+        "endMs": 2093521
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 14,
+      "part": 0,
+      "tickMs": 254999
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "tickMs": 258333
+    },
+    {
+      "index": 16,
+      "part": 0,
+      "tickMs": 276833
+    },
+    {
+      "index": 17,
+      "part": 0,
+      "tickMs": 287166
+    },
+    {
+      "index": 23,
+      "part": 0,
+      "tickMs": 441833
+    },
+    {
+      "index": 24,
+      "part": 0,
+      "tickMs": 452999
+    },
+    {
+      "index": 105,
+      "part": 0,
+      "tickMs": 2005500
+    },
+    {
+      "index": 106,
+      "part": 0,
+      "tickMs": 2011166
+    },
+    {
+      "index": 107,
+      "part": 0,
+      "tickMs": 2024999
+    },
+    {
+      "index": 108,
+      "part": 0,
+      "tickMs": 2032333
+    },
+    {
+      "index": 109,
+      "part": 0,
+      "tickMs": 2045166
+    },
+    {
+      "index": 110,
+      "part": 0,
+      "tickMs": 2052666
+    },
+    {
+      "index": 111,
+      "part": 0,
+      "tickMs": 2055333
+    }
+  ]
+}
