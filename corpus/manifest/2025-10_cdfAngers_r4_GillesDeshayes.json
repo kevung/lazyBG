@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "id": "2025-10_cdfAngers_r4_GillesDeshayes",
+  "transcript": "corpus/2025-10_cdfAngers/r4_GillesDeshayes/r4_GillesDeshayes.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2025-10_cdfAngers/r4_GillesDeshayes/2025 10 24 ronde4 KevinUnger GillesDeshayes 9p [WGUcwaSQE6I].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 9,
+        "checkerA": "#e8e5d8",
+        "checkerB": "#6b93c4",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            838,
+            672
+          ],
+          [
+            208,
+            591
+          ],
+          [
+            228,
+            92
+          ],
+          [
+            855,
+            84
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 5586021
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 173,
+      "part": 0,
+      "tickMs": 2391166
+    },
+    {
+      "index": 179,
+      "part": 0,
+      "tickMs": 2412833
+    },
+    {
+      "index": 187,
+      "part": 0,
+      "tickMs": 2428000
+    },
+    {
+      "index": 240,
+      "part": 0,
+      "tickMs": 2438999
+    },
+    {
+      "index": 241,
+      "part": 0,
+      "tickMs": 2451333
+    },
+    {
+      "index": 242,
+      "part": 0,
+      "tickMs": 5565499
+    },
+    {
+      "index": 439,
+      "part": 0,
+      "tickMs": 5573833
+    }
+  ]
+}

@@ -61,9 +61,19 @@
   ],
   "turns": [
     {
-      "index": 3,
+      "index": 1,
+      "part": 0,
+      "tickMs": 74666
+    },
+    {
+      "index": 2,
       "part": 0,
       "tickMs": 98166
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 100333
     },
     {
       "index": 4,
@@ -71,14 +81,69 @@
       "tickMs": 103166
     },
     {
+      "index": 5,
+      "part": 0,
+      "tickMs": 131166
+    },
+    {
+      "index": 6,
+      "part": 0,
+      "tickMs": 163499
+    },
+    {
       "index": 7,
       "part": 0,
-      "tickMs": 156999
+      "tickMs": 166666
+    },
+    {
+      "index": 8,
+      "part": 0,
+      "tickMs": 189166
+    },
+    {
+      "index": 9,
+      "part": 0,
+      "tickMs": 216499
+    },
+    {
+      "index": 10,
+      "part": 0,
+      "tickMs": 230500
+    },
+    {
+      "index": 11,
+      "part": 0,
+      "tickMs": 237999
     },
     {
       "index": 12,
       "part": 0,
+      "tickMs": 284499
+    },
+    {
+      "index": 13,
+      "part": 0,
       "tickMs": 286833
+    },
+    {
+      "index": 14,
+      "part": 0,
+      "tickMs": 312166
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "tickMs": 325166
+    },
+    {
+      "index": 16,
+      "part": 0,
+      "tickMs": 328999
+    },
+    {
+      "index": 17,
+      "part": 0,
+      "tickMs": 350999
     },
     {
       "index": 18,
@@ -88,12 +153,42 @@
     {
       "index": 19,
       "part": 0,
-      "tickMs": 388333
+      "tickMs": 376666
     },
     {
       "index": 20,
       "part": 0,
+      "tickMs": 402166
+    },
+    {
+      "index": 21,
+      "part": 0,
       "tickMs": 444499
+    },
+    {
+      "index": 22,
+      "part": 0,
+      "tickMs": 454333
+    },
+    {
+      "index": 25,
+      "part": 0,
+      "tickMs": 542833
+    },
+    {
+      "index": 26,
+      "part": 0,
+      "tickMs": 548833
+    },
+    {
+      "index": 27,
+      "part": 0,
+      "tickMs": 553333
+    },
+    {
+      "index": 35,
+      "part": 0,
+      "tickMs": 642666
     },
     {
       "index": 36,
@@ -101,14 +196,89 @@
       "tickMs": 646333
     },
     {
+      "index": 37,
+      "part": 0,
+      "tickMs": 681333
+    },
+    {
+      "index": 38,
+      "part": 0,
+      "tickMs": 695833
+    },
+    {
       "index": 39,
       "part": 0,
       "tickMs": 705166
     },
     {
+      "index": 45,
+      "part": 0,
+      "tickMs": 786166
+    },
+    {
+      "index": 46,
+      "part": 0,
+      "tickMs": 824166
+    },
+    {
+      "index": 47,
+      "part": 0,
+      "tickMs": 828500
+    },
+    {
+      "index": 48,
+      "part": 0,
+      "tickMs": 851333
+    },
+    {
+      "index": 49,
+      "part": 0,
+      "tickMs": 854000
+    },
+    {
+      "index": 50,
+      "part": 0,
+      "tickMs": 898833
+    },
+    {
+      "index": 55,
+      "part": 0,
+      "tickMs": 927833
+    },
+    {
+      "index": 59,
+      "part": 0,
+      "tickMs": 975666
+    },
+    {
+      "index": 61,
+      "part": 0,
+      "tickMs": 991166
+    },
+    {
+      "index": 63,
+      "part": 0,
+      "tickMs": 1026666
+    },
+    {
+      "index": 69,
+      "part": 0,
+      "tickMs": 1079000
+    },
+    {
+      "index": 87,
+      "part": 0,
+      "tickMs": 1197499
+    },
+    {
       "index": 91,
       "part": 0,
       "tickMs": 1213499
+    },
+    {
+      "index": 93,
+      "part": 0,
+      "tickMs": 1263166
     },
     {
       "index": 94,
@@ -118,7 +288,7 @@
     {
       "index": 95,
       "part": 0,
-      "tickMs": 1301333
+      "tickMs": 1289499
     },
     {
       "index": 96,
@@ -126,14 +296,44 @@
       "tickMs": 1306499
     },
     {
+      "index": 97,
+      "part": 0,
+      "tickMs": 1326333
+    },
+    {
+      "index": 98,
+      "part": 0,
+      "tickMs": 1346333
+    },
+    {
+      "index": 99,
+      "part": 0,
+      "tickMs": 1361333
+    },
+    {
+      "index": 100,
+      "part": 0,
+      "tickMs": 1393833
+    },
+    {
       "index": 101,
+      "part": 0,
+      "tickMs": 1412166
+    },
+    {
+      "index": 102,
       "part": 0,
       "tickMs": 1416499
     },
     {
-      "index": 104,
+      "index": 103,
       "part": 0,
       "tickMs": 1436500
+    },
+    {
+      "index": 104,
+      "part": 0,
+      "tickMs": 1459999
     },
     {
       "index": 105,
@@ -146,7 +346,22 @@
       "tickMs": 1498500
     },
     {
+      "index": 111,
+      "part": 0,
+      "tickMs": 1511166
+    },
+    {
+      "index": 113,
+      "part": 0,
+      "tickMs": 1515166
+    },
+    {
       "index": 115,
+      "part": 0,
+      "tickMs": 1604499
+    },
+    {
+      "index": 118,
       "part": 0,
       "tickMs": 1610333
     },
@@ -156,9 +371,129 @@
       "tickMs": 1701166
     },
     {
+      "index": 127,
+      "part": 0,
+      "tickMs": 1705833
+    },
+    {
+      "index": 129,
+      "part": 0,
+      "tickMs": 1730666
+    },
+    {
+      "index": 131,
+      "part": 0,
+      "tickMs": 1745166
+    },
+    {
+      "index": 133,
+      "part": 0,
+      "tickMs": 1751000
+    },
+    {
+      "index": 135,
+      "part": 0,
+      "tickMs": 1758833
+    },
+    {
+      "index": 142,
+      "part": 0,
+      "tickMs": 1828666
+    },
+    {
+      "index": 144,
+      "part": 0,
+      "tickMs": 1866833
+    },
+    {
+      "index": 145,
+      "part": 0,
+      "tickMs": 1868500
+    },
+    {
+      "index": 146,
+      "part": 0,
+      "tickMs": 1879666
+    },
+    {
+      "index": 147,
+      "part": 0,
+      "tickMs": 1885333
+    },
+    {
+      "index": 148,
+      "part": 0,
+      "tickMs": 1907500
+    },
+    {
+      "index": 149,
+      "part": 0,
+      "tickMs": 1948499
+    },
+    {
+      "index": 151,
+      "part": 0,
+      "tickMs": 1951833
+    },
+    {
+      "index": 152,
+      "part": 0,
+      "tickMs": 1953666
+    },
+    {
+      "index": 153,
+      "part": 0,
+      "tickMs": 1983166
+    },
+    {
+      "index": 163,
+      "part": 0,
+      "tickMs": 2054666
+    },
+    {
+      "index": 167,
+      "part": 0,
+      "tickMs": 2127833
+    },
+    {
+      "index": 168,
+      "part": 0,
+      "tickMs": 2130833
+    },
+    {
+      "index": 169,
+      "part": 0,
+      "tickMs": 2150666
+    },
+    {
+      "index": 170,
+      "part": 0,
+      "tickMs": 2165166
+    },
+    {
+      "index": 185,
+      "part": 0,
+      "tickMs": 2281833
+    },
+    {
+      "index": 198,
+      "part": 0,
+      "tickMs": 2388166
+    },
+    {
+      "index": 200,
+      "part": 0,
+      "tickMs": 2417500
+    },
+    {
       "index": 206,
       "part": 0,
       "tickMs": 2497833
+    },
+    {
+      "index": 208,
+      "part": 0,
+      "tickMs": 2514166
     },
     {
       "index": 210,
@@ -171,14 +506,74 @@
       "tickMs": 2537166
     },
     {
+      "index": 214,
+      "part": 0,
+      "tickMs": 2554166
+    },
+    {
+      "index": 215,
+      "part": 0,
+      "tickMs": 2560333
+    },
+    {
+      "index": 216,
+      "part": 0,
+      "tickMs": 2586500
+    },
+    {
       "index": 217,
       "part": 0,
       "tickMs": 2592166
     },
     {
+      "index": 218,
+      "part": 0,
+      "tickMs": 2616666
+    },
+    {
       "index": 219,
       "part": 0,
       "tickMs": 2618500
+    },
+    {
+      "index": 221,
+      "part": 0,
+      "tickMs": 2648499
+    },
+    {
+      "index": 223,
+      "part": 0,
+      "tickMs": 2683000
+    },
+    {
+      "index": 224,
+      "part": 0,
+      "tickMs": 2686999
+    },
+    {
+      "index": 225,
+      "part": 0,
+      "tickMs": 2692499
+    },
+    {
+      "index": 227,
+      "part": 0,
+      "tickMs": 2736500
+    },
+    {
+      "index": 230,
+      "part": 0,
+      "tickMs": 2773833
+    },
+    {
+      "index": 235,
+      "part": 0,
+      "tickMs": 2819666
+    },
+    {
+      "index": 236,
+      "part": 0,
+      "tickMs": 2823333
     }
   ]
 }

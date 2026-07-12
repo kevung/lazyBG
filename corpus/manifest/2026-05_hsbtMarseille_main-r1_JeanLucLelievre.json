@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-05_hsbtMarseille_main-r1_JeanLucLelievre",
+  "transcript": "corpus/2026-05_hsbtMarseille/main-r1_JeanLucLelievre/main-r1_JeanLucLelievre.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2026-05_hsbtMarseille/main-r1_JeanLucLelievre/20260523 hsbtMarseille main ronde1 KevinUnger JeanLucLelievre 7p [OUS7RCCKEWg].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#f0f0f0",
+        "checkerB": "#1c2a52",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            305,
+            28
+          ],
+          [
+            878,
+            42
+          ],
+          [
+            875,
+            560
+          ],
+          [
+            298,
+            578
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        }
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 2170541
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 83,
+      "part": 0,
+      "tickMs": 1722166
+    },
+    {
+      "index": 124,
+      "part": 0,
+      "tickMs": 1741166
+    },
+    {
+      "index": 125,
+      "part": 0,
+      "tickMs": 1743166
+    }
+  ]
+}
