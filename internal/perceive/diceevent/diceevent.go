@@ -141,8 +141,15 @@ func (d *Detector) Feed(f capture.Frame) []Event {
 			i++
 		}
 	}
-	// Hand gate: too much fast-foreground = motion; freeze everything.
+	// Hand gate: too much fast-foreground = motion. The SLOW model freezes
+	// (a hand must not leak into the scene memory), but the FAST one keeps
+	// tracking — otherwise a board change during the gated stretch leaves
+	// the fast model stale, every later frame re-triggers the gate, and the
+	// detector freezes for good.
 	if float64(fastFG) > d.o.MotionSkip*float64(w*h) {
+		for i := range luma {
+			d.fast[i] += d.o.AlphaFast * (luma[i] - d.fast[i])
+		}
 		return nil
 	}
 
