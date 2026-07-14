@@ -17,8 +17,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
+	"image/png"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"encoding/json"
@@ -30,6 +33,7 @@ import (
 	"lazybg/internal/capture"
 	"lazybg/internal/corpus"
 	"lazybg/internal/cue"
+	"lazybg/internal/derive"
 	"lazybg/internal/engine"
 	"lazybg/internal/eval"
 	"lazybg/internal/fusion"
@@ -62,6 +66,8 @@ func main() {
 		runAlign(os.Args[2:])
 	case "autocal":
 		runAutocal(os.Args[2:])
+	case "dicecrops":
+		runDicecrops(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q (want transcribe, eval or demo)\n", cmd)
 		os.Exit(2)
@@ -255,6 +261,85 @@ func runAutocal(args []string) {
 		log.Fatal(err)
 	}
 	fmt.Fprintf(os.Stderr, "wrote %s\n", *outManifest)
+}
+
+// runDicecrops extracts the weakly-supervised dice dataset: at every
+// truth-aligned turn tick, the rectified central felt band (where dice land)
+// plus the roll that produced the turn (from the .mat) — no localization
+// labels needed. Training input for the learned dice-value reader
+// (docs/research/dice-reading-survey.md: values are beyond the classical
+// pip reader at 720p; the survey's weak-supervision plan).
+func runDicecrops(args []string) {
+	fs := flag.NewFlagSet("dicecrops", flag.ExitOnError)
+	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
+	outDir := fs.String("out", "", "output directory (required)")
+	fs.Parse(args)
+	if *manifest == "" || *outDir == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	m := loadManifest(*manifest)
+	matBytes, err := os.ReadFile(m.Transcript)
+	if err != nil {
+		log.Fatalf("transcript: %v", err)
+	}
+	truth, err := matimport.Parse(string(matBytes))
+	if err != nil {
+		log.Fatalf("transcript: %v", err)
+	}
+	states := derive.Replay(truth)
+	if err := os.MkdirAll(*outDir, 0o755); err != nil {
+		log.Fatal(err)
+	}
+	lf, err := os.OpenFile(filepath.Join(*outDir, "labels.csv"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lf.Close()
+	if st, _ := lf.Stat(); st.Size() == 0 {
+		fmt.Fprintln(lf, "file,recording,index,tick_ms,d1,d2")
+	}
+
+	n := 0
+	for _, tn := range m.Turns {
+		if tn.Index-1 >= len(states) {
+			continue
+		}
+		ts := states[tn.Index-1]
+		if ts.Dice[0] == 0 {
+			continue
+		}
+		part := m.Parts[tn.Part]
+		cal, cb, _, err := transcribe.PartSetup(part)
+		if err != nil {
+			continue
+		}
+		frame, err := capture.FrameAt(part.File, tn.TickMs)
+		if err != nil {
+			continue
+		}
+		rect := cal.Rectify(frame)
+		w, h := cb.Size()
+		band := image.Rect(cb.MarginX, cb.MarginY+cb.QuadH-cb.PointW, w-cb.MarginX, h-cb.MarginY-cb.QuadH+cb.PointW)
+		crop := rect.SubImage(band)
+		d1, d2 := ts.Dice[0], ts.Dice[1]
+		if d1 > d2 {
+			d1, d2 = d2, d1
+		}
+		name := fmt.Sprintf("%s_i%d.png", m.ID, tn.Index)
+		f, err := os.Create(filepath.Join(*outDir, name))
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := png.Encode(f, crop); err != nil {
+			f.Close()
+			log.Fatal(err)
+		}
+		f.Close()
+		fmt.Fprintf(lf, "%s,%s,%d,%d,%d,%d\n", name, m.ID, tn.Index, tn.TickMs, d1, d2)
+		n++
+	}
+	fmt.Fprintf(os.Stderr, "%s: %d dice-band crops\n", m.ID, n)
 }
 
 func runAlign(args []string) {
