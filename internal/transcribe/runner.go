@@ -73,7 +73,11 @@ func PartSetup(part corpus.Part) (calibrate.BoardCalibration, calibrate.Canonica
 		cb = calibrate.CanonicalBoard{MarginX: c.MarginX, MarginY: c.MarginY,
 			PointW: c.PointW, QuadH: c.QuadH, BarGap: c.BarGap, OffW: c.OffW}
 	}
-	cal, ok := calibrate.New(corners, cb)
+	lens := calibrate.Lens{}
+	if l := part.Calibration.Lens; l != nil {
+		lens = calibrate.Lens{K1: l.K1, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
+	}
+	cal, ok := calibrate.NewWithLens(corners, cb, lens)
 	if !ok {
 		return calibrate.BoardCalibration{}, cb, profile.CaptureProfile{},
 			fmt.Errorf("part %q: degenerate calibration", part.File)
