@@ -19,10 +19,10 @@
         "checkerB": "#464850",
         "orientation": "p1-bottom",
         "clockROI": [
-          0,
-          0,
-          0,
-          0
+          820,
+          210,
+          950,
+          395
         ]
       },
       "calibration": {
