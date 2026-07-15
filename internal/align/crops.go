@@ -75,7 +75,7 @@ func ExtractCrops(root string, m corpus.Manifest, turns []Turn, assign []int, ev
 		if err != nil {
 			continue
 		}
-		rect := pio.cal.Rectify(frame)
+		rect := pio.cal.RectifyMasked(frame)
 		res.Turns++
 		for p := 1; p <= 24; p++ {
 			region, _ := pio.cb.PointRegion(p)

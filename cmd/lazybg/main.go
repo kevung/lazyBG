@@ -442,11 +442,37 @@ func runDiceboxcrops(args []string) {
 		}
 		src.Close()
 
-		// attribute appearances to aligned turns of this part
+		// Attribute appearances to turns by ROLL PHASE (world-model v1):
+		// a turn's dice appear between the previous commit and its own —
+		// cue.AttributeRoll replaces the fixed [-15s,+4s] window the label
+		// audit measured at ~25-60% correct.
+		var partTurns []corpus.Turn
+		var partTicks []int
 		for _, tn := range m.Turns {
-			if tn.Part != pi || tn.Index-1 >= len(states) {
+			if tn.Part == pi && tn.Index-1 < len(states) {
+				partTurns = append(partTurns, tn)
+				partTicks = append(partTicks, tn.TickMs)
+			}
+		}
+		byTurn := map[int][]appear{}
+		for _, a := range appears {
+			// Die-shaped only: at stream scale dice read ~4-10px per
+			// side and near-square; checkers are larger, point-tip
+			// slivers are elongated.
+			dx, dy := a.box.Dx(), a.box.Dy()
+			if dx < 3 || dy < 3 || dx > 10 || dy > 10 {
 				continue
 			}
+			if dx*2 < dy || dy*2 < dx {
+				continue
+			}
+			k, ok := cue.AttributeRoll(partTicks, a.tick, 3000, 2000)
+			if !ok {
+				continue
+			}
+			byTurn[k] = append(byTurn[k], a)
+		}
+		for k, tn := range partTurns {
 			ts := states[tn.Index-1]
 			if ts.Dice[0] == 0 {
 				continue
@@ -455,23 +481,7 @@ func runDiceboxcrops(args []string) {
 			if d1 > d2 {
 				d1, d2 = d2, d1
 			}
-			var near []appear
-			for _, a := range appears {
-				if a.tick < tn.TickMs-15000 || a.tick > tn.TickMs+4000 {
-					continue
-				}
-				// Die-shaped only: at stream scale dice read ~4-10px per
-				// side and near-square; checkers are larger, point-tip
-				// slivers are elongated.
-				dx, dy := a.box.Dx(), a.box.Dy()
-				if dx < 3 || dy < 3 || dx > 10 || dy > 10 {
-					continue
-				}
-				if dx*2 < dy || dy*2 < dx {
-					continue
-				}
-				near = append(near, a)
-			}
+			near := byTurn[k]
 			if len(near) == 0 || len(near) > 2 {
 				continue // strict: exactly the two dice (or one visible)
 			}

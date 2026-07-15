@@ -82,6 +82,9 @@ func PartSetup(part corpus.Part) (calibrate.BoardCalibration, calibrate.Canonica
 		return calibrate.BoardCalibration{}, cb, profile.CaptureProfile{},
 			fmt.Errorf("part %q: degenerate calibration", part.File)
 	}
+	for _, z := range part.Calibration.Masks {
+		cal.Masks = append(cal.Masks, image.Rect(z[0], z[1], z[2], z[3]))
+	}
 	ca, err := profile.ParseHex(part.Priors.CheckerA)
 	if err != nil {
 		return cal, cb, profile.CaptureProfile{}, fmt.Errorf("part %q: checkerA: %w", part.File, err)
@@ -204,7 +207,7 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 				if err != nil {
 					continue // a bad decode skips the read, not the window
 				}
-				reads = append(reads, reader.Read(cal.Rectify(full), cb))
+				reads = append(reads, reader.Read(cal.RectifyMasked(full), cb))
 			}
 			if len(reads) == 0 {
 				return true

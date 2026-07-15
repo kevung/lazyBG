@@ -125,3 +125,15 @@ func TestLoad_Lens(t *testing.T) {
 		t.Fatalf("lens not inherited: %+v", inh)
 	}
 }
+
+func TestLoad_Masks(t *testing.T) {
+	doc := `{"schemaVersion":1,"id":"x","transcript":"t","parts":[{"file":"a","calibration":{"corners":[[0,0],[1,0],[1,1],[0,1]],"masks":[[0,0,80,40],[700,0,812,40]]},"span":{"beginMs":0,"endMs":1}}]}`
+	m, err := Load([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := m.Parts[0].Calibration.Masks
+	if len(ms) != 2 || ms[1] != [4]int{700, 0, 812, 40} {
+		t.Fatalf("masks not parsed: %+v", ms)
+	}
+}
