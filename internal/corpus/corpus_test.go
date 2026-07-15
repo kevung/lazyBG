@@ -94,3 +94,14 @@ func TestLoad_CanonicalGeometry(t *testing.T) {
 		t.Fatalf("canonical not inherited: %+v", inh)
 	}
 }
+
+func TestLoad_OpeningScore(t *testing.T) {
+	doc := `{"schemaVersion":1,"id":"x","transcript":"t","parts":[{"file":"a","calibration":{"corners":[[0,0],[1,0],[1,1],[0,1]],"openingScore":21},"span":{"beginMs":0,"endMs":1}}]}`
+	m, err := Load([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Parts[0].Calibration.OpeningScore != 21 {
+		t.Errorf("openingScore = %d, want 21", m.Parts[0].Calibration.OpeningScore)
+	}
+}

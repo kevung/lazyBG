@@ -64,6 +64,10 @@ type Calibration struct {
 	Inherit   bool         `json:"inherit,omitempty"`
 	Corners   [][2]float64 `json:"corners,omitempty"`
 	Canonical *Canonical   `json:"canonical,omitempty"`
+	// OpeningScore is the per-point read score (of 24) achieved on the
+	// settled opening when this calibration was made — the calibration
+	// quality proxy that drives the per-recording auto-fill gate.
+	OpeningScore int `json:"openingScore,omitempty"`
 }
 
 // Canonical mirrors calibrate.CanonicalBoard for the manifest (kept as a

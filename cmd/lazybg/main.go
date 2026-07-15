@@ -246,6 +246,7 @@ func runAutocal(args []string) {
 				Corners: cornersJSON,
 				Canonical: &corpus.Canonical{MarginX: 16, MarginY: 18,
 					PointW: 58, QuadH: 300, BarGap: 60, OffW: 24},
+				OpeningScore: res.OpeningScore,
 			},
 			Span: corpus.Span{BeginMs: res.SpanBeginMs, EndMs: durMs},
 		}},
