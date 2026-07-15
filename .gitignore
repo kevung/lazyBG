@@ -21,7 +21,5 @@ coverage.*
 
 # Dev-time ML training environment + artifacts (models are shipped via data/, not ml/)
 /ml/.venv/
-/ml/out/
+/ml/out*/
 /ml/__pycache__/
-/ml/out-dice/
-/ml/out-dicebox/
