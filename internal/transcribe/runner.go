@@ -13,6 +13,7 @@ import (
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boardstate"
 	"lazybg/internal/perceive/checker"
+	"lazybg/internal/perceive/clockhit"
 	"lazybg/internal/perceive/pointnet"
 	"lazybg/internal/perceive/stableframe"
 	"lazybg/internal/profile"
@@ -93,7 +94,7 @@ func PartSetup(part corpus.Part) (calibrate.BoardCalibration, calibrate.Canonica
 // resulting events into a transcription. root is the directory the
 // manifest's relative paths hang from (the repository root for the corpus).
 func Recording(root string, m corpus.Manifest, o RunOptions) (Outcome, error) {
-	events, err := ReadEvents(root, m, o)
+	events, commits, err := ReadEventsAndCommits(root, m, o)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -107,7 +108,7 @@ func Recording(root string, m corpus.Manifest, o RunOptions) (Outcome, error) {
 	if m.Parts[0].Calibration.OpeningScore >= 20 {
 		o.Conduct.Policy.Threshold = 0.72
 	}
-	return RunEvents(events, o.Conduct), nil
+	return RunEventsWithCommits(events, commits, o.Conduct), nil
 }
 
 // boardReader is the per-frame reading seam: classical or learned.
@@ -117,26 +118,36 @@ type boardReader interface {
 
 // ReadEvents extracts the observed stable-board events of every Part.
 func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
+	events, _, err := ReadEventsAndCommits(root, m, o)
+	return events, err
+}
+
+// ReadEventsAndCommits also collects clock-press commit ticks when the
+// manifest declares a clock ROI (the press detector validated at ~77% turn
+// coverage on the pilot). The presses ride the SAME low-res stream as the
+// stable-window scan — a tee, not a second decode.
+func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event, []int, error) {
 	var learned *pointnet.Net
 	if o.ModelPath != "" {
 		var err error
 		learned, err = pointnet.Load(o.ModelPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	var events []Event
+	var commits []int
 	for pi, part := range m.Parts {
 		cal, cb, prof, err := PartSetup(part)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		video := filepath.Join(root, part.File)
 
 		// Source dimensions: decode one frame at span begin.
 		first, err := capture.FrameAt(video, part.Span.BeginMs)
 		if err != nil {
-			return nil, fmt.Errorf("part %d: probe: %w", pi, err)
+			return nil, nil, fmt.Errorf("part %d: probe: %w", pi, err)
 		}
 		srcW, srcH := first.Bounds().Dx(), first.Bounds().Dy()
 
@@ -149,8 +160,25 @@ func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
 			FPS: o.FPS, W: o.StreamW, H: o.StreamH,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("part %d: stream: %w", pi, err)
+			return nil, nil, fmt.Errorf("part %d: stream: %w", pi, err)
 		}
+
+		var clock *clockhit.Detector
+		if r := part.Priors.ClockROI; r != [4]int{} {
+			sx := float64(o.StreamW) / float64(srcW)
+			sy := float64(o.StreamH) / float64(srcH)
+			clock = clockhit.New(clockhit.Options{ROI: image.Rect(
+				int(float64(r[0])*sx), int(float64(r[1])*sy),
+				int(float64(r[2])*sx), int(float64(r[3])*sy))})
+		}
+		tee := teeSource{src: src, fn: func(f capture.Frame) {
+			if clock == nil {
+				return
+			}
+			for _, hit := range clock.Feed(f) {
+				commits = append(commits, hit.Tick)
+			}
+		}}
 
 		roi := scaledBBox(part.Calibration.Corners, srcW, srcH, o.StreamW, o.StreamH)
 		var reader boardReader = boardstate.CircleReader{Profile: prof, Params: checker.Params{PeakFrac: o.PeakFrac}}
@@ -160,7 +188,7 @@ func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
 		d := stableframe.Detector{ROI: roi, MaxMotion: o.MaxMotion, MinFrames: o.MinFrames}
 
 		nWin := 0
-		d.EachWindow(src, func(w stableframe.Window) bool {
+		d.EachWindow(tee, func(w stableframe.Window) bool {
 			nWin++
 			// Read the window's INTERIOR, away from both edges (the edges abut
 			// the motion that bounded the window), and vote the reads.
@@ -189,7 +217,21 @@ func ReadEvents(root string, m corpus.Manifest, o RunOptions) ([]Event, error) {
 			fmt.Fprintf(o.Log, "part %d: %d stable windows\n", pi, nWin)
 		}
 	}
-	return events, nil
+	return events, commits, nil
+}
+
+// teeSource forwards frames while feeding a side observer.
+type teeSource struct {
+	src capture.Source
+	fn  func(capture.Frame)
+}
+
+func (t teeSource) Next() (capture.Frame, bool) {
+	f, ok := t.src.Next()
+	if ok {
+		t.fn(f)
+	}
+	return f, ok
 }
 
 // scaledBBox is the corners' bounding box scaled from source to stream size.
