@@ -139,14 +139,30 @@ def main():
     ap.add_argument("--crops", required=True)
     ap.add_argument("--out", default="out-dicebox")
     ap.add_argument("--epochs", type=int, default=40)
-    ap.add_argument("--val-recordings", default="2025-05_hsbtMarseille_or-r1_HanotinDenis")
+    ap.add_argument("--val-recordings", default="",
+                    help="comma-separated; default holds out every 4th recording — the v2/v3 single-recording val (~25 units) measured noise, not skill")
+    ap.add_argument("--min-contrast", type=int, default=45,
+                    help="drop crops whose luminance p95-p5 is below this (junk boxes: uniform felt); 0 disables")
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args()
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
     rows = load_rows(args.crops)
-    val_recs = set(args.val_recordings.split(","))
+    if args.min_contrast > 0:
+        kept = []
+        for r in rows:
+            g = np.asarray(Image.open(r["path"]).convert("L"), dtype=np.float32)
+            if np.percentile(g, 95) - np.percentile(g, 5) >= args.min_contrast:
+                kept.append(r)
+        print(f"contrast filter: kept {len(kept)}/{len(rows)} crops (min p95-p5 {args.min_contrast})")
+        rows = kept
+    if args.val_recordings:
+        val_recs = set(args.val_recordings.split(","))
+    else:
+        recs = sorted({r["rec"] for r in rows})
+        val_recs = {recs[i] for i in range(0, len(recs), 4)}
+        print(f"val recordings: {sorted(val_recs)}")
     train_units = to_units([r for r in rows if r["rec"] not in val_recs])
     val_units = to_units([r for r in rows if r["rec"] in val_recs])
     n_single = sum(1 for u in train_units if u["kind"] == "single")
