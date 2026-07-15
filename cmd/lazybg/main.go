@@ -476,26 +476,41 @@ func runDiceboxcrops(args []string) {
 				continue // strict: exactly the two dice (or one visible)
 			}
 			for bi, a := range near {
-				frame, err := capture.FrameAt(part.File, a.tick)
-				if err != nil {
-					continue
-				}
-				// box in stream coords -> full-res, with margin
-				fx := 1 / sx
-				fy := 1 / sy
-				r := image.Rect(
-					int(float64(a.box.Min.X)*fx)-8, int(float64(a.box.Min.Y)*fy)-8,
-					int(float64(a.box.Max.X)*fx)+8, int(float64(a.box.Max.Y)*fy)+8,
-				).Intersect(frame.Bounds())
-				if r.Dx() < 12 || r.Dy() < 12 {
-					continue
-				}
-				crop := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
-				for y := 0; y < r.Dy(); y++ {
-					for x := 0; x < r.Dx(); x++ {
-						crop.Set(x, y, frame.At(r.Min.X+x, r.Min.Y+y))
+				// Temporal stack: the die sits still for seconds after it
+				// appears, so a per-pixel median over several frames keeps
+				// the 3-5px pips while cancelling compression noise and a
+				// hand crossing a single frame (survey: image stacking).
+				var layers []*image.RGBA
+				var r image.Rectangle
+				for _, dt := range []int{500, 1000, 1500, 2000, 2500} {
+					frame, err := capture.FrameAt(part.File, a.tick+dt)
+					if err != nil {
+						continue
 					}
+					if r.Empty() {
+						// box in stream coords -> full-res, with margin
+						fx := 1 / sx
+						fy := 1 / sy
+						r = image.Rect(
+							int(float64(a.box.Min.X)*fx)-8, int(float64(a.box.Min.Y)*fy)-8,
+							int(float64(a.box.Max.X)*fx)+8, int(float64(a.box.Max.Y)*fy)+8,
+						).Intersect(frame.Bounds())
+						if r.Dx() < 12 || r.Dy() < 12 {
+							break
+						}
+					}
+					layer := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+					for y := 0; y < r.Dy(); y++ {
+						for x := 0; x < r.Dx(); x++ {
+							layer.Set(x, y, frame.At(r.Min.X+x, r.Min.Y+y))
+						}
+					}
+					layers = append(layers, layer)
 				}
+				if len(layers) < 3 {
+					continue
+				}
+				crop := capture.MedianStack(layers)
 				name := fmt.Sprintf("%s_i%d_b%d.png", m.ID, tn.Index, bi)
 				f, err := os.Create(filepath.Join(*outDir, name))
 				if err != nil {
