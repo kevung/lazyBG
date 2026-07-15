@@ -61,14 +61,39 @@
   ],
   "turns": [
     {
+      "index": 2,
+      "part": 0,
+      "tickMs": 30166
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 40333
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "tickMs": 52500
+    },
+    {
+      "index": 5,
+      "part": 0,
+      "tickMs": 65333
+    },
+    {
       "index": 6,
       "part": 0,
       "tickMs": 89333
     },
     {
+      "index": 7,
+      "part": 0,
+      "tickMs": 100833
+    },
+    {
       "index": 8,
       "part": 0,
-      "tickMs": 127166
+      "tickMs": 113333
     },
     {
       "index": 9,
@@ -78,37 +103,137 @@
     {
       "index": 10,
       "part": 0,
-      "tickMs": 145166
+      "tickMs": 148499
     },
     {
-      "index": 18,
+      "index": 11,
+      "part": 0,
+      "tickMs": 156833
+    },
+    {
+      "index": 12,
+      "part": 0,
+      "tickMs": 163500
+    },
+    {
+      "index": 13,
+      "part": 0,
+      "tickMs": 185499
+    },
+    {
+      "index": 14,
+      "part": 0,
+      "tickMs": 202666
+    },
+    {
+      "index": 15,
+      "part": 0,
+      "tickMs": 210833
+    },
+    {
+      "index": 16,
+      "part": 0,
+      "tickMs": 239499
+    },
+    {
+      "index": 17,
       "part": 0,
       "tickMs": 263166
     },
     {
+      "index": 18,
+      "part": 0,
+      "tickMs": 291166
+    },
+    {
       "index": 19,
       "part": 0,
-      "tickMs": 297666
+      "tickMs": 312166
+    },
+    {
+      "index": 23,
+      "part": 0,
+      "tickMs": 358500
+    },
+    {
+      "index": 24,
+      "part": 0,
+      "tickMs": 365500
+    },
+    {
+      "index": 25,
+      "part": 0,
+      "tickMs": 375999
+    },
+    {
+      "index": 26,
+      "part": 0,
+      "tickMs": 383333
+    },
+    {
+      "index": 27,
+      "part": 0,
+      "tickMs": 413499
+    },
+    {
+      "index": 30,
+      "part": 0,
+      "tickMs": 486833
+    },
+    {
+      "index": 31,
+      "part": 0,
+      "tickMs": 495333
+    },
+    {
+      "index": 37,
+      "part": 0,
+      "tickMs": 581333
+    },
+    {
+      "index": 39,
+      "part": 0,
+      "tickMs": 602666
+    },
+    {
+      "index": 42,
+      "part": 0,
+      "tickMs": 757999
+    },
+    {
+      "index": 46,
+      "part": 0,
+      "tickMs": 783666
+    },
+    {
+      "index": 47,
+      "part": 0,
+      "tickMs": 814333
     },
     {
       "index": 48,
       "part": 0,
-      "tickMs": 848333
+      "tickMs": 859166
     },
     {
       "index": 50,
       "part": 0,
-      "tickMs": 883000
+      "tickMs": 906333
     },
     {
       "index": 51,
       "part": 0,
-      "tickMs": 887666
+      "tickMs": 923666
     },
     {
       "index": 52,
       "part": 0,
-      "tickMs": 923666
+      "tickMs": 936500
+    },
+    {
+      "index": 56,
+      "part": 0,
+      "tickMs": 955833
     },
     {
       "index": 58,
@@ -118,7 +243,7 @@
     {
       "index": 60,
       "part": 0,
-      "tickMs": 999333
+      "tickMs": 987333
     },
     {
       "index": 62,
@@ -128,12 +253,12 @@
     {
       "index": 64,
       "part": 0,
-      "tickMs": 1035666
+      "tickMs": 1025166
     },
     {
       "index": 65,
       "part": 0,
-      "tickMs": 1039666
+      "tickMs": 1032833
     },
     {
       "index": 66,
@@ -143,7 +268,32 @@
     {
       "index": 67,
       "part": 0,
-      "tickMs": 1059999
+      "tickMs": 1062499
+    },
+    {
+      "index": 68,
+      "part": 0,
+      "tickMs": 1072499
+    },
+    {
+      "index": 69,
+      "part": 0,
+      "tickMs": 1085500
+    },
+    {
+      "index": 70,
+      "part": 0,
+      "tickMs": 1090500
+    },
+    {
+      "index": 71,
+      "part": 0,
+      "tickMs": 1097166
+    },
+    {
+      "index": 72,
+      "part": 0,
+      "tickMs": 1103833
     },
     {
       "index": 75,
@@ -151,12 +301,22 @@
       "tickMs": 1124499
     },
     {
-      "index": 78,
+      "index": 77,
       "part": 0,
       "tickMs": 1137333
     },
     {
+      "index": 78,
+      "part": 0,
+      "tickMs": 1148000
+    },
+    {
       "index": 79,
+      "part": 0,
+      "tickMs": 1153666
+    },
+    {
+      "index": 80,
       "part": 0,
       "tickMs": 1162500
     },
