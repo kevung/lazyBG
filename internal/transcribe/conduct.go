@@ -60,6 +60,13 @@ type Options struct {
 	// for review) rather than applied — a bad reading must not corrupt the
 	// decided-state chain.
 	MinAccept float64
+	// CommitPenalty scales a decision's confidence when NO clock press was
+	// observed near the event (Commits non-empty): a turn normally ends
+	// with a press, so a press-less event is a weaker claim. Soft — the
+	// press detector covers ~77% of turns, so absence must not veto.
+	CommitPenalty float64
+	// CommitWindowMs bounds "near" for the press test.
+	CommitWindowMs int
 	// DancePenalty discounts the off-turn player's explanation when deciding
 	// whether the on-roll player really was overtaken (opponent dance).
 	DancePenalty float64
@@ -72,12 +79,14 @@ type Options struct {
 // interpretable first, calibrated against labeled corpus later).
 func DefaultOptions() Options {
 	return Options{
-		Weights:      fusion.DefaultWeights(),
-		Policy:       gate.Default(),
-		ShiftSkip:    0.02,
-		NewGame:      0.85,
-		MinAccept:    0.2,
-		DancePenalty: 0.7,
+		Weights:        fusion.DefaultWeights(),
+		Policy:         gate.Default(),
+		ShiftSkip:      0.02,
+		NewGame:        0.85,
+		MinAccept:      0.2,
+		DancePenalty:   0.7,
+		CommitPenalty:  0.85,
+		CommitWindowMs: 10000,
 	}
 }
 
@@ -89,9 +98,16 @@ type Outcome struct {
 	Unexplained int // events no hypothesis could explain acceptably
 }
 
-// RunEvents conducts the observed events into games and plies.
+// RunEvents conducts the observed events into games and plies. commits,
+// when non-empty, are clock-press ticks (the Commit cue): events without a
+// press nearby take the CommitPenalty on their confidence.
 func RunEvents(events []Event, o Options) Outcome {
-	c := conductor{o: o, state: bg.StandardStart(), onRoll: -1}
+	return RunEventsWithCommits(events, nil, o)
+}
+
+// RunEventsWithCommits is RunEvents plus the clock-press commit ticks.
+func RunEventsWithCommits(events []Event, commits []int, o Options) Outcome {
+	c := conductor{o: o, state: bg.StandardStart(), onRoll: -1, commits: commits}
 	c.openGame(1)
 	for _, ev := range events {
 		c.step(ev)
@@ -123,6 +139,18 @@ type conductor struct {
 
 	prevObs perceive.ObservedBoard // last reading; deltas are read-to-read
 	hasPrev bool
+	commits []int // clock-press ticks (sorted); empty = no commit cue
+}
+
+// nearCommit reports whether a clock press lies within the commit window of
+// tick (presses trail the settled board by a few seconds).
+func (c *conductor) nearCommit(tick int) bool {
+	for _, p := range c.commits {
+		if p >= tick-c.o.CommitWindowMs/2 && p <= tick+c.o.CommitWindowMs {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *conductor) openGame(n int) {
@@ -229,12 +257,17 @@ func (c *conductor) step(ev Event) {
 		})
 		return
 	}
+	conf := h.decision.Confidence
+	if len(c.commits) > 0 && !c.nearCommit(ev.Tick) {
+		conf *= c.o.CommitPenalty
+		h.decision.Confidence = conf
+	}
 	ply := bg.Ply{
 		Player:     h.who,
 		Dice:       h.decision.Top.Dice,
 		Notation:   h.decision.Top.Notation,
 		Tick:       ev.Tick,
-		Confidence: h.decision.Confidence,
+		Confidence: conf,
 	}
 	if outcome, reason := c.o.Policy.Classify(h.decision); outcome == gate.NeedsReview {
 		c.review = append(c.review, pipeline.ReviewItem{Decision: h.decision, Reason: reason})

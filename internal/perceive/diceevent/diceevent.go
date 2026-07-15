@@ -211,7 +211,9 @@ func (d *Detector) trackBlobs(img image.Image, b image.Rectangle, mask []bool, t
 		if area < d.o.MinArea || area > d.o.MaxArea {
 			continue
 		}
-		box := image.Rect(minX, minY, maxX+1, maxY+1)
+		// Boxes are reported in the source image's own coordinate space
+		// (SubImage feeds keep their parent offset).
+		box := image.Rect(minX, minY, maxX+1, maxY+1).Add(b.Min)
 		key := image.Pt((minX+maxX)/8, (minY+maxY)/8) // coarse center bucket
 		current[key] = box
 	}
@@ -271,11 +273,12 @@ func (d *Detector) unlatch(box image.Rectangle) {
 }
 
 // mostlyFelt reports whether the box's pixels are back to the declared felt.
+// box is in the source image's coordinate space.
 func (d *Detector) mostlyFelt(img image.Image, b image.Rectangle, box image.Rectangle) bool {
 	hits, n := 0, 0
 	for y := box.Min.Y; y < box.Max.Y; y++ {
 		for x := box.Min.X; x < box.Max.X; x++ {
-			r, g, bl, _ := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			r, g, bl, _ := img.At(x, y).RGBA()
 			dr := float64(r>>8) - float64(d.o.Felt.R)
 			dg := float64(g>>8) - float64(d.o.Felt.G)
 			db := float64(bl>>8) - float64(d.o.Felt.B)
