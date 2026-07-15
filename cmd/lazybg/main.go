@@ -153,6 +153,14 @@ func runEval(args []string) {
 	fmt.Printf("coverage:         %.3f\n", s.Coverage())
 	fmt.Printf("review rate:      %.3f\n", s.ReviewRate())
 	fmt.Printf("truth cube plays: %d (not yet perceived)\n", s.TruthCubeActions)
+	// Threshold calibration table: the same transcription scored at several
+	// gates — the empirical basis for picking the auto-fill threshold
+	// (locked decision #4: hand-set first, calibrated on labeled data now).
+	fmt.Printf("threshold table:  gate autofill errors coverage\n")
+	for _, th := range []float64{0.60, 0.65, 0.70, 0.75, 0.80, 0.85} {
+		ts := eval.ScoreMatch(out.Match, truth, th)
+		fmt.Printf("                  %.2f %8d %6d %8.3f\n", th, ts.AutoFilled, ts.AutoFillErrors(), ts.Coverage())
+	}
 }
 
 // runAutocal auto-calibrates one video and writes a Recording manifest —
