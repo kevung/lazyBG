@@ -43,6 +43,7 @@ import (
 	"lazybg/internal/matimport"
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boarddiff"
+	"lazybg/internal/perceive/diceevent"
 	"lazybg/internal/profile"
 	"lazybg/internal/transcribe"
 )
@@ -68,6 +69,8 @@ func main() {
 		runAutocal(os.Args[2:])
 	case "dicecrops":
 		runDicecrops(os.Args[2:])
+	case "diceboxcrops":
+		runDiceboxcrops(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q (want transcribe, eval or demo)\n", cmd)
 		os.Exit(2)
@@ -356,6 +359,153 @@ func runDicecrops(args []string) {
 		n++
 	}
 	fmt.Fprintf(os.Stderr, "%s: %d dice-band crops\n", m.ID, n)
+}
+
+// runDiceboxcrops extracts per-die crops: the dice-appearance detector
+// (validated at 35/35 turn coverage) proposes boxes on the central felt
+// band; each box near an aligned turn is cropped at full resolution and
+// labeled with that turn's roll — doubles give unambiguous per-die labels,
+// non-doubles carry the pair for a permutation-invariant training loss.
+// This is the survey's two-stage recipe (proposal + tiny crop classifier).
+func runDiceboxcrops(args []string) {
+	fs := flag.NewFlagSet("diceboxcrops", flag.ExitOnError)
+	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
+	outDir := fs.String("out", "", "output directory (required)")
+	fs.Parse(args)
+	if *manifest == "" || *outDir == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	m := loadManifest(*manifest)
+	matBytes, err := os.ReadFile(m.Transcript)
+	if err != nil {
+		log.Fatalf("transcript: %v", err)
+	}
+	truth, err := matimport.Parse(string(matBytes))
+	if err != nil {
+		log.Fatalf("transcript: %v", err)
+	}
+	states := derive.Replay(truth)
+	if err := os.MkdirAll(*outDir, 0o755); err != nil {
+		log.Fatal(err)
+	}
+	lf, err := os.OpenFile(filepath.Join(*outDir, "labels.csv"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lf.Close()
+	if st, _ := lf.Stat(); st.Size() == 0 {
+		fmt.Fprintln(lf, "file,recording,index,tick_ms,d1,d2,double,pairkey")
+	}
+
+	const sw, sh = 320, 180
+	total := 0
+	for pi, part := range m.Parts {
+		probe, err := capture.FrameAt(part.File, part.Span.BeginMs)
+		if err != nil {
+			continue
+		}
+		srcW := probe.Bounds().Dx()
+		srcH := probe.Bounds().Dy()
+		minX, minY := part.Calibration.Corners[0][0], part.Calibration.Corners[0][1]
+		maxX, maxY := minX, minY
+		for _, c := range part.Calibration.Corners[1:] {
+			minX, maxX = min(minX, c[0]), max(maxX, c[0])
+			minY, maxY = min(minY, c[1]), max(maxY, c[1])
+		}
+		sx, sy := float64(sw)/float64(srcW), float64(sh)/float64(srcH)
+		bandTop := minY + 0.40*(maxY-minY)
+		bandBot := minY + 0.60*(maxY-minY)
+
+		src, err := capture.Stream(part.File, capture.StreamOpts{
+			BeginMs: part.Span.BeginMs, EndMs: part.Span.EndMs, FPS: 3, W: sw, H: sh})
+		if err != nil {
+			continue
+		}
+		dd := diceevent.New(diceevent.Options{})
+		type appear struct {
+			tick int
+			box  image.Rectangle
+		}
+		var appears []appear
+		for {
+			f, ok := src.Next()
+			if !ok {
+				break
+			}
+			sub := f.Img.(*image.RGBA).SubImage(image.Rect(
+				int(minX*sx), int(bandTop*sy), int(maxX*sx), int(bandBot*sy))).(*image.RGBA)
+			for _, ev := range dd.Feed(capture.Frame{Tick: f.Tick, Img: sub}) {
+				if ev.Kind == diceevent.Appeared {
+					appears = append(appears, appear{ev.Tick, ev.Box})
+				}
+			}
+		}
+		src.Close()
+
+		// attribute appearances to aligned turns of this part
+		for _, tn := range m.Turns {
+			if tn.Part != pi || tn.Index-1 >= len(states) {
+				continue
+			}
+			ts := states[tn.Index-1]
+			if ts.Dice[0] == 0 {
+				continue
+			}
+			d1, d2 := ts.Dice[0], ts.Dice[1]
+			if d1 > d2 {
+				d1, d2 = d2, d1
+			}
+			var near []appear
+			for _, a := range appears {
+				if a.tick >= tn.TickMs-15000 && a.tick <= tn.TickMs+4000 {
+					near = append(near, a)
+				}
+			}
+			if len(near) == 0 || len(near) > 3 {
+				continue // no boxes or too cluttered to attribute
+			}
+			for bi, a := range near {
+				frame, err := capture.FrameAt(part.File, a.tick)
+				if err != nil {
+					continue
+				}
+				// box in stream coords -> full-res, with margin
+				fx := 1 / sx
+				fy := 1 / sy
+				r := image.Rect(
+					int(float64(a.box.Min.X)*fx)-8, int(float64(a.box.Min.Y)*fy)-8,
+					int(float64(a.box.Max.X)*fx)+8, int(float64(a.box.Max.Y)*fy)+8,
+				).Intersect(frame.Bounds())
+				if r.Dx() < 12 || r.Dy() < 12 {
+					continue
+				}
+				crop := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+				for y := 0; y < r.Dy(); y++ {
+					for x := 0; x < r.Dx(); x++ {
+						crop.Set(x, y, frame.At(r.Min.X+x, r.Min.Y+y))
+					}
+				}
+				name := fmt.Sprintf("%s_i%d_b%d.png", m.ID, tn.Index, bi)
+				f, err := os.Create(filepath.Join(*outDir, name))
+				if err != nil {
+					log.Fatal(err)
+				}
+				if err := png.Encode(f, crop); err != nil {
+					f.Close()
+					log.Fatal(err)
+				}
+				f.Close()
+				dbl := 0
+				if d1 == d2 {
+					dbl = 1
+				}
+				fmt.Fprintf(lf, "%s,%s,%d,%d,%d,%d,%d,%s_i%d\n", name, m.ID, tn.Index, a.tick, d1, d2, dbl, m.ID, tn.Index)
+				total++
+			}
+		}
+	}
+	fmt.Fprintf(os.Stderr, "%s: %d dice-box crops\n", m.ID, total)
 }
 
 func runAlign(args []string) {
