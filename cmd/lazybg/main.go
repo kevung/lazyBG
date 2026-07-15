@@ -150,9 +150,6 @@ func runEval(args []string) {
 		log.Fatalf("truth transcript: %v", err)
 	}
 	threshold := transcribe.DefaultOptions().Policy.Threshold
-	if m.Parts[0].Calibration.OpeningScore >= 20 {
-		threshold = 0.72 // mirror the runner's per-recording gate
-	}
 	s := eval.ScoreMatch(out.Match, truth, threshold)
 	fmt.Printf("gate used:        %.2f\n", threshold)
 	fmt.Printf("games:            %d produced / %d truth\n", s.GamesOut, s.GamesTruth)

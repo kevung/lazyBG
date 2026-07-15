@@ -101,13 +101,13 @@ func Recording(root string, m corpus.Manifest, o RunOptions) (Outcome, error) {
 	if m.Parts[0].Priors.MatchLength > 0 {
 		o.Conduct.MatchLength = m.Parts[0].Priors.MatchLength
 	}
-	// Per-recording auto-fill gate: on well-calibrated captures the
-	// confidence signal is trustworthy earlier (audited: every ply above
-	// 0.70 was correct on a 21/24-opening recording, while weak captures
-	// pollute lower gates), so the threshold follows calibration quality.
-	if m.Parts[0].Calibration.OpeningScore >= 20 {
-		o.Conduct.Policy.Threshold = 0.72
-	}
+	// Per-recording gate experiment, MEASURED and shelved (2026-07-15
+	// mini-sweep): gate 0.72 on well-calibrated captures tripled coverage
+	// but at 71% precision (4 confident errors / 14 auto-fills) vs 100% at
+	// 0.80 — and a confident wrong ply costs more than a review
+	// (experiment-plan §6). The mechanism (openingScore in the manifest)
+	// stays for the day the dice-value cue provides the missing
+	// discriminator; until then the gate holds at the default.
 	return RunEventsWithCommits(events, commits, o.Conduct), nil
 }
 
