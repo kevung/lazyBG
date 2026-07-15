@@ -83,21 +83,34 @@ def batches(units, bs, train):
         yield [units[j] for j in order[i:i + bs]]
 
 
-def unit_loss(model, unit, train):
+def chunk_loss(model, chunk, train):
+    # One batched forward for the whole chunk — feeding BatchNorm batch-1
+    # samples (the v3/v4 trainer) makes it behave like per-sample instance
+    # norm and the net never learns; the flat train loss was the tell.
     # unit: {"kind":"single","row":r} (doubles: label known)
     #       {"kind":"pair","rows":[a,b]} (permutation-invariant)
-    if unit["kind"] == "single":
-        x = load_image(unit["row"], train).unsqueeze(0)
-        y = torch.tensor([unit["row"]["d1"] - 1])
-        return F.cross_entropy(model(x), y)
-    a, b = unit["rows"]
-    xa = load_image(a, train).unsqueeze(0)
-    xb = load_image(b, train).unsqueeze(0)
-    la, lb = model(xa), model(xb)
-    d1, d2 = a["d1"] - 1, a["d2"] - 1
-    l1 = F.cross_entropy(la, torch.tensor([d1])) + F.cross_entropy(lb, torch.tensor([d2]))
-    l2 = F.cross_entropy(la, torch.tensor([d2])) + F.cross_entropy(lb, torch.tensor([d1]))
-    return torch.minimum(l1, l2) / 2
+    imgs, index = [], []
+    for u in chunk:
+        if u["kind"] == "single":
+            index.append(("single", len(imgs), u))
+            imgs.append(load_image(u["row"], train))
+        else:
+            index.append(("pair", len(imgs), u))
+            imgs.append(load_image(u["rows"][0], train))
+            imgs.append(load_image(u["rows"][1], train))
+    logits = model(torch.stack(imgs))
+    losses = []
+    for kind, i, u in index:
+        if kind == "single":
+            y = torch.tensor([u["row"]["d1"] - 1])
+            losses.append(F.cross_entropy(logits[i:i + 1], y))
+        else:
+            la, lb = logits[i:i + 1], logits[i + 1:i + 2]
+            d1, d2 = u["rows"][0]["d1"] - 1, u["rows"][0]["d2"] - 1
+            l1 = F.cross_entropy(la, torch.tensor([d1])) + F.cross_entropy(lb, torch.tensor([d2]))
+            l2 = F.cross_entropy(la, torch.tensor([d2])) + F.cross_entropy(lb, torch.tensor([d1]))
+            losses.append(torch.minimum(l1, l2) / 2)
+    return torch.stack(losses).mean()
 
 
 def evaluate(model, units):
@@ -152,10 +165,18 @@ def main():
     if args.min_contrast > 0:
         kept = []
         for r in rows:
-            g = np.asarray(Image.open(r["path"]).convert("L"), dtype=np.float32)
-            if np.percentile(g, 95) - np.percentile(g, 5) >= args.min_contrast:
-                kept.append(r)
-        print(f"contrast filter: kept {len(kept)}/{len(rows)} crops (min p95-p5 {args.min_contrast})")
+            rgb = np.asarray(Image.open(r["path"]).convert("RGB"), dtype=np.float32)
+            g = rgb.mean(axis=2)
+            if np.percentile(g, 95) - np.percentile(g, 5) < args.min_contrast:
+                continue
+            # dice are achromatic (white/black on felt); point tips and bars
+            # are strongly colored — drop crops dominated by saturated pixels
+            mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+            sat = (mx - mn) / np.maximum(mx, 1.0)
+            if (sat > 0.45).mean() > 0.25:
+                continue
+            kept.append(r)
+        print(f"contrast+saturation filter: kept {len(kept)}/{len(rows)} crops (min p95-p5 {args.min_contrast})")
         rows = kept
     if args.val_recordings:
         val_recs = set(args.val_recordings.split(","))
@@ -178,18 +199,22 @@ def main():
         tot, n = 0.0, 0
         for chunk in batches(train_units, 32, True):
             opt.zero_grad()
-            loss = torch.stack([unit_loss(model, u, True) for u in chunk]).mean()
+            loss = chunk_loss(model, chunk, True)
             loss.backward()
             opt.step()
             tot += loss.item() * len(chunk)
             n += len(chunk)
         sched.step()
         acc = evaluate(model, val_units)
+        # train accuracy = the overfit diagnostic: if a tiny CNN cannot even
+        # memorize a few hundred units, the problem is the trainer or the
+        # labels, not data volume
+        tacc = evaluate(model, train_units)
         star = ""
         if acc > best:
             best, best_state = acc, {k: v.clone() for k, v in model.state_dict().items()}
             star = " *"
-        print(f"epoch {ep+1:2d}: loss {tot/max(n,1):.4f}  val per-die {acc:.3f}{star}")
+        print(f"epoch {ep+1:2d}: loss {tot/max(n,1):.4f}  train per-die {tacc:.3f}  val per-die {acc:.3f}{star}", flush=True)
 
     model.load_state_dict(best_state)
     out = Path(args.out)
