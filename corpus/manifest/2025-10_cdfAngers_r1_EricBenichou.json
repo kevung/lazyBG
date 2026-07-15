@@ -78,7 +78,7 @@
     {
       "index": 4,
       "part": 0,
-      "tickMs": 95999
+      "tickMs": 88333
     },
     {
       "index": 5,
@@ -98,7 +98,7 @@
     {
       "index": 8,
       "part": 0,
-      "tickMs": 165833
+      "tickMs": 160333
     },
     {
       "index": 9,
@@ -133,7 +133,7 @@
     {
       "index": 15,
       "part": 0,
-      "tickMs": 288333
+      "tickMs": 305666
     },
     {
       "index": 16,
@@ -148,7 +148,7 @@
     {
       "index": 20,
       "part": 0,
-      "tickMs": 378333
+      "tickMs": 372166
     },
     {
       "index": 21,
@@ -173,12 +173,12 @@
     {
       "index": 25,
       "part": 0,
-      "tickMs": 430833
+      "tickMs": 434833
     },
     {
       "index": 26,
       "part": 0,
-      "tickMs": 445333
+      "tickMs": 459166
     },
     {
       "index": 27,
@@ -188,7 +188,7 @@
     {
       "index": 28,
       "part": 0,
-      "tickMs": 511999
+      "tickMs": 503999
     },
     {
       "index": 29,
@@ -208,12 +208,12 @@
     {
       "index": 32,
       "part": 0,
-      "tickMs": 550000
+      "tickMs": 566166
     },
     {
       "index": 33,
       "part": 0,
-      "tickMs": 603666
+      "tickMs": 593833
     },
     {
       "index": 34,
@@ -228,7 +228,7 @@
     {
       "index": 36,
       "part": 0,
-      "tickMs": 668666
+      "tickMs": 654333
     },
     {
       "index": 37,
@@ -243,17 +243,17 @@
     {
       "index": 41,
       "part": 0,
-      "tickMs": 830499
+      "tickMs": 839333
     },
     {
       "index": 42,
       "part": 0,
-      "tickMs": 848500
+      "tickMs": 845833
     },
     {
       "index": 44,
       "part": 0,
-      "tickMs": 875333
+      "tickMs": 871666
     },
     {
       "index": 46,
@@ -268,7 +268,7 @@
     {
       "index": 48,
       "part": 0,
-      "tickMs": 901166
+      "tickMs": 904999
     },
     {
       "index": 50,
@@ -353,12 +353,12 @@
     {
       "index": 67,
       "part": 0,
-      "tickMs": 1018666
+      "tickMs": 1023666
     },
     {
       "index": 68,
       "part": 0,
-      "tickMs": 1023666
+      "tickMs": 1031499
     },
     {
       "index": 69,
@@ -373,12 +373,12 @@
     {
       "index": 71,
       "part": 0,
-      "tickMs": 1104666
+      "tickMs": 1102000
     },
     {
       "index": 72,
       "part": 0,
-      "tickMs": 1136999
+      "tickMs": 1120999
     },
     {
       "index": 73,
@@ -403,12 +403,12 @@
     {
       "index": 77,
       "part": 0,
-      "tickMs": 1234333
+      "tickMs": 1213166
     },
     {
       "index": 78,
       "part": 0,
-      "tickMs": 1306166
+      "tickMs": 1293500
     },
     {
       "index": 79,
@@ -433,7 +433,7 @@
     {
       "index": 83,
       "part": 0,
-      "tickMs": 1489166
+      "tickMs": 1399333
     },
     {
       "index": 86,
@@ -448,7 +448,7 @@
     {
       "index": 88,
       "part": 0,
-      "tickMs": 1522999
+      "tickMs": 1517166
     },
     {
       "index": 90,
@@ -463,7 +463,7 @@
     {
       "index": 92,
       "part": 0,
-      "tickMs": 1550000
+      "tickMs": 1553499
     },
     {
       "index": 94,
@@ -478,7 +478,7 @@
     {
       "index": 98,
       "part": 0,
-      "tickMs": 1577666
+      "tickMs": 1573833
     },
     {
       "index": 100,
@@ -498,7 +498,7 @@
     {
       "index": 106,
       "part": 0,
-      "tickMs": 1604000
+      "tickMs": 1601166
     },
     {
       "index": 108,
@@ -538,12 +538,12 @@
     {
       "index": 115,
       "part": 0,
-      "tickMs": 1697499
+      "tickMs": 1675333
     },
     {
       "index": 116,
       "part": 0,
-      "tickMs": 1707166
+      "tickMs": 1697499
     }
   ]
 }

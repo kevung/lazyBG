@@ -61,19 +61,24 @@
   ],
   "turns": [
     {
-      "index": 14,
+      "index": 13,
       "part": 0,
       "tickMs": 254999
     },
     {
-      "index": 15,
+      "index": 14,
       "part": 0,
       "tickMs": 258333
     },
     {
+      "index": 15,
+      "part": 0,
+      "tickMs": 267333
+    },
+    {
       "index": 16,
       "part": 0,
-      "tickMs": 276833
+      "tickMs": 280166
     },
     {
       "index": 17,
@@ -81,34 +86,269 @@
       "tickMs": 287166
     },
     {
+      "index": 18,
+      "part": 0,
+      "tickMs": 317499
+    },
+    {
+      "index": 19,
+      "part": 0,
+      "tickMs": 366999
+    },
+    {
+      "index": 20,
+      "part": 0,
+      "tickMs": 415666
+    },
+    {
       "index": 23,
       "part": 0,
-      "tickMs": 441833
+      "tickMs": 424666
     },
     {
       "index": 24,
       "part": 0,
-      "tickMs": 452999
+      "tickMs": 456000
     },
     {
-      "index": 105,
+      "index": 25,
       "part": 0,
-      "tickMs": 2005500
+      "tickMs": 458833
     },
     {
-      "index": 106,
+      "index": 26,
+      "part": 0,
+      "tickMs": 493500
+    },
+    {
+      "index": 27,
+      "part": 0,
+      "tickMs": 495833
+    },
+    {
+      "index": 28,
+      "part": 0,
+      "tickMs": 581833
+    },
+    {
+      "index": 29,
+      "part": 0,
+      "tickMs": 606500
+    },
+    {
+      "index": 31,
+      "part": 0,
+      "tickMs": 633666
+    },
+    {
+      "index": 33,
+      "part": 0,
+      "tickMs": 645833
+    },
+    {
+      "index": 35,
+      "part": 0,
+      "tickMs": 663333
+    },
+    {
+      "index": 37,
+      "part": 0,
+      "tickMs": 685999
+    },
+    {
+      "index": 38,
+      "part": 0,
+      "tickMs": 689666
+    },
+    {
+      "index": 39,
+      "part": 0,
+      "tickMs": 741166
+    },
+    {
+      "index": 41,
+      "part": 0,
+      "tickMs": 785666
+    },
+    {
+      "index": 42,
+      "part": 0,
+      "tickMs": 802666
+    },
+    {
+      "index": 43,
+      "part": 0,
+      "tickMs": 818333
+    },
+    {
+      "index": 45,
+      "part": 0,
+      "tickMs": 826833
+    },
+    {
+      "index": 47,
+      "part": 0,
+      "tickMs": 848333
+    },
+    {
+      "index": 49,
+      "part": 0,
+      "tickMs": 879166
+    },
+    {
+      "index": 50,
+      "part": 0,
+      "tickMs": 886500
+    },
+    {
+      "index": 51,
+      "part": 0,
+      "tickMs": 893166
+    },
+    {
+      "index": 52,
+      "part": 0,
+      "tickMs": 899166
+    },
+    {
+      "index": 53,
+      "part": 0,
+      "tickMs": 901833
+    },
+    {
+      "index": 54,
+      "part": 0,
+      "tickMs": 913666
+    },
+    {
+      "index": 55,
+      "part": 0,
+      "tickMs": 927666
+    },
+    {
+      "index": 56,
+      "part": 0,
+      "tickMs": 963333
+    },
+    {
+      "index": 57,
+      "part": 0,
+      "tickMs": 965500
+    },
+    {
+      "index": 58,
+      "part": 0,
+      "tickMs": 988666
+    },
+    {
+      "index": 59,
+      "part": 0,
+      "tickMs": 1002833
+    },
+    {
+      "index": 60,
+      "part": 0,
+      "tickMs": 1015499
+    },
+    {
+      "index": 62,
+      "part": 0,
+      "tickMs": 1037999
+    },
+    {
+      "index": 68,
+      "part": 0,
+      "tickMs": 1106833
+    },
+    {
+      "index": 73,
+      "part": 0,
+      "tickMs": 1195333
+    },
+    {
+      "index": 75,
+      "part": 0,
+      "tickMs": 1227833
+    },
+    {
+      "index": 76,
+      "part": 0,
+      "tickMs": 1250333
+    },
+    {
+      "index": 77,
+      "part": 0,
+      "tickMs": 1276666
+    },
+    {
+      "index": 78,
+      "part": 0,
+      "tickMs": 1287500
+    },
+    {
+      "index": 79,
+      "part": 0,
+      "tickMs": 1311666
+    },
+    {
+      "index": 80,
+      "part": 0,
+      "tickMs": 1325333
+    },
+    {
+      "index": 84,
+      "part": 0,
+      "tickMs": 1388166
+    },
+    {
+      "index": 85,
+      "part": 0,
+      "tickMs": 1478499
+    },
+    {
+      "index": 86,
+      "part": 0,
+      "tickMs": 1483166
+    },
+    {
+      "index": 99,
+      "part": 0,
+      "tickMs": 1836166
+    },
+    {
+      "index": 102,
+      "part": 0,
+      "tickMs": 1837666
+    },
+    {
+      "index": 103,
+      "part": 0,
+      "tickMs": 1847999
+    },
+    {
+      "index": 104,
       "part": 0,
       "tickMs": 2011166
     },
     {
+      "index": 105,
+      "part": 0,
+      "tickMs": 2014000
+    },
+    {
+      "index": 106,
+      "part": 0,
+      "tickMs": 2032333
+    },
+    {
       "index": 107,
       "part": 0,
-      "tickMs": 2024999
+      "tickMs": 2038500
     },
     {
       "index": 108,
       "part": 0,
-      "tickMs": 2032333
+      "tickMs": 2042833
     },
     {
       "index": 109,
