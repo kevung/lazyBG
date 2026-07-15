@@ -105,3 +105,23 @@ func TestLoad_OpeningScore(t *testing.T) {
 		t.Errorf("openingScore = %d, want 21", m.Parts[0].Calibration.OpeningScore)
 	}
 }
+
+func TestLoad_Lens(t *testing.T) {
+	doc := `{"schemaVersion":1,"id":"x","transcript":"t","parts":[
+	  {"file":"a","calibration":{"corners":[[0,0],[1,0],[1,1],[0,1]],
+	    "lens":{"k1":-0.18,"centerX":640,"centerY":360,"norm":640}},
+	    "span":{"beginMs":0,"endMs":1}},
+	  {"file":"b","calibration":{"inherit":true},"span":{"beginMs":0,"endMs":1}}
+	]}`
+	m, err := Load([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := m.Parts[0].Calibration.Lens
+	if l == nil || l.K1 != -0.18 || l.Norm != 640 {
+		t.Fatalf("lens not parsed: %+v", l)
+	}
+	if inh := m.Parts[1].Calibration.Lens; inh == nil || inh.K1 != -0.18 {
+		t.Fatalf("lens not inherited: %+v", inh)
+	}
+}

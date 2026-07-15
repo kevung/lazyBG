@@ -64,10 +64,23 @@ type Calibration struct {
 	Inherit   bool         `json:"inherit,omitempty"`
 	Corners   [][2]float64 `json:"corners,omitempty"`
 	Canonical *Canonical   `json:"canonical,omitempty"`
+	// Lens optionally declares the capture camera's radial distortion;
+	// absent means a pinhole camera (plain homography).
+	Lens *Lens `json:"lens,omitempty"`
 	// OpeningScore is the per-point read score (of 24) achieved on the
 	// settled opening when this calibration was made — the calibration
 	// quality proxy that drives the per-recording auto-fill gate.
 	OpeningScore int `json:"openingScore,omitempty"`
+}
+
+// Lens mirrors calibrate.Lens for the manifest: single-k1 radial distortion
+// of the capture camera (negative = barrel, typical wide action cams). Kept
+// as a plain struct so the schema package stays dependency-free.
+type Lens struct {
+	K1      float64 `json:"k1"`
+	CenterX float64 `json:"centerX"`
+	CenterY float64 `json:"centerY"`
+	Norm    float64 `json:"norm"`
 }
 
 // Canonical mirrors calibrate.CanonicalBoard for the manifest (kept as a
