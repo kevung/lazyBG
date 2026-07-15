@@ -100,6 +100,13 @@ func Recording(root string, m corpus.Manifest, o RunOptions) (Outcome, error) {
 	if m.Parts[0].Priors.MatchLength > 0 {
 		o.Conduct.MatchLength = m.Parts[0].Priors.MatchLength
 	}
+	// Per-recording auto-fill gate: on well-calibrated captures the
+	// confidence signal is trustworthy earlier (audited: every ply above
+	// 0.70 was correct on a 21/24-opening recording, while weak captures
+	// pollute lower gates), so the threshold follows calibration quality.
+	if m.Parts[0].Calibration.OpeningScore >= 20 {
+		o.Conduct.Policy.Threshold = 0.72
+	}
 	return RunEvents(events, o.Conduct), nil
 }
 

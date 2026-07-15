@@ -51,7 +51,8 @@
           "quadH": 300,
           "barGap": 60,
           "offW": 24
-        }
+        },
+        "openingScore": 21
       },
       "span": {
         "beginMs": 1000,
