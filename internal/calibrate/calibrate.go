@@ -88,12 +88,22 @@ func (cb CanonicalBoard) OffRegion() image.Rectangle {
 }
 
 // BoardCalibration maps between a source frame and the canonical board.
+// Masks are optional canonical-space dead zones applied by RectifyMasked.
 type BoardCalibration struct {
 	Board       CanonicalBoard
+	Masks       []image.Rectangle // canonical-space dead zones (RectifyMasked)
 	canon2ideal geom.Mat3 // canonical pixel → undistorted (ideal) source pixel
 	ideal2canon geom.Mat3 // ideal source pixel → canonical pixel
 	lens        Lens      // radial distortion between ideal and recorded source
 	ok          bool
+}
+
+// RectifyMasked is Rectify followed by painting the calibration's declared
+// dead zones — the entry point every board reader should use.
+func (c BoardCalibration) RectifyMasked(src image.Image) *image.RGBA {
+	out := c.Rectify(src)
+	MaskZones(out, c.Masks)
+	return out
 }
 
 // New builds a calibration from four source-image corners of the board, given in

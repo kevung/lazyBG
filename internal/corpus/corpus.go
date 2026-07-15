@@ -67,6 +67,10 @@ type Calibration struct {
 	// Lens optionally declares the capture camera's radial distortion;
 	// absent means a pinhole camera (plain homography).
 	Lens *Lens `json:"lens,omitempty"`
+	// Masks are canonical-space dead zones [x0,y0,x1,y1] painted neutral
+	// before any board read — rail areas where spare checkers park, a clock
+	// or score card intruding over the frame (world-model dead zones).
+	Masks [][4]int `json:"masks,omitempty"`
 	// OpeningScore is the per-point read score (of 24) achieved on the
 	// settled opening when this calibration was made — the calibration
 	// quality proxy that drives the per-recording auto-fill gate.
