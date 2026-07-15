@@ -71,6 +71,8 @@ func main() {
 		runDicecrops(os.Args[2:])
 	case "diceboxcrops":
 		runDiceboxcrops(os.Args[2:])
+	case "cornercrops":
+		runCornercrops(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q (want transcribe, eval or demo)\n", cmd)
 		os.Exit(2)
@@ -458,12 +460,23 @@ func runDiceboxcrops(args []string) {
 			}
 			var near []appear
 			for _, a := range appears {
-				if a.tick >= tn.TickMs-15000 && a.tick <= tn.TickMs+4000 {
-					near = append(near, a)
+				if a.tick < tn.TickMs-15000 || a.tick > tn.TickMs+4000 {
+					continue
 				}
+				// Die-shaped only: at stream scale dice read ~4-10px per
+				// side and near-square; checkers are larger, point-tip
+				// slivers are elongated.
+				dx, dy := a.box.Dx(), a.box.Dy()
+				if dx < 3 || dy < 3 || dx > 10 || dy > 10 {
+					continue
+				}
+				if dx*2 < dy || dy*2 < dx {
+					continue
+				}
+				near = append(near, a)
 			}
-			if len(near) == 0 || len(near) > 3 {
-				continue // no boxes or too cluttered to attribute
+			if len(near) == 0 || len(near) > 2 {
+				continue // strict: exactly the two dice (or one visible)
 			}
 			for bi, a := range near {
 				frame, err := capture.FrameAt(part.File, a.tick)
@@ -506,6 +519,76 @@ func runDiceboxcrops(args []string) {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "%s: %d dice-box crops\n", m.ID, total)
+}
+
+// runCornercrops extracts the corner-CNN training dataset: frames sampled
+// across a calibrated recording's span, downscaled, labeled with the
+// manifest's (validated) corner coordinates — the board-localization
+// survey's recommended learned upgrade, fed by the calibration campaign.
+func runCornercrops(args []string) {
+	fs := flag.NewFlagSet("cornercrops", flag.ExitOnError)
+	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
+	outDir := fs.String("out", "", "output directory (required)")
+	n := fs.Int("n", 40, "frames sampled across the span")
+	fs.Parse(args)
+	if *manifest == "" || *outDir == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	m := loadManifest(*manifest)
+	if err := os.MkdirAll(*outDir, 0o755); err != nil {
+		log.Fatal(err)
+	}
+	lf, err := os.OpenFile(filepath.Join(*outDir, "labels.csv"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lf.Close()
+	if st, _ := lf.Stat(); st.Size() == 0 {
+		fmt.Fprintln(lf, "file,recording,part,tick_ms,w,h,tlx,tly,trx,try,brx,bry,blx,bly")
+	}
+	const dw, dh = 320, 180
+	total := 0
+	for pi, part := range m.Parts {
+		span := part.Span.EndMs - part.Span.BeginMs
+		if span <= 0 {
+			continue
+		}
+		for k := 0; k < *n; k++ {
+			tick := part.Span.BeginMs + span*(2*k+1)/(2*(*n))
+			frame, err := capture.FrameAt(part.File, tick)
+			if err != nil {
+				continue
+			}
+			srcW := frame.Bounds().Dx()
+			srcH := frame.Bounds().Dy()
+			small := image.NewRGBA(image.Rect(0, 0, dw, dh))
+			for y := 0; y < dh; y++ {
+				for x := 0; x < dw; x++ {
+					small.Set(x, y, frame.At(frame.Bounds().Min.X+x*srcW/dw, frame.Bounds().Min.Y+y*srcH/dh))
+				}
+			}
+			name := fmt.Sprintf("%s_p%d_t%d.png", m.ID, pi, tick)
+			f, err := os.Create(filepath.Join(*outDir, name))
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := png.Encode(f, small); err != nil {
+				f.Close()
+				log.Fatal(err)
+			}
+			f.Close()
+			c := part.Calibration.Corners
+			sx := float64(dw) / float64(srcW)
+			sy := float64(dh) / float64(srcH)
+			fmt.Fprintf(lf, "%s,%s,%d,%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
+				name, m.ID, pi, tick, dw, dh,
+				c[0][0]*sx, c[0][1]*sy, c[1][0]*sx, c[1][1]*sy,
+				c[2][0]*sx, c[2][1]*sy, c[3][0]*sx, c[3][1]*sy)
+			total++
+		}
+	}
+	fmt.Fprintf(os.Stderr, "%s: %d corner frames\n", m.ID, total)
 }
 
 func runAlign(args []string) {
