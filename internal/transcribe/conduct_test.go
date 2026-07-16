@@ -229,3 +229,64 @@ func TestRunEvents_ObservedDiceBoostConfidence(t *testing.T) {
 		t.Errorf("only %d/%d plies gained confidence from dice observations", better, len(ph))
 	}
 }
+
+// A game boundary must survive a noisy first look at the reset table. The
+// reset test runs BEFORE the unchanged-table skip: after a reset the table
+// stays visually unchanged across stable windows (ReadingShift ~0), so if
+// the first reset read scored below the NewGame bar, the skip used to
+// swallow every retest — one bad read cost the whole boundary (measured on
+// the rawvid blind sweep: 1 game produced on every 7-point match).
+func TestGameBoundaryAfterNoisyReset(t *testing.T) {
+	o := DefaultOptions()
+	obsOf := func(b bg.Board, conf float64) perceive.ObservedBoard {
+		var ob perceive.ObservedBoard
+		for p := 1; p <= 24; p++ {
+			n, side := 0, perceive.None
+			if c := b.Pts[p].N; c > 0 {
+				n = c
+				if b.Pts[p].Owner == bg.P1 {
+					side = perceive.A
+				} else {
+					side = perceive.B
+				}
+			}
+			ob.Points[p] = perceive.PointObs{Count: n, Side: side, Confidence: conf}
+		}
+		return ob
+	}
+	start := bg.StandardStart()
+	// two quick opening plies of game 1
+	b1 := start
+	b1.Pts[13].N--
+	b1.Pts[9] = bg.Point{Owner: bg.P1, N: 1}
+	b1.Pts[13].N--
+	b1.Pts[10] = bg.Point{Owner: bg.P1, N: 1}
+	b2 := b1
+	b2.Pts[12].N--
+	b2.Pts[16] = bg.Point{Owner: bg.P2, N: 1}
+	b2.Pts[12].N--
+	b2.Pts[17].N++
+	// reset read #1: four confident phantoms hold it just under the bar
+	// (WholeBoardMatch 0.841 < NewGame 0.85)
+	r1 := obsOf(start, 0.95)
+	for _, p := range []int{2, 3, 4, 5} {
+		r1.Points[p] = perceive.PointObs{Count: 1, Side: perceive.A, Confidence: 0.9}
+	}
+	// reset read #2: same signed reading (ReadingShift 0 -> the skip bites)
+	// but two phantoms collapse to floor confidence, lifting the weighted
+	// match to 0.909 >= the bar.
+	r2 := r1
+	for _, p := range []int{2, 3} {
+		r2.Points[p] = perceive.PointObs{Count: 1, Side: perceive.A, Confidence: 0.03}
+	}
+	events := []Event{
+		{Tick: 1000, Obs: obsOf(b1, 0.95)},
+		{Tick: 2000, Obs: obsOf(b2, 0.95)},
+		{Tick: 3000, Obs: r1},
+		{Tick: 4000, Obs: r2},
+	}
+	out := RunEvents(events, o)
+	if len(out.Match.Games) < 2 {
+		t.Fatalf("games = %d, want the reset to open game 2", len(out.Match.Games))
+	}
+}
