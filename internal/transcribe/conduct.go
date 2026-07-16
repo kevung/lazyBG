@@ -184,16 +184,20 @@ func (c *conductor) step(ev Event) {
 	// the previous one as "what the table looked like last".
 	defer func() { c.prevObs, c.hasPrev = ev.Obs, true }()
 
-	// Re-read of an unchanged table?
-	if c.hasPrev && boarddiff.ReadingShift(prev, ev.Obs) <= c.o.ShiftSkip {
-		c.skipped++
-		return
-	}
-	// Board reset to the standard start mid-game = next game.
+	// Board reset to the standard start mid-game = next game. Tested
+	// BEFORE the unchanged-table skip: after a reset the table stays
+	// visually unchanged across stable windows, and when the first reset
+	// read scored below the bar the skip swallowed every retest — one
+	// noisy read cost the whole boundary (rawvid blind sweep).
 	if len(c.cur.Plies) >= 2 && boarddiff.WholeBoardMatch(bg.StandardStart(), ev.Obs) >= c.o.NewGame {
 		c.closeGame()
 		c.openGame(c.cur.Number + 1)
 		c.hasPrev = false // next event diffs against the exact start
+		return
+	}
+	// Re-read of an unchanged table?
+	if c.hasPrev && boarddiff.ReadingShift(prev, ev.Obs) <= c.o.ShiftSkip {
+		c.skipped++
 		return
 	}
 
