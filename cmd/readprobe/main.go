@@ -18,6 +18,9 @@ import (
 	"lazybg/internal/matimport"
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boarddiff"
+	"lazybg/internal/perceive/boardstate"
+	"lazybg/internal/perceive/checker"
+	"lazybg/internal/profile"
 	"lazybg/internal/perceive/pointnet"
 )
 
@@ -46,11 +49,23 @@ func main() {
 	if !ok {
 		log.Fatal("degenerate")
 	}
-	net, err := pointnet.Load(os.Args[3])
-	if err != nil {
-		log.Fatal(err)
+	var reader interface {
+		Read(img image.Image, cb calibrate.CanonicalBoard) perceive.ObservedBoard
 	}
-	if len(os.Args) > 4 && os.Args[4] == "search" {
+	var net *pointnet.Net
+	if os.Args[3] == "classical" {
+		ca, _ := profile.ParseHex(p.Priors.CheckerA)
+		cbc, _ := profile.ParseHex(p.Priors.CheckerB)
+		reader = boardstate.CircleReader{Profile: profile.CaptureProfile{CheckerA: ca, CheckerB: cbc}, Params: checker.Params{PeakFrac: 0.38}}
+	} else {
+		var err error
+		net, err = pointnet.Load(os.Args[3])
+		if err != nil {
+			log.Fatal(err)
+		}
+		reader = pointnet.Reader{Net: net}
+	}
+	if net != nil && len(os.Args) > 4 && os.Args[4] == "search" {
 		frames := []image.Image{frame}
 		for _, dt := range []int{2000, 4000} {
 			if f2, err := capture.FrameAt(p.File, p.Span.BeginMs+tick+dt); err == nil {
@@ -65,7 +80,7 @@ func main() {
 			Norm: float64(b.Dx()) / 2})
 	}
 	rect := cal.Rectify(frame)
-	obs := pointnet.Reader{Net: net}.Read(rect, cb)
+	obs := reader.Read(rect, cb)
 	fmt.Println("observed:")
 	for pt := 1; pt <= 24; pt++ {
 		o := obs.Points[pt]
