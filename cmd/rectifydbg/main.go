@@ -35,7 +35,11 @@ func main() {
 		cb = calibrate.CanonicalBoard{MarginX: c.MarginX, MarginY: c.MarginY,
 			PointW: c.PointW, QuadH: c.QuadH, BarGap: c.BarGap, OffW: c.OffW}
 	}
-	cal, ok := calibrate.New(cs, cb)
+	lens := calibrate.Lens{}
+	if l := p.Calibration.Lens; l != nil {
+		lens = calibrate.Lens{K1: l.K1, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
+	}
+	cal, ok := calibrate.NewWithLens(cs, cb, lens)
 	if !ok {
 		log.Fatal("degenerate")
 	}
