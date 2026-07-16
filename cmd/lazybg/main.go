@@ -93,11 +93,12 @@ func loadManifest(path string) corpus.Manifest {
 	return m
 }
 
-func runPipeline(manifest string, limitMs int, model string) (transcribe.Outcome, corpus.Manifest) {
+func runPipeline(manifest string, limitMs int, model, diceModel string) (transcribe.Outcome, corpus.Manifest) {
 	m := loadManifest(manifest)
 	o := transcribe.DefaultRunOptions()
 	o.LimitMs = limitMs
 	o.ModelPath = model
+	o.DiceModelPath = diceModel
 	o.Log = os.Stderr
 	out, err := transcribe.Recording(".", m, o)
 	if err != nil {
@@ -114,12 +115,13 @@ func runTranscribe(args []string) {
 	outPath := fs.String("out", "", ".mat output path (default stdout)")
 	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
 	model := fs.String("model", "", "read boards with this learned point-reader weight file")
+	diceModel := fs.String("dice-model", "", "read die values with this learned weight file (DiceValue fusion cue)")
 	fs.Parse(args)
 	if *manifest == "" {
 		fs.Usage()
 		os.Exit(2)
 	}
-	out, _ := runPipeline(*manifest, *limitMs, *model)
+	out, _ := runPipeline(*manifest, *limitMs, *model, *diceModel)
 	mat := matexport.Write(out.Match)
 	if *outPath == "" {
 		fmt.Print(mat)
@@ -135,12 +137,13 @@ func runEval(args []string) {
 	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
 	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
 	model := fs.String("model", "", "read boards with this learned point-reader weight file")
+	diceModel := fs.String("dice-model", "", "read die values with this learned weight file (DiceValue fusion cue)")
 	fs.Parse(args)
 	if *manifest == "" {
 		fs.Usage()
 		os.Exit(2)
 	}
-	out, m := runPipeline(*manifest, *limitMs, *model)
+	out, m := runPipeline(*manifest, *limitMs, *model, *diceModel)
 	matBytes, err := os.ReadFile(m.Transcript)
 	if err != nil {
 		log.Fatalf("truth transcript: %v", err)
