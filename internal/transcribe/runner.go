@@ -15,8 +15,6 @@ import (
 	"lazybg/internal/perceive/checker"
 	"lazybg/internal/perceive/clockhit"
 	"lazybg/internal/perceive/dienet"
-	"lazybg/internal/perceive/diceevent"
-	"lazybg/internal/cue"
 	"lazybg/internal/bg"
 	"image/draw"
 	"lazybg/internal/perceive/pointnet"
@@ -196,38 +194,7 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 				int(float64(r[0])*sx), int(float64(r[1])*sy),
 				int(float64(r[2])*sx), int(float64(r[3])*sy))})
 		}
-		// Dice appearances ride the same low-res stream: the dice-event
-		// detector watches the central felt band of the board bbox.
-		var dd *diceevent.Detector
-		var band image.Rectangle
-		type appear struct {
-			tick int
-			box  image.Rectangle
-		}
-		var appears []appear
-		if dieNet != nil {
-			minX, minY := part.Calibration.Corners[0][0], part.Calibration.Corners[0][1]
-			maxX, maxY := minX, minY
-			for _, c := range part.Calibration.Corners[1:] {
-				minX, maxX = min(minX, c[0]), max(maxX, c[0])
-				minY, maxY = min(minY, c[1]), max(maxY, c[1])
-			}
-			sx := float64(o.StreamW) / float64(srcW)
-			sy := float64(o.StreamH) / float64(srcH)
-			band = image.Rect(int(minX*sx), int((minY+0.40*(maxY-minY))*sy),
-				int(maxX*sx), int((minY+0.60*(maxY-minY))*sy))
-			dd = diceevent.New(diceevent.Options{})
-		}
 		tee := teeSource{src: src, fn: func(f capture.Frame) {
-			if dd != nil {
-				if sub, ok := f.Img.(*image.RGBA); ok {
-					for _, ev := range dd.Feed(capture.Frame{Tick: f.Tick, Img: sub.SubImage(band).(*image.RGBA)}) {
-						if ev.Kind == diceevent.Appeared {
-							appears = append(appears, appear{ev.Tick, ev.Box})
-						}
-					}
-				}
-			}
 			if clock == nil {
 				return
 			}
@@ -270,101 +237,60 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 		})
 		src.Close()
 
-		// Attach die values to this part's events: shape-filter the
-		// appearances, median-stack a full-res crop per die, classify, and
-		// attribute each accepted value to the event whose roll phase
-		// contains it (cue.AttributeRoll). An event gets the DiceValue cue
-		// only when exactly two dice were read for its turn.
-		if dieNet != nil && len(appears) > 0 {
-			partStart := 0
-			for partStart < len(events) && events[partStart].Part != pi {
-				partStart++
+		// Die values (DiceValue cue): scan the central felt band of each
+		// event's OWN stable frame with the learned classifier — the dice of
+		// a turn sit on the felt in every stable frame of that turn, so no
+		// appearance timing or phase attribution is needed (the motion-blob
+		// funnel this replaces starved the cue: 264 appearances -> 6 values
+		// on the pilot). Exactly two detections make a pair cue.
+		if dieNet != nil {
+			minX, minY := part.Calibration.Corners[0][0], part.Calibration.Corners[0][1]
+			maxX, maxY := minX, minY
+			for _, c := range part.Calibration.Corners[1:] {
+				minX, maxX = min(minX, c[0]), max(maxX, c[0])
+				minY, maxY = min(minY, c[1]), max(maxY, c[1])
 			}
-			var ticks []int
-			for _, ev := range events[partStart:] {
-				ticks = append(ticks, ev.Tick)
+			band := image.Rect(int(minX), int(minY+0.40*(maxY-minY)), int(maxX), int(minY+0.60*(maxY-minY)))
+			var sizes []int
+			for _, f := range []float64{0.040, 0.055, 0.070} {
+				sz := int(f * (maxX - minX))
+				if sz < 16 {
+					sz = 16
+				}
+				if sz > 64 {
+					sz = 64
+				}
+				sizes = append(sizes, sz)
 			}
-			sx := float64(o.StreamW) / float64(srcW)
-			sy := float64(o.StreamH) / float64(srcH)
-			type obs struct {
-				val  int
-				conf float64
-			}
-			byEvent := map[int][]obs{}
-			nClassified, nJunk, nLowConf, nNoAttr, nShape := 0, 0, 0, 0, 0
-			for _, a := range appears {
-				dx, dy := a.box.Dx(), a.box.Dy()
-				if dx < 3 || dy < 3 || dx > 10 || dy > 10 || dx*2 < dy || dy*2 < dx {
-					nShape++
+			nPairs := 0
+			for k := range events {
+				if events[k].Part != pi {
 					continue
 				}
-				k, okAttr := cue.AttributeRoll(ticks, a.tick, 3000, 2000)
-				if !okAttr {
-					nNoAttr++
+				frame, err := capture.FrameAt(video, events[k].Tick)
+				if err != nil {
 					continue
 				}
-				var layers []*image.RGBA
-				var r image.Rectangle
-				for _, dt := range []int{500, 1000, 1500, 2000, 2500} {
-					frame, err := capture.FrameAt(video, a.tick+dt)
-					if err != nil {
-						continue
-					}
-					if r.Empty() {
-						r = image.Rect(
-							int(float64(a.box.Min.X)/sx)-8, int(float64(a.box.Min.Y)/sy)-8,
-							int(float64(a.box.Max.X)/sx)+8, int(float64(a.box.Max.Y)/sy)+8,
-						).Intersect(frame.Bounds())
-						if r.Dx() < 12 || r.Dy() < 12 {
-							break
-						}
-					}
-					layer := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
-					draw.Draw(layer, layer.Bounds(), frame, r.Min, draw.Src)
-					layers = append(layers, layer)
+				img, ok := frame.(*image.RGBA)
+				if !ok {
+					b := frame.Bounds()
+					img = image.NewRGBA(b)
+					draw.Draw(img, b, frame, b.Min, draw.Src)
 				}
-				if len(layers) < 3 {
+				dets := dienet.ScanBand(dieNet, img, band, sizes, 12, 0.5, 3)
+				if len(dets) != 2 {
 					continue
 				}
-				val, conf := dienet.Classify(dieNet, capture.MedianStack(layers))
-				nClassified++
-				if val == 0 {
-					nJunk++
-					continue
+				events[k].Dice = bg.Dice{dets[0].Val, dets[1].Val}
+				events[k].DiceConf = dets[1].Conf // the weaker of the pair
+				nPairs++
+				if o.Log != nil {
+					fmt.Fprintf(o.Log, "part %d dice pair @%dms: %d-%d conf %.2f\n", pi, events[k].Tick, dets[0].Val, dets[1].Val, dets[1].Conf)
 				}
-				if conf < 0.5 {
-					nLowConf++
-					continue
-				}
-				byEvent[k] = append(byEvent[k], obs{val, conf})
-			}
-			nDice := 0
-			hist := map[int]int{}
-			for _, os := range byEvent {
-				hist[len(os)]++
 			}
 			if o.Log != nil {
-				fmt.Fprintf(o.Log, "part %d dice cue detail: shapeOK->classified hist per event %v\n", pi, hist)
+				fmt.Fprintf(o.Log, "part %d dice scan: %d events with a read pair\n", pi, nPairs)
 			}
-			for k, os := range byEvent {
-				if len(os) != 2 {
-					continue
-				}
-				events[partStart+k].Dice = bg.Dice{os[0].val, os[1].val}
-				c := os[0].conf
-				if os[1].conf < c {
-					c = os[1].conf
-				}
-				events[partStart+k].DiceConf = c
-				nDice++
-			}
-			if o.Log != nil {
-				fmt.Fprintf(o.Log, "part %d dice cue: %d appearances (shape- %d, attr- %d) -> %d classified (junk %d, lowconf %d) -> %d events with a read pair\n",
-					pi, len(appears), nShape, nNoAttr, nClassified, nJunk, nLowConf, nDice)
-			}
-		}
-		if o.Log != nil {
-			fmt.Fprintf(o.Log, "part %d: %d stable windows\n", pi, nWin)
 		}
 	}
 	return events, commits, nil
