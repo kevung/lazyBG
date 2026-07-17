@@ -74,6 +74,17 @@ coordinate `(part, offsetMs)`**. *Rule: a Tick is meaningless without its Captur
 The decoded image at a Tick. Frames are transient (decoded on demand, not all held in memory).
 A **Stable Frame** is one selected because the board ROI was motion-free for a window around it.
 
+### Playback Proxy
+A webview-playable copy of a Capture, produced on demand by the bundled ffmpeg **only when** the
+OS webview cannot decode the original's codec/container. The GUI's `<video>` plays the Proxy — or
+the original directly when it is already playable; **perception always decodes the original
+Capture, never the Proxy.** The Proxy is a cache artifact keyed by the Capture's content hash
+(gitignored, machine-local, cleanable), never authoritative. *Invariant: a Proxy must **preserve
+the original's timeline** — same start, same duration, monotonic timestamps — so a Tick read from
+the Proxy equals the Tick on the Capture. Prefer stream-copy remux (`ffmpeg -c copy`, exact);
+re-encode only as a fallback, never resampling frame rate nor trimming. Duration parity is checked
+on open and a mismatch is surfaced.* See ADR-0004.
+
 ### Capture Profile (Session Priors)
 **First-class, user-declared constants** that seed and constrain the pipeline — the single
 biggest robustness lever (survey §0, §12). Declared once at transcription setup, editable later.
