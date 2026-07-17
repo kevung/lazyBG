@@ -120,6 +120,7 @@ func (a *App) OpenVideoDialog() (*OpenResult, error) {
 	}
 
 	svc.EnableVideoObservation(a.reader)
+	go computeCandidateTicks(svc) // segmentation for Tab nav (issue #23), off the UI thread
 
 	a.mu.Lock()
 	a.videoPath = path
@@ -206,9 +207,31 @@ func (a *App) GetSetup() session.Setup {
 	return a.service().GetSetup()
 }
 
-// SaveSetup stores the setup; recorded turns are never touched.
+// SaveSetup stores the setup; recorded turns are never touched. A fresh
+// calibration re-runs segmentation for Tab navigation (issue #23) in the
+// background.
 func (a *App) SaveSetup(setup session.Setup) error {
-	return a.service().SaveSetup(setup)
+	svc := a.service()
+	if err := svc.SaveSetup(setup); err != nil {
+		return err
+	}
+	go computeCandidateTicks(svc)
+	return nil
+}
+
+// CandidateTicks returns the segmentation-proposed navigation ticks, or an
+// empty list while the scan is still running (or the session is uncalibrated).
+func (a *App) CandidateTicks() []int {
+	return a.service().CandidateTicks()
+}
+
+// computeCandidateTicks runs the (slow) stable-window scan and logs the outcome.
+func computeCandidateTicks(svc *session.Service) {
+	if n, err := svc.ComputeCandidateTicks(); err != nil {
+		log.Printf("candidate-tick segmentation: %v", err)
+	} else if n > 0 {
+		log.Printf("candidate-tick segmentation: %d ticks", n)
+	}
 }
 
 // SetupDone reports whether the blocking setup step is complete.

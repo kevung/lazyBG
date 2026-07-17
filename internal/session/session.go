@@ -70,6 +70,12 @@ type Service struct {
 	reader BoardReader
 	grab   frameGrabber
 
+	// candidateTicks are the segmentation-proposed commit instants for
+	// Tab/Shift+Tab navigation (issue #23); nil until ComputeCandidateTicks
+	// runs. segmenting guards against overlapping scans.
+	candidateTicks []int
+	segmenting     bool
+
 	// reviews is the review queue (open + resolved), mirrored into the .lbg
 	// on every save.
 	reviews []LBGReview
