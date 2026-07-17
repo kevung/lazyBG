@@ -45,8 +45,17 @@ and are rebuilding everything else on clean foundations.
   `transcribe.RunOptions.ModelPath` swaps it in (model embedded from `data/models/`). It already
   beats the classical baseline on blind transcription (3 vs 0 matched plies over the pilot's
   first minutes) but needs **more corpus manifests** (diversity) to lift auto-fill coverage.
-- The review UI is **yet to be built.** Next milestones: more per-capture manifests → retrain,
-  dice-value cue on real footage, cube perception, clock-hit commit cue.
+- The review UI is **yet to be built.** Its first milestone is now scoped as a **manual
+  transcription tool**: usable standalone, with zero automatic assistance, to produce a `.mat`
+  from a video entirely by hand — built on the *same* Transcription / Turn Segment / Review Item
+  data model the automatic pipeline already targets (`docs/domain-model.md` §4; `cue.MoveDecision`,
+  `pipeline.ReviewItem`, `gate.Outcome`, and `bg.Ply.Confidence` already anticipate human-entered
+  plies). As detector confidence rises, it becomes the automatic pipeline's review UI for free —
+  same screen, same data model, decreasing proportion of turns left for the human. This dual-purpose
+  UX is being specified now (functional spec → UX spec → ADRs → implementation tickets; see
+  `docs/functional-spec.md` / `docs/ux-spec.md` once written, and `docs/adr/`). Other next
+  milestones: more per-capture manifests → retrain, dice-value cue on real footage, cube
+  perception, clock-hit commit cue.
 
 Do not reintroduce legacy code wholesale. Reference `legacy_v0` for ideas, port deliberately.
 
@@ -92,11 +101,14 @@ These are settled. Revisit them explicitly with the user, not silently.
     user-assisted **Board Calibration** (fixed camera) + classical color-segmentation checker
     counting. Learned models are a later upgrade — the survey showed fully-automatic readers
     collapse (~99%→65%) on heterogeneous real footage, so single learned readers are not shipped.
+12. **UI toolkit = Wails v2 + a fresh Svelte frontend** (not a reuse of `legacy_v0`'s Svelte app).
+    Locked via the manual-transcription-tool grilling session — see `docs/architecture.md` §3,
+    ADR-0002. The Wails binding is a thin layer over an independent Go session-service package
+    (ADR-0003), keeping a future headless/REST mode open without rearchitecting.
 
-Still open (decided at their milestone, not up front): the **UI toolkit** (leading candidate
-Wails v2 + a fresh minimal frontend; see `docs/architecture.md` §3), and the concrete per-detector
-techniques for the **evidence-gap** areas — dice/cube reading, clock-hit (incl. audio) detection,
-occlusion handling, confidence calibration — which are **prototype-first** (survey §12–§13).
+Still open (decided at their milestone, not up front): the concrete per-detector techniques for
+the **evidence-gap** areas — dice/cube reading, clock-hit (incl. audio) detection, occlusion
+handling, confidence calibration — which are **prototype-first** (survey §12–§13).
 
 ---
 
@@ -257,4 +269,25 @@ offline binary. Engine tests reference the on-disk `data/` via a relative path (
 - **Concepts:** `docs/domain-model.md`.
 - **Design:** `docs/architecture.md`.
 - **Corpus, labeling & evaluation:** `docs/experiment-plan.md`.
+- **Manual/automatic transcription tool spec:** `docs/functional-spec.md` (what),
+  `docs/session-format-spec.md` (persistence — the `.lbg` file), `docs/ux-spec.md` (UI/flow).
+- **Structuring decisions:** `docs/adr/`.
 - **Legacy reference (ideas only):** branch `legacy_v0`.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues on `kevung/lazyBG`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
+`wontfix`), used as-is. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. `docs/domain-model.md` is this repo's `CONTEXT.md` equivalent (predates that
+convention); `docs/adr/` holds ADRs. See `docs/agents/domain.md`.
