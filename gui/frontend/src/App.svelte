@@ -166,6 +166,19 @@
     } catch { /* non-fatal */ }
   }
 
+  let exportMsg = ''
+
+  async function exportProjections() {
+    error = ''
+    exportMsg = ''
+    try {
+      const paths = await api().ExportDialog()
+      if (paths && paths[0]) exportMsg = `Saved ${paths[0]} + manifest`
+    } catch (e) {
+      error = String(e)
+    }
+  }
+
   async function openCalibration() {
     setupInitial = await api().GetSetup()
     setupOpen = true
@@ -496,8 +509,12 @@
     {#if warning}
       <p class="warning">{warning}</p>
     {/if}
+    {#if exportMsg}
+      <p class="exportmsg">{exportMsg}</p>
+    {/if}
     <div class="turn">
       <button class="linklike" on:click={openCalibration} title="Session Priors + Board Calibration">Calibration…</button>
+      <button class="linklike" on:click={exportProjections} title="Write .mat + corpus manifest from the current state">Export…</button>
       <span class="score">{score[0]}–{score[1]}</span>
       On roll: <strong>{playerName(onRoll)}</strong>
       <span class="hint">(p to switch)</span>
@@ -525,7 +542,7 @@
     {/if}
 
     {#if matchOver}
-      <p class="matchover">Match over — {score[0]}:{score[1]}. Export arrives with the projections ticket.</p>
+      <p class="matchover">Match over — {score[0]}:{score[1]}. Use Export… to write the .mat + manifest.</p>
     {/if}
 
     {#if gameEnd}
@@ -809,6 +826,10 @@
   .gameend button {
     align-self: flex-start;
     cursor: pointer;
+  }
+  .exportmsg {
+    color: #4ade80;
+    font-size: 0.8rem;
   }
   .matchover {
     color: #4ade80;
