@@ -86,6 +86,8 @@ type LBGTurn struct {
 	Dice       [2]int `json:"dice"`
 	Notation   string `json:"notation"`
 	CannotMove bool   `json:"cannotMove,omitempty"`
+	Cube       string `json:"cube,omitempty"` // "double"/"take"/"drop"
+	CubeValue  int    `json:"cubeValue,omitempty"`
 
 	Part   int `json:"part"`
 	TickMs int `json:"tickMs"`
@@ -168,8 +170,21 @@ func Open(lbgPath string) (*Service, string, error) {
 	s.match.Length = doc.Length
 
 	// Replay the recorded turns to rebuild board + alternation. A Cannot
-	// Move (or empty override) leaves the board as-is.
+	// Move (or empty override) leaves the board as-is; cube actions rebuild
+	// the cube state.
 	for i, t := range doc.Turns {
+		if t.Cube != "" {
+			s.applyCubeReplay(t.Cube, bg.Player(t.Player))
+			g := &s.match.Games[len(s.match.Games)-1]
+			g.Plies = append(g.Plies, bg.Ply{
+				Player:    bg.Player(t.Player),
+				Cube:      cubeActionOf(t.Cube),
+				CubeValue: t.CubeValue,
+				Tick:      t.TickMs,
+			})
+			s.onRoll = otherPlayer(bg.Player(t.Player))
+			continue
+		}
 		if !t.CannotMove && t.Notation != "" {
 			board, err := derive.ApplyNotation(s.board, bg.Player(t.Player), t.Notation)
 			if err != nil {
@@ -254,4 +269,16 @@ func (s *Service) VideoPath() string {
 func strippedName(path string) string {
 	base := filepath.Base(path)
 	return base[:len(base)-len(filepath.Ext(base))]
+}
+
+func cubeActionOf(name string) bg.CubeAction {
+	switch name {
+	case "double":
+		return bg.Double
+	case "take":
+		return bg.Take
+	case "drop":
+		return bg.Drop
+	}
+	return bg.NoCube
 }

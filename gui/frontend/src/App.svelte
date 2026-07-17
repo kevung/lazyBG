@@ -118,6 +118,35 @@
     }
   }
 
+  let cubeOptions = []
+  let cubeHighlight = 0
+
+  async function openCubeMenu() {
+    error = ''
+    try {
+      cubeOptions = (await api().CubeActions()) ?? []
+      cubeHighlight = 0
+      if (!cubeOptions.length) error = 'No cube action available (cube owned by the opponent)'
+    } catch (e) {
+      error = String(e)
+    }
+  }
+
+  async function confirmCube() {
+    if (!cubeOptions.length) return
+    error = ''
+    try {
+      const ply = await api().EnterCube(cubeOptions[cubeHighlight], nowTickMs())
+      moves = [...moves, ply]
+      cubeOptions = []
+      candidates = []
+      firstDigit = null
+      onRoll = await api().OnRoll()
+    } catch (e) {
+      error = String(e)
+    }
+  }
+
   async function togglePlayer() {
     error = ''
     try {
@@ -141,6 +170,27 @@
         const d1 = firstDigit
         firstDigit = null
         enterDice(d1, d)
+      }
+      e.preventDefault()
+      return
+    }
+    if (cubeOptions.length) {
+      switch (e.key) {
+        case 'ArrowDown':
+        case 'j':
+          cubeHighlight = Math.min(cubeHighlight + 1, cubeOptions.length - 1)
+          break
+        case 'ArrowUp':
+        case 'k':
+          cubeHighlight = Math.max(cubeHighlight - 1, 0)
+          break
+        case ' ':
+        case 'Enter':
+          confirmCube()
+          break
+        case 'Escape':
+          cubeOptions = []
+          break
       }
       e.preventDefault()
       return
@@ -170,6 +220,13 @@
         break
       case 'p':
         togglePlayer()
+        e.preventDefault()
+        break
+      case 'c':
+      case 'C':
+        // Cube menu: a separate entry point since a cube decision precedes
+        // the roll (ux-spec §9).
+        if (firstDigit === null && !candidates.length) openCubeMenu()
         e.preventDefault()
         break
       case 'o':
@@ -231,6 +288,16 @@
       </div>
     {/if}
 
+    {#if cubeOptions.length}
+      <ol class="candidates cube-menu">
+        {#each cubeOptions as opt, i}
+          <li class:selected={i === cubeHighlight}>
+            <span class="notation">{opt}</span>
+          </li>
+        {/each}
+      </ol>
+    {/if}
+
     <div class="dice">
       {#if firstDigit !== null}
         Dice: <strong>{firstDigit}–?</strong>
@@ -261,8 +328,10 @@
       {#each moves as m}
         <li>
           <span class="who">{playerName(m.player)}</span>
-          <span class="dice-lbl">{m.dice}:</span>
-          <span class="notation">{m.cannotMove ? 'Cannot Move' : m.notation}</span>
+          <span class="dice-lbl">{m.cube ? '' : m.dice + ':'}</span>
+          <span class="notation">
+            {#if m.cube === 'double'}Doubles to {m.cubeValue}{:else if m.cube}{m.cube[0].toUpperCase() + m.cube.slice(1)}{:else if m.cannotMove}Cannot Move{:else}{m.notation}{/if}
+          </span>
           <span class="tick">{(m.tickMs / 1000).toFixed(1)}s</span>
         </li>
       {/each}

@@ -38,6 +38,8 @@ type PlyView struct {
 	Dice       string `json:"dice"`
 	Notation   string `json:"notation"`
 	CannotMove bool   `json:"cannotMove,omitempty"`
+	Cube       string `json:"cube,omitempty"` // "double"/"take"/"drop"
+	CubeValue  int    `json:"cubeValue,omitempty"`
 	TickMs     int    `json:"tickMs"`
 }
 
@@ -64,6 +66,9 @@ type Service struct {
 	// reviews is the review queue (open + resolved), mirrored into the .lbg
 	// on every save.
 	reviews []LBGReview
+
+	// cube is the live doubling-cube state (issue #18).
+	cube cubeState
 
 	// Persistence (nil/empty for pure in-memory sessions): the .lbg document
 	// this session autosaves to after every confirmed decision.
@@ -118,6 +123,9 @@ func (s *Service) EnterDice(d1, d2 int) ([]Candidate, error) {
 }
 
 func (s *Service) enterDiceLocked(d1, d2 int) ([]Candidate, error) {
+	if s.cube.pending {
+		return nil, fmt.Errorf("a cube decision is pending — take or drop first")
+	}
 	if d1 < 1 || d1 > 6 || d2 < 1 || d2 > 6 {
 		return nil, fmt.Errorf("dice out of range: %d-%d", d1, d2)
 	}
@@ -262,8 +270,22 @@ func plyView(index, game int, ply bg.Ply) PlyView {
 		Dice:       ply.Dice.String(),
 		Notation:   ply.Notation,
 		CannotMove: ply.CannotMove,
+		Cube:       cubeActionName(ply.Cube),
+		CubeValue:  ply.CubeValue,
 		TickMs:     ply.Tick,
 	}
+}
+
+func cubeActionName(c bg.CubeAction) string {
+	switch c {
+	case bg.Double:
+		return "double"
+	case bg.Take:
+		return "take"
+	case bg.Drop:
+		return "drop"
+	}
+	return ""
 }
 
 func otherPlayer(p bg.Player) bg.Player {
