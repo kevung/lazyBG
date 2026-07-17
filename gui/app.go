@@ -103,14 +103,31 @@ func (a *App) SetVideoPos(tickMs int) {
 	a.svc.SetVideoPos(tickMs)
 }
 
-// EnterDice records the observed roll and returns the ranked candidates.
-func (a *App) EnterDice(d1, d2 int) ([]session.Candidate, error) {
-	return a.svc.EnterDice(d1, d2)
+// EnterDice records the observed roll and returns the ranked candidates —
+// or, on a dance, the already-recorded Cannot Move ply (no candidate step).
+func (a *App) EnterDice(d1, d2, tickMs int) (session.DiceResult, error) {
+	return a.svc.EnterDiceAt(d1, d2, tickMs)
 }
 
 // Confirm applies the candidate at index, stamped with the video tick (ms).
 func (a *App) Confirm(index, tickMs int) (session.PlyView, error) {
 	return a.svc.Confirm(index, tickMs)
+}
+
+// ConfirmFlag confirms AND opens a human-flagged Review Item (Shift+Space).
+func (a *App) ConfirmFlag(index, tickMs int) (session.PlyView, error) {
+	return a.svc.ConfirmFlag(index, tickMs)
+}
+
+// Override records a free-entry move, bypassing the candidate list
+// (ADR-0001). Empty notation records a Cannot Move.
+func (a *App) Override(notation string, tickMs int) (session.PlyView, error) {
+	return a.svc.Override(notation, tickMs)
+}
+
+// ReviewItems returns the open review-queue entries.
+func (a *App) ReviewItems() []session.ReviewItemView {
+	return a.svc.ReviewItems()
 }
 
 // SetTurnPlayer declares who the pending turn belongs to (0 or 1).
