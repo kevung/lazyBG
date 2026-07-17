@@ -1,9 +1,14 @@
-//go:build desktop
+//go:build lazybggui
 
 // The lazyBG desktop app: a thin Wails v2 shell over internal/session
-// (ADR-0002, ADR-0003). Build with `wails build` / `wails dev` from gui/ —
-// the wails CLI adds the `desktop` tag; plain `go build ./...` compiles the
-// stub instead, so the repo stays green on machines without webkit.
+// (ADR-0002, ADR-0003). Build with `wails build -tags lazybggui` /
+// `wails dev -tags lazybggui` from gui/ (or `make build` / `make dev`) — the
+// `lazybggui` tag is a lazyBG-specific tag the wails CLI does NOT add on its
+// own, so it must be passed explicitly. Plain `go build ./...` omits it and
+// compiles the stub instead, so the repo stays green on machines without
+// webkit. (The tag is deliberately NOT named `desktop`: Wails reserves that
+// name and strips it during TS-binding generation, which would compile the
+// stub mid-build — see gui/Makefile.)
 package main
 
 import (
