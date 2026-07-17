@@ -130,6 +130,21 @@ func (a *App) ReviewItems() []session.ReviewItemView {
 	return a.svc.ReviewItems()
 }
 
+// PendingGameEnd returns the detected (unconfirmed) game end, or nil.
+func (a *App) PendingGameEnd() *session.GameEndProposal {
+	return a.svc.PendingGameEnd()
+}
+
+// ConfirmGameEnd closes the game with the (possibly corrected) result.
+func (a *App) ConfirmGameEnd(winner, points int) (session.GameEndResult, error) {
+	return a.svc.ConfirmGameEnd(winner, points)
+}
+
+// Score returns the running match score.
+func (a *App) Score() [2]int {
+	return a.svc.Score()
+}
+
 // CubeActions returns the cube actions available to the player on roll.
 func (a *App) CubeActions() []string {
 	return a.svc.CubeActions()
