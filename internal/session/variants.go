@@ -39,6 +39,12 @@ type DiceResult struct {
 func (s *Service) EnterDiceAt(d1, d2, tickMs int) (DiceResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Read the board near this tick so the board-diff cue can re-weight the
+	// candidates (issue #23). A nil reading (no reader, uncalibrated, or an
+	// unreadable frame) leaves ranking equity-only.
+	if s.reader != nil {
+		s.obs = s.observeLocked(tickMs)
+	}
 	cands, err := s.enterDiceLocked(d1, d2)
 	if err != nil {
 		return DiceResult{}, err

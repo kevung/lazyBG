@@ -290,14 +290,20 @@
     refreshBoard()
   }
 
-  // Tab / Shift+Tab: free movement across the recorded turn ticks without
-  // committing anything (ux-spec §3). Segmentation-fed candidate ticks plug
-  // in once calibration exists (issue #14); past the last recorded tick we
-  // step by a fixed 5s.
-  function navTick(dir) {
+  // Tab / Shift+Tab: free movement between candidate commit instants without
+  // committing anything (ux-spec §3). When segmentation has proposed candidate
+  // ticks (issue #23) they steer the jump, unioned with the recorded-turn ticks
+  // so past turns stay reachable; otherwise we fall back to recorded ticks and,
+  // past the last one, a fixed 5s step.
+  async function navTick(dir) {
     if (!videoEl) return
     const now = Math.round(videoEl.currentTime * 1000)
-    const ticks = [...new Set(moves.map((m) => m.tickMs).filter((t) => t > 0))].sort((a, b) => a - b)
+    let seg = []
+    try {
+      seg = (await api().CandidateTicks?.()) ?? []
+    } catch { /* segmentation not ready — recorded ticks only */ }
+    const recorded = moves.map((m) => m.tickMs).filter((t) => t > 0)
+    const ticks = [...new Set([...seg, ...recorded])].sort((a, b) => a - b)
     let target
     if (dir > 0) {
       target = ticks.find((t) => t > now + 50)

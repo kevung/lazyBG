@@ -63,6 +63,19 @@ type Service struct {
 	// ranking (issue #15) and is cleared on confirm.
 	obs *perceive.ObservedBoard
 
+	// reader/grab are the optional video-observation seam (issue #23), wired by
+	// EnableVideoObservation: reader classifies a rectified frame, grab decodes
+	// it from the session's video. Both nil (the default) means no perception —
+	// ranking is equity-only. Tests inject fakes directly.
+	reader BoardReader
+	grab   frameGrabber
+
+	// candidateTicks are the segmentation-proposed commit instants for
+	// Tab/Shift+Tab navigation (issue #23); nil until ComputeCandidateTicks
+	// runs. segmenting guards against overlapping scans.
+	candidateTicks []int
+	segmenting     bool
+
 	// reviews is the review queue (open + resolved), mirrored into the .lbg
 	// on every save.
 	reviews []LBGReview
