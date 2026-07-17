@@ -4,6 +4,9 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -35,10 +38,23 @@ func (a *App) currentVideoPath() string {
 	return a.videoPath
 }
 
-// OpenVideoDialog lets the user pick a video file and returns the URL the
-// frontend's <video> element should load (served by the media handler).
-// An empty string means the user cancelled.
-func (a *App) OpenVideoDialog() (string, error) {
+// OpenResult is what the frontend needs after opening a video: the media URL,
+// the resumed state (if a .lbg already existed next to the video), and any
+// warning (missing/substituted video fingerprint).
+type OpenResult struct {
+	VideoURL   string            `json:"videoUrl"`
+	LBGPath    string            `json:"lbgPath"`
+	Resumed    bool              `json:"resumed"`
+	Moves      []session.PlyView `json:"moves"`
+	LastTickMs int               `json:"lastTickMs"`
+	OnRoll     int               `json:"onRoll"`
+	Warning    string            `json:"warning,omitempty"`
+}
+
+// OpenVideoDialog lets the user pick a video file, then creates — or resumes,
+// if one already exists next to the video — the .lbg session (autosaved on
+// every confirm; session-format-spec). A nil result means the user cancelled.
+func (a *App) OpenVideoDialog() (*OpenResult, error) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Open match video",
 		Filters: []runtime.FileFilter{
@@ -47,13 +63,44 @@ func (a *App) OpenVideoDialog() (string, error) {
 		},
 	})
 	if err != nil || path == "" {
-		return "", err
+		return nil, err
 	}
+
+	lbgPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".lbg"
+	var (
+		svc     *session.Service
+		warning string
+		resumed bool
+	)
+	if _, statErr := os.Stat(lbgPath); statErr == nil {
+		svc, warning, err = session.Open(lbgPath)
+		resumed = true
+	} else {
+		svc, warning, err = session.Create(lbgPath, path, "")
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	a.mu.Lock()
 	a.videoPath = path
-	a.svc = session.New() // fresh session per video (persistence is ticket #13)
+	a.svc = svc
 	a.mu.Unlock()
-	return "/media/current", nil
+
+	return &OpenResult{
+		VideoURL:   "/media/current",
+		LBGPath:    lbgPath,
+		Resumed:    resumed,
+		Moves:      svc.Moves(),
+		LastTickMs: svc.LastVideoPos(),
+		OnRoll:     svc.OnRoll(),
+		Warning:    warning,
+	}, nil
+}
+
+// SetVideoPos persists the last-worked video position (resume state).
+func (a *App) SetVideoPos(tickMs int) {
+	a.svc.SetVideoPos(tickMs)
 }
 
 // EnterDice records the observed roll and returns the ranked candidates.

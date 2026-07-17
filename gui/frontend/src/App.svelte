@@ -17,21 +17,40 @@
 
   const playerName = (p) => (p === 0 ? 'Player 1' : 'Player 2')
 
+  let resumeTickMs = 0
+  let warning = ''
+
   async function openVideo() {
     error = ''
+    warning = ''
     try {
-      const url = await api().OpenVideoDialog()
-      if (url) {
+      const res = await api().OpenVideoDialog()
+      if (res) {
         // Cache-bust so a newly picked file replaces the old <video> source.
-        videoUrl = url + '?t=' + Date.now()
-        moves = []
+        videoUrl = res.videoUrl + '?t=' + Date.now()
+        moves = res.moves ?? []
         candidates = []
         firstDigit = null
-        onRoll = await api().OnRoll()
+        onRoll = res.onRoll
+        warning = res.warning ?? ''
+        resumeTickMs = res.lastTickMs ?? 0
       }
     } catch (e) {
       error = String(e)
     }
+  }
+
+  // Resume exactly where the user left off (session-format-spec §1).
+  function onVideoReady() {
+    if (videoEl && resumeTickMs > 0) {
+      videoEl.currentTime = resumeTickMs / 1000
+      resumeTickMs = 0
+    }
+  }
+
+  // Persist the last-worked position whenever playback pauses.
+  function onVideoPause() {
+    if (videoEl) api().SetVideoPos(Math.round(videoEl.currentTime * 1000))
   }
 
   async function enterDice(d1, d2) {
@@ -122,13 +141,22 @@
   <section class="video-zone">
     {#if videoUrl}
       <!-- svelte-ignore a11y-media-has-caption -->
-      <video bind:this={videoEl} src={videoUrl} controls></video>
+      <video
+        bind:this={videoEl}
+        src={videoUrl}
+        controls
+        on:loadedmetadata={onVideoReady}
+        on:pause={onVideoPause}
+      ></video>
     {:else}
       <button class="open" on:click={openVideo}>Open match video…</button>
     {/if}
   </section>
 
   <aside class="entry-zone">
+    {#if warning}
+      <p class="warning">{warning}</p>
+    {/if}
     <div class="turn">
       On roll: <strong>{playerName(onRoll)}</strong>
       <span class="hint">(p to switch)</span>
@@ -240,4 +268,11 @@
   .dice-lbl { color: #a5b4fc; }
   .tick { margin-left: auto; color: #666; }
   .error { color: #f87171; }
+  .warning {
+    color: #fbbf24;
+    background: #78350f33;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
 </style>
