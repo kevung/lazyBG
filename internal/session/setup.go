@@ -16,6 +16,9 @@ type Setup struct {
 	Priors  corpus.Priors `json:"priors"`
 	// Corners are the 4 board corners in frame coordinates (TL,TR,BR,BL).
 	Corners [][2]float64 `json:"corners"`
+	// VideoURL is the capture's canonical source (e.g. the YouTube URL) —
+	// the portability half of the video reference (session-format-spec §1).
+	VideoURL string `json:"videoUrl"`
 }
 
 // SaveSetup stores the setup (initial or correction) and applies the match
@@ -36,6 +39,9 @@ func (s *Service) SaveSetup(setup Setup) error {
 		}
 		s.doc.Parts[0].Priors = setup.Priors
 		s.doc.Parts[0].Calibration.Corners = setup.Corners
+		if setup.VideoURL != "" {
+			s.doc.Parts[0].URL = setup.VideoURL
+		}
 		if err := s.save(); err != nil {
 			return fmt.Errorf("autosave: %w", err)
 		}
@@ -51,6 +57,7 @@ func (s *Service) GetSetup() Setup {
 	if s.doc != nil && len(s.doc.Parts) > 0 {
 		out.Priors = s.doc.Parts[0].Priors
 		out.Corners = s.doc.Parts[0].Calibration.Corners
+		out.VideoURL = s.doc.Parts[0].URL
 	}
 	return out
 }

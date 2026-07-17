@@ -193,37 +193,7 @@ func (s *Service) Confirm(index, tickMs int) (PlyView, error) {
 		Tick:       tickMs,
 		Confidence: 0,
 	}
-	g := &s.match.Games[len(s.match.Games)-1]
-	g.Plies = append(g.Plies, ply)
-	s.board = rm.mv.Result
-	s.onRoll = otherPlayer(p.player)
-	s.pending = nil
-	s.obs = nil // the observation belonged to this turn
-
-	// Autosave: every confirmed decision is persisted immediately, with its
-	// full candidate traceability (functional-spec §3, session-format-spec §3).
-	if s.doc != nil {
-		cands := make([]LBGCandidate, len(p.cands))
-		for i, c := range p.cands {
-			cands[i] = LBGCandidate{Notation: c.mv.Notation, Equity: c.mv.Equity, Score: c.score}
-		}
-		s.doc.Turns = append(s.doc.Turns, LBGTurn{
-			Game:        g.Number,
-			Player:      int(ply.Player),
-			Dice:        [2]int{p.dice[0], p.dice[1]},
-			Notation:    ply.Notation,
-			Part:        0,
-			TickMs:      tickMs,
-			Candidates:  cands,
-			ChosenIndex: index,
-			Cues:        p.cues,
-		})
-		s.doc.LastTickMs = tickMs
-		if err := s.save(); err != nil {
-			return PlyView{}, fmt.Errorf("autosave: %w", err)
-		}
-	}
-	return plyView(len(g.Plies)-1, g.Number, ply), nil
+	return s.applyPlyLocked(ply, rm.mv.Result, index, tickMs)
 }
 
 // Moves returns the move-list projection of every recorded ply, in order.

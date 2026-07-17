@@ -171,9 +171,8 @@ func (s *Service) ReviewItems() []ReviewItemView {
 	return out
 }
 
-// turnCount is the total recorded plies across games (callers hold no lock —
-// it takes none; only use where racing is impossible or the lock is held...
-// callers in this file hold the pattern: Confirm released the lock first).
+// turnCount is the total recorded plies across games. It takes no lock:
+// callers must hold s.mu.
 func (s *Service) turnCount() int {
 	n := 0
 	for _, g := range s.match.Games {

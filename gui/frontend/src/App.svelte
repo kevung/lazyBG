@@ -136,6 +136,21 @@
   async function submitOverride() {
     error = ''
     try {
+      if (selectedSeq >= 0 && editRoll) {
+        // Edit-mode escape hatch (ADR-0001): free-entry correction of a past
+        // turn — ReplaceTurn is physics-checked only, never legality-gated.
+        await api().ReplaceTurn(selectedSeq, editRoll[0], editRoll[1], overrideText.trim())
+        moves = await api().Moves()
+        overrideOpen = false
+        overrideText = ''
+        candidates = []
+        firstDigit = null
+        editRoll = null
+        refreshReview()
+        refreshBoard()
+        onRoll = await api().OnRoll()
+        return
+      }
       const ply = await api().Override(overrideText.trim(), nowTickMs())
       moves = [...moves, ply]
       candidates = []

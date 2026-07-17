@@ -16,6 +16,7 @@
   let checkerA = '#e7e0d5'
   let checkerB = '#31221c'
   let corners = [] // [[x,y] in video pixel coords]
+  let videoUrl = ''
   let canvas
   let error = ''
 
@@ -30,6 +31,7 @@
         checkerB = initial.priors.checkerB || checkerB
       }
       corners = (initial.corners ?? []).map((c) => [...c])
+      videoUrl = initial.videoUrl || ''
     }
     drawFrame()
   })
@@ -69,6 +71,7 @@
     }
     dispatch('save', {
       players,
+      videoUrl,
       priors: {
         clock,
         matchLength: Number(matchLength),
@@ -105,6 +108,9 @@
         Checker colors
         <input type="color" bind:value={checkerA} title="Player 1" />
         <input type="color" bind:value={checkerB} title="Player 2" />
+      </label>
+      <label class="wide">Video URL (source, e.g. YouTube — keeps shared sessions portable)
+        <input bind:value={videoUrl} placeholder="https://…" />
       </label>
     </div>
 
@@ -151,6 +157,7 @@
     gap: 0.6rem 1rem;
     margin: 0.75rem 0;
   }
+  .wide { grid-column: 1 / -1; }
   label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: #d4d4d8; }
   label.row { flex-direction: row; align-items: center; gap: 0.5rem; }
   input, select {

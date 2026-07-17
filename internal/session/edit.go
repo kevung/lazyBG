@@ -83,9 +83,12 @@ func (s *Service) ReplaceTurn(seq, d1, d2 int, notation string) error {
 		t.Dice = [2]int{d1, d2}
 		t.Notation = notation
 		t.CannotMove = notation == ""
-		t.Candidates = nil
+		// Keep the candidate list as it was originally shown — "what the
+		// algorithm thought, and where the human disagreed" is the training
+		// payoff (session-format-spec §3). ChosenIndex -1 = corrected away
+		// from that list; the human-edit cue records the correction.
 		t.ChosenIndex = -1
-		t.Cues = []string{"human-edit"}
+		t.Cues = append(t.Cues, "human-edit")
 	}
 	return s.recomputeAndFlagLocked(gi, seq)
 }
