@@ -186,7 +186,12 @@ docs/             Design docs (see §7 for the size rule).
   experiment-plan.md  Corpus, labeling & evaluation plan.
 cmd/lazybg/       CLI: transcribe / eval / align / demo.
 internal/         The pipeline (bg, engine, capture, calibrate, perceive/*, boarddiff,
-                  fusion, gate, pipeline, transcribe, align, corpus, eval, mat import/export).
+                  fusion, gate, pipeline, transcribe, align, corpus, eval, mat import/export)
+                  + session (the Wails-agnostic transcription session service, ADR-0003).
+gui/              The Wails v2 + Svelte desktop app (ADR-0002): main.go/app.go behind the
+                  `desktop` build tag (the wails CLI adds it; plain `go build ./...` compiles
+                  a stub, so machines without webkit2gtk stay green), frontend/ (Svelte+Vite).
+                  Build: `cd gui && wails build` (needs webkit2gtk + the wails CLI).
 corpus/manifest/  Committed Recording manifests (calibration, priors, spans, aligned ticks).
                   Everything else under corpus/ (videos, crops) is gitignored, machine-local.
 ml/               Dev-time Python model training (→ ONNX); .venv/ and out/ are gitignored.
@@ -195,7 +200,8 @@ tools/xg2mat/     Standalone .xg → .mat converter (own module, vendored deps).
 CLAUDE.md         This file.
 LICENSE           MIT, © Kévin Unger — covers lazyBG's own source.
 NOTICE.md         Provenance + terms of bundled third-party work (gnubg engine port, data/).
-go.mod / go.sum   Module `lazybg`. Currently zero external dependencies.
+go.mod / go.sum   Module `lazybg`. Engine + pipeline remain stdlib-only; the only external
+                  dependency is the Wails v2 runtime for gui/ (ADR-0002).
 ```
 
 ---
