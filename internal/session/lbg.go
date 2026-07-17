@@ -32,13 +32,21 @@ type LBG struct {
 	Length  int       `json:"matchLength,omitempty"`
 	Players [2]string `json:"players"`
 
-	Parts  []LBGPart   `json:"parts"`
-	Turns  []LBGTurn   `json:"turns"`
-	Review []LBGReview `json:"review,omitempty"`
+	Parts   []LBGPart   `json:"parts"`
+	Turns   []LBGTurn   `json:"turns"`
+	Review  []LBGReview `json:"review,omitempty"`
+	Results []LBGResult `json:"results,omitempty"`
 
 	// Resume state.
 	LastPart   int `json:"lastPart"`
 	LastTickMs int `json:"lastTickMs"`
+}
+
+// LBGResult is one closed game's confirmed result.
+type LBGResult struct {
+	Game   int `json:"game"`
+	Winner int `json:"winner"`
+	Points int `json:"points"`
 }
 
 // LBGReview is one review-queue entry: a turn flagged for a second pass —
@@ -169,10 +177,34 @@ func Open(lbgPath string) (*Service, string, error) {
 	}
 	s.match.Length = doc.Length
 
+	resultOf := make(map[int]LBGResult, len(doc.Results))
+	for _, r := range doc.Results {
+		resultOf[r.Game] = r
+	}
+	openGame := func(n int) {
+		// Close the previous game with its stored result and start game n on
+		// a fresh board (the multi-game replay path).
+		g := &s.match.Games[len(s.match.Games)-1]
+		if r, ok := resultOf[g.Number]; ok && g.Result == nil {
+			g.Result = &bg.GameResult{Winner: bg.Player(r.Winner), Points: r.Points}
+		}
+		score := g.StartScore
+		if g.Result != nil {
+			score[g.Result.Winner] += g.Result.Points
+		}
+		s.match.Games = append(s.match.Games, bg.Game{Number: n, StartScore: score})
+		s.board = bg.StandardStart()
+		s.cube = cubeState{value: 1}
+		s.onRoll = bg.P1
+	}
+
 	// Replay the recorded turns to rebuild board + alternation. A Cannot
 	// Move (or empty override) leaves the board as-is; cube actions rebuild
 	// the cube state.
 	for i, t := range doc.Turns {
+		for t.Game > s.match.Games[len(s.match.Games)-1].Number {
+			openGame(s.match.Games[len(s.match.Games)-1].Number + 1)
+		}
 		if t.Cube != "" {
 			s.applyCubeReplay(t.Cube, bg.Player(t.Player))
 			g := &s.match.Games[len(s.match.Games)-1]
@@ -202,6 +234,11 @@ func Open(lbgPath string) (*Service, string, error) {
 			Tick:       t.TickMs,
 			Confidence: 0,
 		})
+	}
+	if g := &s.match.Games[len(s.match.Games)-1]; g.Result == nil {
+		if r, ok := resultOf[g.Number]; ok {
+			g.Result = &bg.GameResult{Winner: bg.Player(r.Winner), Points: r.Points}
+		}
 	}
 	s.reviews = append([]LBGReview(nil), doc.Review...)
 

@@ -126,6 +126,9 @@ func (s *Service) enterDiceLocked(d1, d2 int) ([]Candidate, error) {
 	if s.cube.pending {
 		return nil, fmt.Errorf("a cube decision is pending — take or drop first")
 	}
+	if s.detectGameEndLocked() != nil {
+		return nil, fmt.Errorf("the game is over — confirm the result first")
+	}
 	if d1 < 1 || d1 > 6 || d2 < 1 || d2 > 6 {
 		return nil, fmt.Errorf("dice out of range: %d-%d", d1, d2)
 	}

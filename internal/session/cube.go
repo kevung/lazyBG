@@ -52,6 +52,9 @@ func (s *Service) EnterCube(action string, tickMs int) (PlyView, error) {
 	if s.cube.value == 0 {
 		s.cube.value = 1
 	}
+	if s.detectGameEndLocked() != nil {
+		return PlyView{}, fmt.Errorf("the game is over — confirm the result first")
+	}
 	ply := bg.Ply{Player: s.onRoll, Tick: tickMs}
 	switch action {
 	case "double":

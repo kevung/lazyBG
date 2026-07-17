@@ -75,6 +75,7 @@
         moves = [...moves, res.ply]
         candidates = []
         onRoll = await api().OnRoll()
+        checkGameEnd()
       } else {
         candidates = res.candidates ?? []
         highlight = 0
@@ -98,6 +99,7 @@
       firstDigit = null
       onRoll = await api().OnRoll()
       if (flagUncertain) refreshReview()
+      checkGameEnd()
     } catch (e) {
       error = String(e)
     }
@@ -113,6 +115,7 @@
       overrideOpen = false
       overrideText = ''
       onRoll = await api().OnRoll()
+      checkGameEnd()
     } catch (e) {
       error = String(e)
     }
@@ -120,6 +123,35 @@
 
   let cubeOptions = []
   let cubeHighlight = 0
+  let gameEnd = null // pending GameEndProposal
+  let endWinner = 0
+  let endPoints = 1
+  let matchOver = false
+  let score = [0, 0]
+
+  async function checkGameEnd() {
+    try {
+      gameEnd = await api().PendingGameEnd()
+      if (gameEnd) {
+        endWinner = gameEnd.winner
+        endPoints = gameEnd.points
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  async function confirmGameEnd() {
+    error = ''
+    try {
+      const res = await api().ConfirmGameEnd(Number(endWinner), Number(endPoints))
+      gameEnd = null
+      score = res.score
+      matchOver = res.matchOver
+      moves = await api().Moves()
+      onRoll = await api().OnRoll()
+    } catch (e) {
+      error = String(e)
+    }
+  }
 
   async function openCubeMenu() {
     error = ''
@@ -142,6 +174,7 @@
       candidates = []
       firstDigit = null
       onRoll = await api().OnRoll()
+      checkGameEnd()
     } catch (e) {
       error = String(e)
     }
@@ -263,6 +296,7 @@
       <p class="warning">{warning}</p>
     {/if}
     <div class="turn">
+      <span class="score">{score[0]}–{score[1]}</span>
       On roll: <strong>{playerName(onRoll)}</strong>
       <span class="hint">(p to switch)</span>
       {#if reviewCount > 0}
@@ -285,6 +319,28 @@
             e.stopPropagation()
           }}
         />
+      </div>
+    {/if}
+
+    {#if matchOver}
+      <p class="matchover">Match over — {score[0]}:{score[1]}. Export arrives with the projections ticket.</p>
+    {/if}
+
+    {#if gameEnd}
+      <div class="gameend">
+        <strong>Game over</strong> ({gameEnd.reason}{gameEnd.backgammon ? ', backgammon' : gameEnd.gammon ? ', gammon' : ''})
+        <label>
+          Winner:
+          <select bind:value={endWinner}>
+            <option value={0}>{playerName(0)}</option>
+            <option value={1}>{playerName(1)}</option>
+          </select>
+        </label>
+        <label>
+          Points:
+          <input type="number" min="1" bind:value={endPoints} />
+        </label>
+        <button on:click={confirmGameEnd}>Confirm result</button>
       </div>
     {/if}
 
@@ -427,6 +483,39 @@
     flex-direction: column;
     gap: 0.25rem;
     font-size: 0.85rem;
+  }
+  .gameend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: #14532d33;
+    border: 1px solid #16a34a55;
+    border-radius: 6px;
+    padding: 0.6rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+  }
+  .gameend select, .gameend input {
+    margin-left: 0.4rem;
+    background: #27272a;
+    border: 1px solid #52525b;
+    color: #e4e4e7;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    width: 8rem;
+  }
+  .gameend button {
+    align-self: flex-start;
+    cursor: pointer;
+  }
+  .matchover {
+    color: #4ade80;
+    font-weight: 600;
+  }
+  .score {
+    margin-right: 0.6rem;
+    color: #a5b4fc;
+    font-variant-numeric: tabular-nums;
   }
   .override input {
     padding: 0.35rem 0.5rem;
