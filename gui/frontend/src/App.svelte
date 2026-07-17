@@ -154,12 +154,59 @@
   }
 
   // Select a past turn: video jumps to its tick, the board panel shows the
-  // reconstructed position after it. Selection only — editing is issue #20.
+  // reconstructed position after it, and typing dice re-opens the same
+  // entry flow at that turn (edit mode, ux-spec §4).
   function selectTurn(seq) {
     selectedSeq = seq
+    candidates = []
+    firstDigit = null
     const m = moves[seq]
     if (m && videoEl) videoEl.currentTime = m.tickMs / 1000
     refreshBoard()
+  }
+
+  async function editDice(d1, d2) {
+    error = ''
+    try {
+      candidates = await api().CandidatesFor(selectedSeq, d1, d2)
+      highlight = 0
+      editRoll = [d1, d2]
+    } catch (e) {
+      error = String(e)
+      candidates = []
+    }
+  }
+
+  let editRoll = null
+
+  async function confirmEdit(notation) {
+    error = ''
+    try {
+      await api().ReplaceTurn(selectedSeq, editRoll[0], editRoll[1], notation)
+      moves = await api().Moves()
+      candidates = []
+      firstDigit = null
+      editRoll = null
+      refreshReview() // a cascade may have flagged downstream turns
+      refreshBoard()
+      onRoll = await api().OnRoll()
+    } catch (e) {
+      error = String(e)
+    }
+  }
+
+  async function deleteSelected() {
+    if (selectedSeq < 0) return
+    error = ''
+    try {
+      await api().DeleteTurn(selectedSeq)
+      moves = await api().Moves()
+      refreshReview()
+      backToLive()
+      onRoll = await api().OnRoll()
+    } catch (e) {
+      error = String(e)
+    }
   }
 
   function backToLive() {
@@ -267,15 +314,23 @@
       return
     }
     if (e.key >= '1' && e.key <= '6') {
-      if (selectedSeq >= 0) backToLive()
       const d = Number(e.key)
       if (firstDigit === null) {
         firstDigit = d
       } else {
         const d1 = firstDigit
         firstDigit = null
-        enterDice(d1, d)
+        if (selectedSeq >= 0) {
+          editDice(d1, d) // edit mode: same flow, at the selected turn
+        } else {
+          enterDice(d1, d)
+        }
       }
+      e.preventDefault()
+      return
+    }
+    if ((e.key === 'Delete' || e.key === 'x') && selectedSeq >= 0 && !candidates.length) {
+      deleteSelected()
       e.preventDefault()
       return
     }
@@ -313,14 +368,19 @@
         break
       case ' ':
       case 'Enter':
-        // Shift+Space = confirm AND flag uncertain (ux-spec §2).
-        confirmHighlight(e.shiftKey)
+        if (selectedSeq >= 0 && editRoll && candidates.length) {
+          confirmEdit(candidates[highlight].notation)
+        } else {
+          // Shift+Space = confirm AND flag uncertain (ux-spec §2).
+          confirmHighlight(e.shiftKey)
+        }
         e.preventDefault()
         break
       case 'Escape':
         firstDigit = null
         candidates = []
         overrideOpen = false
+        if (selectedSeq >= 0) backToLive()
         e.preventDefault()
         break
       case 'p':
@@ -444,6 +504,13 @@
           </li>
         {/each}
       </ol>
+    {/if}
+
+    {#if selectedSeq >= 0}
+      <p class="editing">
+        Editing turn {selectedSeq + 1} — type new dice, pick, Space applies.
+        Delete/x removes the turn. Esc returns to live.
+      </p>
     {/if}
 
     <div class="dice">
@@ -664,6 +731,13 @@
     margin-right: 0.6rem;
     color: #a5b4fc;
     font-variant-numeric: tabular-nums;
+  }
+  .editing {
+    color: #f0abfc;
+    background: #701a7533;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
   }
   .override input {
     padding: 0.35rem 0.5rem;
