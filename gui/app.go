@@ -141,6 +141,22 @@ func (a *App) BoardAt(seq int) (bg.Board, error) {
 	return a.svc.BoardAt(seq)
 }
 
+// CandidatesFor re-opens the entry flow at a past turn (edit mode).
+func (a *App) CandidatesFor(seq, d1, d2 int) ([]session.Candidate, error) {
+	return a.svc.CandidatesFor(seq, d1, d2)
+}
+
+// ReplaceTurn edits a recorded turn; downstream turns re-validate and any
+// now-illegal ones join the review queue (never deleted).
+func (a *App) ReplaceTurn(seq, d1, d2 int, notation string) error {
+	return a.svc.ReplaceTurn(seq, d1, d2, notation)
+}
+
+// DeleteTurn removes a recorded turn and re-validates the chain.
+func (a *App) DeleteTurn(seq int) error {
+	return a.svc.DeleteTurn(seq)
+}
+
 // PendingGameEnd returns the detected (unconfirmed) game end, or nil.
 func (a *App) PendingGameEnd() *session.GameEndProposal {
 	return a.svc.PendingGameEnd()
