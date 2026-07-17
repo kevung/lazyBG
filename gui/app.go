@@ -14,6 +14,7 @@ import (
 
 	lazybg "lazybg"
 	"lazybg/internal/bg"
+	"lazybg/internal/mediaserver"
 	"lazybg/internal/perceive/pointnet"
 	"lazybg/internal/session"
 )
@@ -31,11 +32,20 @@ type App struct {
 	// wired into each on open so the board-diff cue re-weights candidates
 	// (issue #23). Nil when the model fails to load — sessions run equity-only.
 	reader session.BoardReader
+
+	// media serves the open video to the webview's <video> over a dedicated
+	// loopback server (ADR-0004). Nil only if the loopback bind failed.
+	media *mediaserver.Server
 }
 
 func NewApp() *App {
 	a := &App{svc: session.New(), reader: loadBoardReader()}
 	a.svc.EnableVideoObservation(a.reader)
+	ms, err := mediaserver.New()
+	if err != nil {
+		log.Printf("media server unavailable: %v (video playback disabled)", err)
+	}
+	a.media = ms
 	return a
 }
 
@@ -61,10 +71,13 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-func (a *App) currentVideoPath() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.videoPath
+// mediaURL is the absolute loopback URL the <video> element points at, or ""
+// if the media server failed to start.
+func (a *App) mediaURL() string {
+	if a.media == nil {
+		return ""
+	}
+	return a.media.MediaURL()
 }
 
 // service returns the current session under the lock: OpenVideoDialog swaps
@@ -126,9 +139,12 @@ func (a *App) OpenVideoDialog() (*OpenResult, error) {
 	a.videoPath = path
 	a.svc = svc
 	a.mu.Unlock()
+	if a.media != nil {
+		a.media.SetPath(path)
+	}
 
 	return &OpenResult{
-		VideoURL:   "/media/current",
+		VideoURL:   a.mediaURL(),
 		LBGPath:    lbgPath,
 		Resumed:    resumed,
 		Moves:      svc.Moves(),

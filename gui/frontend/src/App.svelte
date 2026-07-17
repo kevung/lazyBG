@@ -498,6 +498,7 @@
         <video
           bind:this={videoEl}
           src={videoUrl}
+          crossorigin="anonymous"
           controls
           on:loadedmetadata={onVideoReady}
           on:pause={onVideoPause}
