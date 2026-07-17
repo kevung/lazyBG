@@ -51,6 +51,11 @@ type Service struct {
 	board   bg.Board
 	onRoll  bg.Player
 	pending *pendingTurn
+
+	// Persistence (nil/empty for pure in-memory sessions): the .lbg document
+	// this session autosaves to after every confirmed decision.
+	lbgPath string
+	doc     *LBG
 }
 
 // New starts a fresh session on a standard board. Session Priors and
@@ -152,6 +157,30 @@ func (s *Service) Confirm(index, tickMs int) (PlyView, error) {
 	s.board = mv.Result
 	s.onRoll = otherPlayer(p.player)
 	s.pending = nil
+
+	// Autosave: every confirmed decision is persisted immediately, with its
+	// full candidate traceability (functional-spec §3, session-format-spec §3).
+	if s.doc != nil {
+		cands := make([]LBGCandidate, len(p.cands))
+		for i, c := range p.cands {
+			cands[i] = LBGCandidate{Notation: c.Notation, Equity: c.Equity, Score: c.Equity}
+		}
+		s.doc.Turns = append(s.doc.Turns, LBGTurn{
+			Game:        g.Number,
+			Player:      int(ply.Player),
+			Dice:        [2]int{p.dice[0], p.dice[1]},
+			Notation:    ply.Notation,
+			Part:        0,
+			TickMs:      tickMs,
+			Candidates:  cands,
+			ChosenIndex: index,
+			Cues:        []string{"engine-equity"},
+		})
+		s.doc.LastTickMs = tickMs
+		if err := s.save(); err != nil {
+			return PlyView{}, fmt.Errorf("autosave: %w", err)
+		}
+	}
 	return plyView(len(g.Plies)-1, g.Number, ply), nil
 }
 
