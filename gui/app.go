@@ -130,6 +130,16 @@ func (a *App) ReviewItems() []session.ReviewItemView {
 	return a.svc.ReviewItems()
 }
 
+// CubeActions returns the cube actions available to the player on roll.
+func (a *App) CubeActions() []string {
+	return a.svc.CubeActions()
+}
+
+// EnterCube records a cube action (double/take/drop) at the video tick.
+func (a *App) EnterCube(action string, tickMs int) (session.PlyView, error) {
+	return a.svc.EnterCube(action, tickMs)
+}
+
 // SetTurnPlayer declares who the pending turn belongs to (0 or 1).
 func (a *App) SetTurnPlayer(player int) error {
 	return a.svc.SetTurnPlayer(player)
