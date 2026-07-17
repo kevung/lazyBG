@@ -105,10 +105,34 @@ startcrops -manifest rawvid/r8_KabodiKaraca.manifest.json \
   -board "A:1=5,12=2,18=5,20=3 B:13=2,24=5,5=3,7=5"
 ```
 
+## Resolved capture: `rawvid_r5_KaracaCiortan` (Ibrahim Karaca v Radu Ciortan, r5)
+
+Family: **orange/black points on cream felt**, cream (CheckerA `#ececec`) +
+navy checkers (a second SBGF orange-ish board, distinct camera from Roos).
+
+- **Corners** (unchanged from the blind manifest): `[[285,25],[722,25],[724,435],[283,437]]`.
+  colprofile: bar center 405 (canonical 396) — ~9 px right, left half slightly
+  wider; every checker crop still captured cleanly. Acceptable; nudge later if a
+  retrain wants it tighter.
+- **Orientation**: **horizontal mirror** (same as Roos), **CheckerA = white = P1**.
+  Verified start layout (canonical points):
+  - White (A): `13=2, 24=5, 5=3, 7=5`
+  - Dark  (B): `1=5, 12=2, 18=5, 20=3`
+- **Pristine window**: ~22–28 s (abs). Two dice rest in the bar/on felt; hands
+  reach in for the first move ~30 s. Ticks 22/24/26 s are clean.
+- Extracted 3 frames × 24 = 72 crops (24 checker crops in the new family).
+
+Command:
+
+```
+startcrops -manifest rawvid/r5_KaracaCiortan.manifest.json \
+  -out corpus/crops-rawvid/rawvid_r5_KaracaCiortan -ticks 21000,23000,25000 \
+  -board "A:13=2,24=5,5=3,7=5 B:1=5,12=2,18=5,20=3"
+```
+
 ## Remaining rawvid captures (to calibrate the same way)
 
-`r5_KaracaCiortan`, `r8_BynellMoulton`, `r7_MoultonKandirali` — three more new
-boards (grey w/ red checkers, wood w/ yellow checkers, …). Each needs its own
+`r8_BynellMoulton`, `r7_MoultonKandirali` — two more new boards. Each needs its own
 corner-tune + symmetry + pristine-window pass. Their `spanBegin` in the blind
 manifests are *not* the pristine start (installation / setup hands).
 
