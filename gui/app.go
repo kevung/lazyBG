@@ -11,6 +11,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"lazybg/internal/bg"
 	"lazybg/internal/session"
 )
 
@@ -128,6 +129,16 @@ func (a *App) Override(notation string, tickMs int) (session.PlyView, error) {
 // ReviewItems returns the open review-queue entries.
 func (a *App) ReviewItems() []session.ReviewItemView {
 	return a.svc.ReviewItems()
+}
+
+// BoardState returns the current reconstructed board.
+func (a *App) BoardState() bg.Board {
+	return a.svc.Board()
+}
+
+// BoardAt returns the reconstructed board after the ply at seq (-1 = start).
+func (a *App) BoardAt(seq int) (bg.Board, error) {
+	return a.svc.BoardAt(seq)
 }
 
 // PendingGameEnd returns the detected (unconfirmed) game end, or nil.
