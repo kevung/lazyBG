@@ -130,11 +130,63 @@ startcrops -manifest rawvid/r5_KaracaCiortan.manifest.json \
   -board "A:13=2,24=5,5=3,7=5 B:1=5,12=2,18=5,20=3"
 ```
 
-## Remaining rawvid captures (to calibrate the same way)
+## Resolved capture: `rawvid_r8_BynellMoulton` (Johan Bynell v Miranda Moulton, r8)
 
-`r8_BynellMoulton`, `r7_MoultonKandirali` — two more new boards. Each needs its own
-corner-tune + symmetry + pristine-window pass. Their `spanBegin` in the blind
-manifests are *not* the pristine start (installation / setup hands).
+Family: **grey felt, black/white points**, cream (CheckerA `#f0f0f0`) + **red**
+(`#b03050`) checkers.
+
+- **Corners** (unchanged): `[[272,28],[728,28],[730,412],[270,414]]`. colprofile:
+  bar center 385 (canonical 386), halves 223/233 — well balanced.
+- **Orientation**: **180°**, **CheckerA = cream = P1**:
+  - Cream (A): `1=5, 12=2, 18=5, 20=3`
+  - Red  (B): `13=2, 24=5, 5=3, 7=5`
+- **Pristine window**: ~28–34 s (abs), dice resting on felt, no hands.
+- 4 frames × 24 = 96 crops (32 checker crops).
+
+```
+startcrops -manifest rawvid/r8_BynellMoulton.manifest.json \
+  -out corpus/crops-rawvid/rawvid_r8_BynellMoulton -ticks 27000,29000,31000,33000 \
+  -board "A:1=5,12=2,18=5,20=3 B:13=2,24=5,5=3,7=5"
+```
+
+## Resolved capture: `rawvid_r7_MoultonKandirali` (Paul Moulton v Taner Kandirali, r7)
+
+Family: **wooden board** (tan/brown), **yellow** (CheckerA `#e8c832`) + navy
+(`#1a2030`) checkers. Low contrast — `colprofile`'s luma auto-detect fails here
+(wood felt ≈ triangle luma); corners were tuned by eye with `gridoverlay`.
+
+- **Corners** (re-tuned, right edge extended to un-clip the tray):
+  `[[286,48],[735,46],[731,461],[288,462]]`.
+- **Orientation**: **180°**, **CheckerA = yellow = P1**:
+  - Yellow (A): `1=5, 12=2, 18=5, 20=3`
+  - Navy  (B): `13=2, 24=5, 5=3, 7=5`
+- **Pristine window**: wide — the opening is held static and hands-free from ~13 s
+  to ~40 s. 4 frames × 24 = 96 crops (32 checker crops).
+- **Caveat**: calibration isn't pixel-perfect on the low-contrast wood; a few
+  *empty* crops adjacent to tall stacks (p19/p23/p2) carry a sliver of neighbour
+  checker. The **occupied** checker crops are clean. Tighten the corners before a
+  final retrain if the empties prove noisy.
+
+```
+startcrops -manifest rawvid/r7_MoultonKandirali.manifest.json \
+  -out corpus/crops-rawvid/rawvid_r7_MoultonKandirali -ticks 14000,19000,24000,29000 \
+  -board "A:1=5,12=2,18=5,20=3 B:13=2,24=5,5=3,7=5"
+```
+
+## Status: all 5 rawvid families calibrated
+
+| capture | family | orient. | CheckerA | crops |
+|---|---|---|---|---|
+| RoosBucur | white-on-beige, orange pts | h-mirror | white | 120 |
+| KabodiKaraca | blue/yellow on grey | 180° | cream | 72 |
+| KaracaCiortan | orange/black on cream | h-mirror | white | 72 |
+| BynellMoulton | grey, cream + red | 180° | cream | 96 |
+| MoultonKandirali | wood, yellow + navy | 180° | yellow | 96 |
+
+~456 crops total, ~152 of them checker crops across 5 genuinely new board families.
+Next: retrain `train_pointreader.py` over `corpus/crops/*` + `corpus/crops-rawvid/*`
+(held out by recording; consider oversampling the new families), export LZPN1, and
+re-run a blind transcription per family to measure the lift.
 
 **Method note learned across Roos + Kabodi:** the pristine window is bracketed by
 (a) setup hands withdrawing and (b) the first-move hand reaching in — often only a
