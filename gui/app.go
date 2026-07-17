@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	lazybg "lazybg"
 	"lazybg/internal/bg"
+	"lazybg/internal/perceive/pointnet"
 	"lazybg/internal/session"
 )
 
@@ -23,10 +26,35 @@ type App struct {
 	mu        sync.Mutex
 	videoPath string
 	svc       *session.Service
+
+	// reader is the embedded learned board reader, shared across sessions and
+	// wired into each on open so the board-diff cue re-weights candidates
+	// (issue #23). Nil when the model fails to load — sessions run equity-only.
+	reader session.BoardReader
 }
 
 func NewApp() *App {
-	return &App{svc: session.New()}
+	a := &App{svc: session.New(), reader: loadBoardReader()}
+	a.svc.EnableVideoObservation(a.reader)
+	return a
+}
+
+// loadBoardReader loads the embedded learned point reader. It beats the
+// classical baseline on blind reads (CLAUDE.md §2) and needs only board
+// geometry — no declared checker colors — so it is the GUI's default observer.
+// A load failure is non-fatal: the session falls back to equity-only ranking.
+func loadBoardReader() session.BoardReader {
+	raw, err := lazybg.DataFS.ReadFile("data/models/pointreader.bin")
+	if err != nil {
+		log.Printf("board reader unavailable: %v (ranking will be equity-only)", err)
+		return nil
+	}
+	net, err := pointnet.LoadBytes(raw)
+	if err != nil {
+		log.Printf("board reader unavailable: %v (ranking will be equity-only)", err)
+		return nil
+	}
+	return pointnet.Reader{Net: net}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -90,6 +118,8 @@ func (a *App) OpenVideoDialog() (*OpenResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	svc.EnableVideoObservation(a.reader)
 
 	a.mu.Lock()
 	a.videoPath = path

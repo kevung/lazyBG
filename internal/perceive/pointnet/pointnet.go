@@ -43,6 +43,14 @@ func Load(path string) (*Net, error) {
 	if err != nil {
 		return nil, err
 	}
+	return LoadBytes(raw)
+}
+
+// LoadBytes parses an LZPN1 weight blob (the same format Load reads from disk)
+// already in memory — the shipped app embeds the model and loads it this way
+// rather than from a filesystem path.
+func LoadBytes(raw []byte) (*Net, error) {
+	const path = "<embedded>"
 	if len(raw) < 9 || string(raw[:5]) != "LZPN1" {
 		return nil, fmt.Errorf("pointnet %s: not an LZPN1 weight file", path)
 	}
