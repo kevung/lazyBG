@@ -14,8 +14,6 @@ package main
 import (
 	"embed"
 	"log"
-	"net/http"
-	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -39,8 +37,7 @@ func main() {
 		Width:  1440,
 		Height: 900,
 		AssetServer: &assetserver.Options{
-			Assets:  assets,
-			Handler: app.mediaHandler(),
+			Assets: assets,
 		},
 		OnStartup: app.startup,
 		Bind:      []interface{}{app},
@@ -48,22 +45,4 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// mediaHandler serves the currently-open video file under /media/current so
-// the webview's HTML5 <video> can play and seek it (http.ServeFile handles
-// Range requests). Only paths the user explicitly picked are ever served.
-func (a *App) mediaHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/media/current") {
-			http.NotFound(w, r)
-			return
-		}
-		path := a.currentVideoPath()
-		if path == "" {
-			http.Error(w, "no video open", http.StatusNotFound)
-			return
-		}
-		http.ServeFile(w, r, path)
-	})
 }
