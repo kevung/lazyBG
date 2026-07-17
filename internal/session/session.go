@@ -13,6 +13,7 @@ import (
 
 	"lazybg/internal/bg"
 	"lazybg/internal/engine"
+	"lazybg/internal/perceive"
 )
 
 // MaxCandidates caps the ranked candidate list shown to the user
@@ -23,8 +24,9 @@ const MaxCandidates = 10
 type Candidate struct {
 	Notation string  `json:"notation"`
 	Equity   float64 `json:"equity"`
-	// Score is the fused ranking score. Until the board-diff cue contributes
-	// (ticket #15) it equals Equity.
+	// Score is the fused ranking score in [0,1] (architecture §4): the
+	// equity prior blended with the board-diff cue when an observation is
+	// available; pure normalized equity otherwise.
 	Score float64 `json:"score"`
 }
 
@@ -40,7 +42,8 @@ type PlyView struct {
 
 type pendingTurn struct {
 	dice   bg.Dice
-	cands  []engine.LegalMove
+	cands  []rankedMove
+	cues   []string
 	player bg.Player
 }
 
@@ -51,6 +54,11 @@ type Service struct {
 	board   bg.Board
 	onRoll  bg.Player
 	pending *pendingTurn
+
+	// obs is the optional post-move board observation for the pending turn
+	// (from whatever perception is available); it re-weights the candidate
+	// ranking (issue #15) and is cleared on confirm.
+	obs *perceive.ObservedBoard
 
 	// Persistence (nil/empty for pure in-memory sessions): the .lbg document
 	// this session autosaves to after every confirmed decision.
@@ -113,11 +121,28 @@ func (s *Service) enterDiceLocked(d1, d2 int) ([]Candidate, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(moves) > MaxCandidates {
-		moves = moves[:MaxCandidates]
+	// Rank ALL legal moves under the fused score before capping, so a
+	// low-equity move the pixels support can still surface (issue #15).
+	ranked, cues := rankMoves(moves, s.obs)
+	if len(ranked) > MaxCandidates {
+		ranked = ranked[:MaxCandidates]
 	}
-	s.pending = &pendingTurn{dice: bg.Dice{d1, d2}, cands: moves, player: s.onRoll}
-	return candidateViews(moves), nil
+	s.pending = &pendingTurn{dice: bg.Dice{d1, d2}, cands: ranked, cues: cues, player: s.onRoll}
+	return candidateViews(ranked), nil
+}
+
+// SetObservation supplies (or clears, with nil) the post-move board
+// observation for the pending turn. If dice are already entered the list is
+// re-ranked under the fused score.
+func (s *Service) SetObservation(obs *perceive.ObservedBoard) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.obs = obs
+	if s.pending != nil {
+		p := s.pending
+		s.pending = nil
+		_, _ = s.enterDiceLocked(p.dice[0], p.dice[1]) // same dice re-rank cannot fail
+	}
 }
 
 // Candidates re-returns the pending turn's ranked list (nil if no dice entered).
@@ -144,26 +169,27 @@ func (s *Service) Confirm(index, tickMs int) (PlyView, error) {
 	if index < 0 || index >= len(p.cands) {
 		return PlyView{}, fmt.Errorf("candidate index %d out of range (0..%d)", index, len(p.cands)-1)
 	}
-	mv := p.cands[index]
+	rm := p.cands[index]
 	ply := bg.Ply{
 		Player:     p.player,
 		Dice:       p.dice,
-		Notation:   mv.Notation,
+		Notation:   rm.mv.Notation,
 		Tick:       tickMs,
 		Confidence: 0,
 	}
 	g := &s.match.Games[len(s.match.Games)-1]
 	g.Plies = append(g.Plies, ply)
-	s.board = mv.Result
+	s.board = rm.mv.Result
 	s.onRoll = otherPlayer(p.player)
 	s.pending = nil
+	s.obs = nil // the observation belonged to this turn
 
 	// Autosave: every confirmed decision is persisted immediately, with its
 	// full candidate traceability (functional-spec §3, session-format-spec §3).
 	if s.doc != nil {
 		cands := make([]LBGCandidate, len(p.cands))
 		for i, c := range p.cands {
-			cands[i] = LBGCandidate{Notation: c.Notation, Equity: c.Equity, Score: c.Equity}
+			cands[i] = LBGCandidate{Notation: c.mv.Notation, Equity: c.mv.Equity, Score: c.score}
 		}
 		s.doc.Turns = append(s.doc.Turns, LBGTurn{
 			Game:        g.Number,
@@ -174,7 +200,7 @@ func (s *Service) Confirm(index, tickMs int) (PlyView, error) {
 			TickMs:      tickMs,
 			Candidates:  cands,
 			ChosenIndex: index,
-			Cues:        []string{"engine-equity"},
+			Cues:        p.cues,
 		})
 		s.doc.LastTickMs = tickMs
 		if err := s.save(); err != nil {
@@ -211,10 +237,10 @@ func (s *Service) OnRoll() int {
 	return int(s.onRoll)
 }
 
-func candidateViews(moves []engine.LegalMove) []Candidate {
-	out := make([]Candidate, len(moves))
-	for i, mv := range moves {
-		out[i] = Candidate{Notation: mv.Notation, Equity: mv.Equity, Score: mv.Equity}
+func candidateViews(ranked []rankedMove) []Candidate {
+	out := make([]Candidate, len(ranked))
+	for i, r := range ranked {
+		out[i] = Candidate{Notation: r.mv.Notation, Equity: r.mv.Equity, Score: r.score}
 	}
 	return out
 }
