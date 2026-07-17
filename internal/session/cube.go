@@ -112,18 +112,5 @@ func (s *Service) EnterCube(action string, tickMs int) (PlyView, error) {
 // applyCubeReplay reconstructs the live cube state from a recorded action
 // (the .lbg Open replay path).
 func (s *Service) applyCubeReplay(action string, player bg.Player) {
-	if s.cube.value == 0 {
-		s.cube.value = 1
-	}
-	switch action {
-	case "double":
-		s.cube.pending = true
-	case "take":
-		s.cube.value *= 2
-		s.cube.owner = player
-		s.cube.owned = true
-		s.cube.pending = false
-	case "drop":
-		s.cube.pending = false
-	}
+	s.applyCubeReplayState(&s.cube, bg.Ply{Cube: cubeActionOf(action), Player: player})
 }

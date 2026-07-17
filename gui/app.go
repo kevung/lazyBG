@@ -39,6 +39,14 @@ func (a *App) currentVideoPath() string {
 	return a.videoPath
 }
 
+// service returns the current session under the lock: OpenVideoDialog swaps
+// a.svc, and Wails dispatches bound calls on separate goroutines.
+func (a *App) service() *session.Service {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.svc
+}
+
 // OpenResult is what the frontend needs after opening a video: the media URL,
 // the resumed state (if a .lbg already existed next to the video), and any
 // warning (missing/substituted video fingerprint).
@@ -101,44 +109,44 @@ func (a *App) OpenVideoDialog() (*OpenResult, error) {
 
 // SetVideoPos persists the last-worked video position (resume state).
 func (a *App) SetVideoPos(tickMs int) {
-	a.svc.SetVideoPos(tickMs)
+	a.service().SetVideoPos(tickMs)
 }
 
 // EnterDice records the observed roll and returns the ranked candidates —
 // or, on a dance, the already-recorded Cannot Move ply (no candidate step).
 func (a *App) EnterDice(d1, d2, tickMs int) (session.DiceResult, error) {
-	return a.svc.EnterDiceAt(d1, d2, tickMs)
+	return a.service().EnterDiceAt(d1, d2, tickMs)
 }
 
 // Confirm applies the candidate at index, stamped with the video tick (ms).
 func (a *App) Confirm(index, tickMs int) (session.PlyView, error) {
-	return a.svc.Confirm(index, tickMs)
+	return a.service().Confirm(index, tickMs)
 }
 
 // ConfirmFlag confirms AND opens a human-flagged Review Item (Shift+Space).
 func (a *App) ConfirmFlag(index, tickMs int) (session.PlyView, error) {
-	return a.svc.ConfirmFlag(index, tickMs)
+	return a.service().ConfirmFlag(index, tickMs)
 }
 
 // Override records a free-entry move, bypassing the candidate list
 // (ADR-0001). Empty notation records a Cannot Move.
 func (a *App) Override(notation string, tickMs int) (session.PlyView, error) {
-	return a.svc.Override(notation, tickMs)
+	return a.service().Override(notation, tickMs)
 }
 
 // ReviewItems returns the open review-queue entries.
 func (a *App) ReviewItems() []session.ReviewItemView {
-	return a.svc.ReviewItems()
+	return a.service().ReviewItems()
 }
 
 // BoardState returns the current reconstructed board.
 func (a *App) BoardState() bg.Board {
-	return a.svc.Board()
+	return a.service().Board()
 }
 
 // BoardAt returns the reconstructed board after the ply at seq (-1 = start).
 func (a *App) BoardAt(seq int) (bg.Board, error) {
-	return a.svc.BoardAt(seq)
+	return a.service().BoardAt(seq)
 }
 
 // ExportDialog asks where to save the .mat and writes both projections
@@ -153,11 +161,11 @@ func (a *App) ExportDialog() ([2]string, error) {
 	if err != nil || matPath == "" {
 		return [2]string{}, err
 	}
-	if err := a.svc.ExportMat(matPath); err != nil {
+	if err := a.service().ExportMat(matPath); err != nil {
 		return [2]string{}, err
 	}
 	manPath := strings.TrimSuffix(matPath, filepath.Ext(matPath)) + ".manifest.json"
-	if err := a.svc.ExportManifest(manPath, matPath); err != nil {
+	if err := a.service().ExportManifest(manPath, matPath); err != nil {
 		return [2]string{}, err
 	}
 	return [2]string{matPath, manPath}, nil
@@ -165,76 +173,76 @@ func (a *App) ExportDialog() ([2]string, error) {
 
 // GetSetup returns the current session setup (pre-filled form).
 func (a *App) GetSetup() session.Setup {
-	return a.svc.GetSetup()
+	return a.service().GetSetup()
 }
 
 // SaveSetup stores the setup; recorded turns are never touched.
 func (a *App) SaveSetup(setup session.Setup) error {
-	return a.svc.SaveSetup(setup)
+	return a.service().SaveSetup(setup)
 }
 
 // SetupDone reports whether the blocking setup step is complete.
 func (a *App) SetupDone() bool {
-	return a.svc.SetupDone()
+	return a.service().SetupDone()
 }
 
 // CandidatesFor re-opens the entry flow at a past turn (edit mode).
 func (a *App) CandidatesFor(seq, d1, d2 int) ([]session.Candidate, error) {
-	return a.svc.CandidatesFor(seq, d1, d2)
+	return a.service().CandidatesFor(seq, d1, d2)
 }
 
 // ReplaceTurn edits a recorded turn; downstream turns re-validate and any
 // now-illegal ones join the review queue (never deleted).
 func (a *App) ReplaceTurn(seq, d1, d2 int, notation string) error {
-	return a.svc.ReplaceTurn(seq, d1, d2, notation)
+	return a.service().ReplaceTurn(seq, d1, d2, notation)
 }
 
 // DeleteTurn removes a recorded turn and re-validates the chain.
 func (a *App) DeleteTurn(seq int) error {
-	return a.svc.DeleteTurn(seq)
+	return a.service().DeleteTurn(seq)
 }
 
 // PendingGameEnd returns the detected (unconfirmed) game end, or nil.
 func (a *App) PendingGameEnd() *session.GameEndProposal {
-	return a.svc.PendingGameEnd()
+	return a.service().PendingGameEnd()
 }
 
 // ConfirmGameEnd closes the game with the (possibly corrected) result.
 func (a *App) ConfirmGameEnd(winner, points int) (session.GameEndResult, error) {
-	return a.svc.ConfirmGameEnd(winner, points)
+	return a.service().ConfirmGameEnd(winner, points)
 }
 
 // Score returns the running match score.
 func (a *App) Score() [2]int {
-	return a.svc.Score()
+	return a.service().Score()
 }
 
 // MarkReviewed resolves a turn's open Review Items without changing it.
 func (a *App) MarkReviewed(seq int) error {
-	return a.svc.MarkReviewed(seq)
+	return a.service().MarkReviewed(seq)
 }
 
 // CubeActions returns the cube actions available to the player on roll.
 func (a *App) CubeActions() []string {
-	return a.svc.CubeActions()
+	return a.service().CubeActions()
 }
 
 // EnterCube records a cube action (double/take/drop) at the video tick.
 func (a *App) EnterCube(action string, tickMs int) (session.PlyView, error) {
-	return a.svc.EnterCube(action, tickMs)
+	return a.service().EnterCube(action, tickMs)
 }
 
 // SetTurnPlayer declares who the pending turn belongs to (0 or 1).
 func (a *App) SetTurnPlayer(player int) error {
-	return a.svc.SetTurnPlayer(player)
+	return a.service().SetTurnPlayer(player)
 }
 
 // Moves returns the move list so far.
 func (a *App) Moves() []session.PlyView {
-	return a.svc.Moves()
+	return a.service().Moves()
 }
 
 // OnRoll returns the player the next turn belongs to (0 or 1).
 func (a *App) OnRoll() int {
-	return a.svc.OnRoll()
+	return a.service().OnRoll()
 }
