@@ -32,4 +32,5 @@ coverage.*
 /gui/frontend/dist/*
 !/gui/frontend/dist/.gitkeep
 /gui/frontend/wailsjs/
+/gui/frontend/package.json.md5
 /gui/build/

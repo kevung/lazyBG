@@ -189,9 +189,15 @@ internal/         The pipeline (bg, engine, capture, calibrate, perceive/*, boar
                   fusion, gate, pipeline, transcribe, align, corpus, eval, mat import/export)
                   + session (the Wails-agnostic transcription session service, ADR-0003).
 gui/              The Wails v2 + Svelte desktop app (ADR-0002): main.go/app.go behind the
-                  `desktop` build tag (the wails CLI adds it; plain `go build ./...` compiles
-                  a stub, so machines without webkit2gtk stay green), frontend/ (Svelte+Vite).
-                  Build: `cd gui && wails build` (needs webkit2gtk + the wails CLI).
+                  `lazybggui` build tag (plain `go build ./...` compiles a stub, so machines
+                  without webkit2gtk stay green), frontend/ (Svelte+Vite).
+                  Build: `cd gui && make build` (or `wails build -tags "lazybggui webkit2_41"`;
+                  needs webkit2gtk + the wails CLI). The `lazybggui` tag is lazyBG-specific
+                  and must be passed explicitly — the wails CLI does not add it. It is NOT
+                  named `desktop`: Wails reserves that name and strips it during binding
+                  generation, which would compile the stub mid-build. On Arch the `webkit2_41`
+                  tag is also required (default 4.0 lib has a broken libjxl link). Prefer the
+                  Makefile targets, which set both. `make dev` for hot reload.
 corpus/manifest/  Committed Recording manifests (calibration, priors, spans, aligned ticks).
                   Everything else under corpus/ (videos, crops) is gitignored, machine-local.
 ml/               Dev-time Python model training (→ ONNX); .venv/ and out/ are gitignored.
