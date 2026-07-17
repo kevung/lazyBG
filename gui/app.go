@@ -141,6 +141,28 @@ func (a *App) BoardAt(seq int) (bg.Board, error) {
 	return a.svc.BoardAt(seq)
 }
 
+// ExportDialog asks where to save the .mat and writes both projections
+// (.mat + .manifest.json) from the current session state. Returns the paths
+// written, or empty strings if the user cancelled.
+func (a *App) ExportDialog() ([2]string, error) {
+	matPath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "Export .mat",
+		DefaultFilename: "match.mat",
+		Filters:         []runtime.FileFilter{{DisplayName: "Jellyfish match", Pattern: "*.mat"}},
+	})
+	if err != nil || matPath == "" {
+		return [2]string{}, err
+	}
+	if err := a.svc.ExportMat(matPath); err != nil {
+		return [2]string{}, err
+	}
+	manPath := strings.TrimSuffix(matPath, filepath.Ext(matPath)) + ".manifest.json"
+	if err := a.svc.ExportManifest(manPath, matPath); err != nil {
+		return [2]string{}, err
+	}
+	return [2]string{matPath, manPath}, nil
+}
+
 // GetSetup returns the current session setup (pre-filled form).
 func (a *App) GetSetup() session.Setup {
 	return a.svc.GetSetup()
