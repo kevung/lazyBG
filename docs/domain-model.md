@@ -194,7 +194,11 @@ A queued needs-review Move Decision: the Tick (jump-to-video), the pre-ranked to
 `(dice, move)`s, the conflicting Cues, and the reason it was flagged. The human confirms a
 candidate or enters a correction; the resolved move flows back into the Transcription — and
 becomes **labeled training data** for the future learned fusion/readers. *Invariant: resolving a
-Review Item is the only way a low-confidence turn enters the final Transcription.*
+Review Item is the only way a low-confidence turn enters the final Transcription* — with one
+declared exception: a human can flag their **own** freshly-entered turn as uncertain (bad footage,
+occlusion). That Ply is applied to the Transcription immediately (it isn't "low-confidence" by the
+Gate — it's a confirmed human entry) *and* a Review Item is opened alongside it, Reason
+`human-flagged`, purely to invite a second look later. See `docs/functional-spec.md` §4.
 
 ---
 
@@ -258,14 +262,19 @@ that the Engine reads.
 ## 6. The Engine
 
 The salvaged pure-Go **gnubg** port (`gnubg/`, `CLAUDE.md` §8). Two roles, sharply distinguished:
-- **Legality = hard constraint.** Given a Position + Dice, the Engine enumerates the *legal*
-  moves. Fusion discards any Hypothesis not in this set. This is the cheapest, strongest cue and
-  it is already in hand.
+- **Legality = hard constraint — on the automatic path only.** Given a Position + Dice, the Engine
+  enumerates the *legal* moves. Fusion (reconciling pixels with physics) discards any Hypothesis
+  not in this set. This is the cheapest, strongest cue and it is already in hand. **This filter
+  does not bind human-witnessed entry**: a person directly recording what happened on video may
+  have seen a move that was actually illegal (a misplay that stood, a disputed ruling) — real
+  matches contain these, and the Transcription must still be able to record them. See ADR-0001.
 - **Move-ranking = soft prior.** The Engine scores legal moves by equity (win/gammon/backgammon
   probabilities). Strong players usually play near-top moves, so ranking is a *prior* over which
   legal move was played — **never** an override of direct visual evidence (a blunder must still be
-  transcribable). *Rule: the Engine informs Confidence; it never fabricates a move the pixels
-  contradict.*
+  transcribable), and, for human entry, never a requirement (the ranked list is the fast default
+  path; a free-entry escape hatch is always one step away, unbound by legality). *Rule: the Engine
+  informs Confidence; it never fabricates a move the pixels contradict, and never blocks a human's
+  direct report of what they saw.*
 
 Interface (existing): `gnubg.Init(fs.FS)`, then `gnubg.FindMoves(board, dice, player, scoreMoves,
 cubeful)` returns moves ranked by equity. See `analysis.go` on `legacy_v0` for the board-coordinate

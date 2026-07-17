@@ -159,8 +159,9 @@ parameterizable by Session Priors (e.g. stricter with a live cube). Pure; exhaus
 
 ### transcription — aggregate root
 Holds the growing match (Games→Turns→MoveDecisions), the Review queue, the Capture Profile and
-Board Calibration, and metadata. Applies resolved Review Items. Serializes to lazyBG's working
-format (its own concern — *not* the `.mat`).
+Board Calibration, and metadata. Applies resolved Review Items. Serializes to lazyBG's own working
+format — the `.lbg` session file, single source of truth; `.mat` and the corpus manifest are
+projections generated from it on demand (`docs/session-format-spec.md`).
 
 ### matexport — .mat (Jellyfish)
 Projects the Transcription to the Jellyfish `.mat`/`.txt` layout (metadata block, `N point
@@ -171,11 +172,12 @@ column layout, but reimplement in Go with tests.
 ### cmd/lazybg — the UI shell
 Wires the pipeline and drives the human-in-the-loop workflow: **video scrubber ↔ move list ↔
 board render ↔ review queue**, plus the one-time calibration click and the Session-Priors setup
-form. UI toolkit is **not yet locked** — leading candidate is **Wails v2** (Go + the OS's native
-webview; HTML5 `<video>` makes scrubbing trivial and it stays lightweight — no bundled Chromium),
-with a *fresh minimal* frontend (not the legacy Svelte app). Native-Go GUIs (Gio/Fyne) are the
-alternative but have weaker video playback. This choice is deliberately deferred to the
-walking-skeleton milestone, where a throwaway UI is enough.
+form. **UI toolkit locked: Wails v2** (Go + the OS's native webview; HTML5 `<video>` makes
+scrubbing trivial and it stays lightweight — no bundled Chromium) **+ a fresh Svelte frontend**
+(new code, not a reuse of the `legacy_v0` Svelte app) — ADR-0002. The Wails layer is a thin
+binding over an independent Go **session service** package (turn entry, candidate ranking,
+export) with no Wails-specific types in its API — ADR-0003 — so the same service can later be
+driven headlessly over a REST API without rearchitecting.
 
 ---
 
@@ -246,7 +248,7 @@ Only stable/commit frames are read — never every frame — which is what keeps
 | Classical CV       | **gocv** or hand-rolled Go                | avoid full OpenCV dep where cheap |
 | Learned inference  | **ONNX via `onnxruntime_go`**             | ships an ORT shared lib |
 | Video decode       | **bundled `ffmpeg`** (`ffmpeg-go` CLI)    | `go-astiav` CGO later for exact seek |
-| UI shell           | **Wails v2** (native webview) — *tentative* | fresh minimal frontend |
+| UI shell           | **Wails v2** (native webview) — locked, ADR-0002 | fresh Svelte frontend |
 | Model training     | **Python (dev-time only)** → ONNX         | + synthetic 3D rendering |
 
 **Packaging reality (survey §8–§9):** the deliverable is **not** one static file — it is a Go
@@ -283,7 +285,8 @@ at all — only Detectors need frames.
 3. **boarddiff** + **engine** seam + **fusion** (weighted) + **gate** → real Move Decisions with
    legality-constrained candidates and dice-inference.
 4. **commit** detector for real (visual ROI + audio onset) + **dice**/**cube** cues.
-5. **review UI** + Session-Priors setup + one-time calibration flow (lock the UI toolkit here).
+5. **review UI** (Wails v2 + Svelte, locked — ADR-0002) + Session-Priors setup + one-time
+   calibration flow.
 6. Robustness pass; then generalize beyond the clocked-competition vertical.
 
 ---
@@ -294,5 +297,5 @@ at all — only Detectors need frames.
   review; do not ship a lone learned reader.
 - **Dice / clock / occlusion have no prior art** → prototype-first; engine-legality makes dice
   optional; audio-onset for commit is unproven and must be measured.
-- **UI toolkit not locked** → decided at milestone 5 on real ergonomics, not up front.
+- ~~UI toolkit not locked~~ **resolved** → Wails v2 + Svelte, ADR-0002.
 - **"Single binary" is a myth** → ship a documented lightweight bundle instead.
