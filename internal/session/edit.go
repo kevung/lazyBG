@@ -76,6 +76,7 @@ func (s *Service) ReplaceTurn(seq, d1, d2 int, notation string) error {
 	ply.Dice = bg.Dice{d1, d2}
 	ply.Notation = notation
 	ply.CannotMove = notation == ""
+	s.resolveReviewsLocked(seq) // correcting the turn IS the resolution
 
 	if s.doc != nil && seq < len(s.doc.Turns) {
 		t := &s.doc.Turns[seq]

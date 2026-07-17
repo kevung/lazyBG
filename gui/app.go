@@ -187,6 +187,11 @@ func (a *App) Score() [2]int {
 	return a.svc.Score()
 }
 
+// MarkReviewed resolves a turn's open Review Items without changing it.
+func (a *App) MarkReviewed(seq int) error {
+	return a.svc.MarkReviewed(seq)
+}
+
 // CubeActions returns the cube actions available to the player on roll.
 func (a *App) CubeActions() []string {
 	return a.svc.CubeActions()

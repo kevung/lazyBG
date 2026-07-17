@@ -66,10 +66,29 @@
 
   const nowTickMs = () => (videoEl ? Math.round(videoEl.currentTime * 1000) : 0)
 
+  let reviewItems = []
+
   async function refreshReview() {
     try {
-      reviewCount = ((await api().ReviewItems()) ?? []).length
+      reviewItems = (await api().ReviewItems()) ?? []
+      reviewCount = reviewItems.length
     } catch { /* non-fatal */ }
+  }
+
+  // Selecting a review item = selecting its turn (one resolution mechanism,
+  // ux-spec §7): jump to the tick, re-open the entry flow.
+  function selectReviewItem(it) {
+    selectTurn(it.turnSeq)
+  }
+
+  async function markReviewed(it) {
+    error = ''
+    try {
+      await api().MarkReviewed(it.turnSeq)
+      refreshReview()
+    } catch (e) {
+      error = String(e)
+    }
   }
 
   async function enterDice(d1, d2) {
@@ -587,7 +606,23 @@
 
     <section class="review-zone">
       <h3>Review queue {#if reviewCount}<span class="badge">{reviewCount}</span>{/if}</h3>
-      <p class="hint">Resolution panel arrives with the review-queue ticket.</p>
+      {#if !reviewItems.length}
+        <p class="hint">Nothing to review.</p>
+      {:else}
+        <ol class="moves review-list">
+          {#each reviewItems as it}
+            <li>
+              <button class="rowbtn" on:click={() => selectReviewItem(it)}>
+                <span class="who">turn {it.turnSeq + 1}</span>
+                <span class="reason">{it.reason}</span>
+                <span class="notation">{it.notation || (it.dice ? it.dice : '')}</span>
+                <span class="tick">{(it.tickMs / 1000).toFixed(1)}s</span>
+              </button>
+              <button class="okbtn" title="looked again — it's right" on:click={() => markReviewed(it)}>✓</button>
+            </li>
+          {/each}
+        </ol>
+      {/if}
     </section>
   </aside>
 </main>
@@ -658,6 +693,23 @@
     margin-top: 1rem;
     border-top: 1px solid #333;
     padding-top: 0.5rem;
+  }
+  .review-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .reason {
+    color: #fbbf24;
+    font-size: 0.75rem;
+  }
+  .okbtn {
+    background: #14532d;
+    border: 1px solid #16a34a55;
+    color: #4ade80;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0 0.4rem;
   }
   .video-zone {
     display: flex;
