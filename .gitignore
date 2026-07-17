@@ -26,3 +26,10 @@ coverage.*
 
 # Raw unlabeled capture videos + blind-transcription proposals (machine-local)
 /rawvid/
+
+# GUI frontend (Wails v2 + Svelte) — generated artifacts
+/gui/frontend/node_modules/
+/gui/frontend/dist/*
+!/gui/frontend/dist/.gitkeep
+/gui/frontend/wailsjs/
+/gui/build/
