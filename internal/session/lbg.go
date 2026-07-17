@@ -32,12 +32,22 @@ type LBG struct {
 	Length  int       `json:"matchLength,omitempty"`
 	Players [2]string `json:"players"`
 
-	Parts []LBGPart `json:"parts"`
-	Turns []LBGTurn `json:"turns"`
+	Parts  []LBGPart   `json:"parts"`
+	Turns  []LBGTurn   `json:"turns"`
+	Review []LBGReview `json:"review,omitempty"`
 
 	// Resume state.
 	LastPart   int `json:"lastPart"`
 	LastTickMs int `json:"lastTickMs"`
+}
+
+// LBGReview is one review-queue entry: a turn flagged for a second pass —
+// by the human themselves (human-flagged) or by a cascade re-validation —
+// and whether it has been resolved (pipeline.ReviewItem's persisted form).
+type LBGReview struct {
+	TurnSeq  int    `json:"turnSeq"`
+	Reason   string `json:"reason"`
+	Resolved bool   `json:"resolved,omitempty"`
 }
 
 // LBGPart is one video file: local path (this machine), canonical URL
@@ -68,11 +78,14 @@ type LBGCandidate struct {
 
 // LBGTurn is one recorded decision with its full traceability: what was
 // shown, what was picked, which cues contributed (session-format-spec §3).
+// ChosenIndex is -1 when the move came from the override escape hatch or an
+// automatic dance (nothing was picked from the list).
 type LBGTurn struct {
-	Game     int    `json:"game"`
-	Player   int    `json:"player"`
-	Dice     [2]int `json:"dice"`
-	Notation string `json:"notation"`
+	Game       int    `json:"game"`
+	Player     int    `json:"player"`
+	Dice       [2]int `json:"dice"`
+	Notation   string `json:"notation"`
+	CannotMove bool   `json:"cannotMove,omitempty"`
 
 	Part   int `json:"part"`
 	TickMs int `json:"tickMs"`
@@ -154,23 +167,28 @@ func Open(lbgPath string) (*Service, string, error) {
 	}
 	s.match.Length = doc.Length
 
-	// Replay the recorded turns to rebuild board + alternation.
+	// Replay the recorded turns to rebuild board + alternation. A Cannot
+	// Move (or empty override) leaves the board as-is.
 	for i, t := range doc.Turns {
-		board, err := derive.ApplyNotation(s.board, bg.Player(t.Player), t.Notation)
-		if err != nil {
-			return nil, "", fmt.Errorf("%s: replay turn %d (%s): %w", lbgPath, i+1, t.Notation, err)
+		if !t.CannotMove && t.Notation != "" {
+			board, err := derive.ApplyNotation(s.board, bg.Player(t.Player), t.Notation)
+			if err != nil {
+				return nil, "", fmt.Errorf("%s: replay turn %d (%s): %w", lbgPath, i+1, t.Notation, err)
+			}
+			s.board = board
 		}
-		s.board = board
 		s.onRoll = otherPlayer(bg.Player(t.Player))
 		g := &s.match.Games[len(s.match.Games)-1]
 		g.Plies = append(g.Plies, bg.Ply{
 			Player:     bg.Player(t.Player),
 			Dice:       bg.Dice{t.Dice[0], t.Dice[1]},
 			Notation:   t.Notation,
+			CannotMove: t.CannotMove,
 			Tick:       t.TickMs,
 			Confidence: 0,
 		})
 	}
+	s.reviews = append([]LBGReview(nil), doc.Review...)
 
 	warn := ""
 	part := doc.Parts[0]
@@ -189,6 +207,7 @@ func (s *Service) save() error {
 	}
 	s.doc.Players = s.match.Players
 	s.doc.Length = s.match.Length
+	s.doc.Review = s.reviews
 	data, err := json.MarshalIndent(s.doc, "", "  ")
 	if err != nil {
 		return err

@@ -32,12 +32,13 @@ type Candidate struct {
 
 // PlyView is the move-list projection of one recorded ply.
 type PlyView struct {
-	Index    int    `json:"index"`
-	Game     int    `json:"game"`
-	Player   int    `json:"player"`
-	Dice     string `json:"dice"`
-	Notation string `json:"notation"`
-	TickMs   int    `json:"tickMs"`
+	Index      int    `json:"index"`
+	Game       int    `json:"game"`
+	Player     int    `json:"player"`
+	Dice       string `json:"dice"`
+	Notation   string `json:"notation"`
+	CannotMove bool   `json:"cannotMove,omitempty"`
+	TickMs     int    `json:"tickMs"`
 }
 
 type pendingTurn struct {
@@ -59,6 +60,10 @@ type Service struct {
 	// (from whatever perception is available); it re-weights the candidate
 	// ranking (issue #15) and is cleared on confirm.
 	obs *perceive.ObservedBoard
+
+	// reviews is the review queue (open + resolved), mirrored into the .lbg
+	// on every save.
+	reviews []LBGReview
 
 	// Persistence (nil/empty for pure in-memory sessions): the .lbg document
 	// this session autosaves to after every confirmed decision.
@@ -214,6 +219,10 @@ func (s *Service) Confirm(index, tickMs int) (PlyView, error) {
 func (s *Service) Moves() []PlyView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.movesLocked()
+}
+
+func (s *Service) movesLocked() []PlyView {
 	var out []PlyView
 	for _, g := range s.match.Games {
 		for i, ply := range g.Plies {
@@ -247,12 +256,13 @@ func candidateViews(ranked []rankedMove) []Candidate {
 
 func plyView(index, game int, ply bg.Ply) PlyView {
 	return PlyView{
-		Index:    index,
-		Game:     game,
-		Player:   int(ply.Player),
-		Dice:     ply.Dice.String(),
-		Notation: ply.Notation,
-		TickMs:   ply.Tick,
+		Index:      index,
+		Game:       game,
+		Player:     int(ply.Player),
+		Dice:       ply.Dice.String(),
+		Notation:   ply.Notation,
+		CannotMove: ply.CannotMove,
+		TickMs:     ply.Tick,
 	}
 }
 
