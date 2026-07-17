@@ -66,7 +66,10 @@ Do not reintroduce legacy code wholesale. Reference `legacy_v0` for ideas, port 
 These are settled. Revisit them explicitly with the user, not silently.
 
 1. **Reuse scope = gnubg engine only.** The Go engine is the one irreplaceable, offline-capable
-   asset. Everything else is rebuilt.
+   asset. Everything else is rebuilt. **lazyBG is standalone, not a fork.** The repo began as a
+   GitHub fork of `foochu/bgweb-api` (the source of `gnubg/`) and was detached in July 2026: there
+   is no upstream to sync with and nothing here is contributed back. Sources are acknowledged in
+   `NOTICE.md` and the README instead. Do not reintroduce an `upstream` remote.
 2. **Export format = `.mat` (Jellyfish) / `.txt`** as the canonical output.
 3. **Pipeline paradigm = multi-cue probabilistic fusion.** Several *independent* detectors each
    emit a hypothesis + confidence; a fusion step correlates them into the most-probable
@@ -190,6 +193,8 @@ ml/               Dev-time Python model training (→ ONNX); .venv/ and out/ are
 testdata/         Committed golden fixtures (hand-checked frames, .mat samples).
 tools/xg2mat/     Standalone .xg → .mat converter (own module, vendored deps).
 CLAUDE.md         This file.
+LICENSE           MIT, © Kévin Unger — covers lazyBG's own source.
+NOTICE.md         Provenance + terms of bundled third-party work (gnubg engine port, data/).
 go.mod / go.sum   Module `lazybg`. Currently zero external dependencies.
 ```
 
