@@ -78,12 +78,45 @@ startcrops -manifest rawvid/r8_RoosBucur.manifest.json \
   -board "A:13=2,24=5,5=3,7=5 B:1=5,12=2,18=5,20=3"
 ```
 
+## Resolved capture: `rawvid_r8_KabodiKaraca` (Azad Kabodi v Ibrahim Karaca, r8)
+
+New family: **blue/yellow points on grey felt**, cream (CheckerA `#ececec`) +
+near-black (`#101014`) checkers.
+
+- **Corners** (unchanged from the blind manifest — already bar-centered):
+  `[[273,22],[731,20],[731,442],[274,444]]`. colprofile: bar center 397
+  (canonical 396). Right half is ~7% wider than left (a mild residual the corners
+  can't fully square), but every checker crop is captured cleanly — good enough.
+- **Orientation**: **180° rotation** of the standard opening, **CheckerA = white =
+  P1**. Verified start layout (canonical points):
+  - White (A): `1=5, 12=2, 18=5, 20=3`
+  - Dark  (B): `13=2, 24=5, 5=3, 7=5`
+- **Pristine window**: narrow, ~20–22 s (abs). Setup hands occupy 4–18 s; the dice
+  are rolled ~19–20 s (die rests on empty p19); a hand reaches in for the first
+  move at ~22–23 s. Ticks 20/21/22 s are clean (finger just grazes empty p19-top at
+  22 s — no checker occluded).
+- Extracted 3 frames × 24 = 72 crops (24 checker crops in the new family).
+
+Command:
+
+```
+startcrops -manifest rawvid/r8_KabodiKaraca.manifest.json \
+  -out corpus/crops-rawvid/rawvid_r8_KabodiKaraca -ticks 19000,20000,21000 \
+  -board "A:1=5,12=2,18=5,20=3 B:13=2,24=5,5=3,7=5"
+```
+
 ## Remaining rawvid captures (to calibrate the same way)
 
-`r8_KabodiKaraca`, `r5_KaracaCiortan`, `r8_BynellMoulton`, `r7_MoultonKandirali`
-— four more new boards (orange SBGF ×2, grey w/ red checkers, wood w/ yellow
-checkers). Each needs its own corner-tune + symmetry + pristine-window pass. Their
-`spanBegin` in the blind manifests are *not* the pristine start (installation).
+`r5_KaracaCiortan`, `r8_BynellMoulton`, `r7_MoultonKandirali` — three more new
+boards (grey w/ red checkers, wood w/ yellow checkers, …). Each needs its own
+corner-tune + symmetry + pristine-window pass. Their `spanBegin` in the blind
+manifests are *not* the pristine start (installation / setup hands).
+
+**Method note learned across Roos + Kabodi:** the pristine window is bracketed by
+(a) setup hands withdrawing and (b) the first-move hand reaching in — often only a
+few seconds, sometimes with the dice already resting on empty felt (harmless). Pin
+it by tracking an *inner* point that receives the opening move: it stays empty
+until the first move, so its first non-empty tick is the upper bound.
 
 The fine-tune (retrain the point reader over `corpus/crops/*` + the new
 `corpus/crops-rawvid/*`, held-out by recording) is worth running once ≥2–3 of these
