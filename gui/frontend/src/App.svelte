@@ -4,6 +4,8 @@
   //
   // Bindings come from the Wails runtime: window.go.main.App.*
   // (no generated wailsjs imports — keeps the frontend buildable standalone).
+  import Board from './Board.svelte'
+
   const api = () => window.go?.main?.App
 
   let videoUrl = ''
@@ -35,6 +37,7 @@
         warning = res.warning ?? ''
         resumeTickMs = res.lastTickMs ?? 0
         refreshReview()
+        backToLive()
       }
     } catch (e) {
       error = String(e)
@@ -52,6 +55,7 @@
   // Persist the last-worked position whenever playback pauses.
   function onVideoPause() {
     if (videoEl) api().SetVideoPos(Math.round(videoEl.currentTime * 1000))
+    snapshotFrame()
   }
 
   let reviewCount = 0
@@ -76,6 +80,7 @@
         candidates = []
         onRoll = await api().OnRoll()
         checkGameEnd()
+        refreshBoard()
       } else {
         candidates = res.candidates ?? []
         highlight = 0
@@ -100,6 +105,8 @@
       onRoll = await api().OnRoll()
       if (flagUncertain) refreshReview()
       checkGameEnd()
+      selectedSeq = -1
+      refreshBoard()
     } catch (e) {
       error = String(e)
     }
@@ -116,6 +123,8 @@
       overrideText = ''
       onRoll = await api().OnRoll()
       checkGameEnd()
+      selectedSeq = -1
+      refreshBoard()
     } catch (e) {
       error = String(e)
     }
@@ -123,6 +132,59 @@
 
   let cubeOptions = []
   let cubeHighlight = 0
+  let boardState = null // reconstructed board shown in the board panel
+  let selectedSeq = -1 // -1 = live (following the latest turn)
+  let frameCanvas // raw-frame snapshot beside the reconstructed board
+
+  async function refreshBoard() {
+    try {
+      boardState =
+        selectedSeq >= 0 ? await api().BoardAt(selectedSeq) : await api().BoardState()
+    } catch { /* non-fatal */ }
+  }
+
+  // Copy the current video frame into the snapshot canvas (ux-spec §6:
+  // reconstructed board and raw frame side by side).
+  function snapshotFrame() {
+    if (!videoEl || !frameCanvas || !videoEl.videoWidth) return
+    const ctx = frameCanvas.getContext('2d')
+    frameCanvas.width = videoEl.videoWidth
+    frameCanvas.height = videoEl.videoHeight
+    ctx.drawImage(videoEl, 0, 0)
+  }
+
+  // Select a past turn: video jumps to its tick, the board panel shows the
+  // reconstructed position after it. Selection only — editing is issue #20.
+  function selectTurn(seq) {
+    selectedSeq = seq
+    const m = moves[seq]
+    if (m && videoEl) videoEl.currentTime = m.tickMs / 1000
+    refreshBoard()
+  }
+
+  function backToLive() {
+    selectedSeq = -1
+    refreshBoard()
+  }
+
+  // Tab / Shift+Tab: free movement across the recorded turn ticks without
+  // committing anything (ux-spec §3). Segmentation-fed candidate ticks plug
+  // in once calibration exists (issue #14); past the last recorded tick we
+  // step by a fixed 5s.
+  function navTick(dir) {
+    if (!videoEl) return
+    const now = Math.round(videoEl.currentTime * 1000)
+    const ticks = [...new Set(moves.map((m) => m.tickMs).filter((t) => t > 0))].sort((a, b) => a - b)
+    let target
+    if (dir > 0) {
+      target = ticks.find((t) => t > now + 50)
+      if (target === undefined) target = now + 5000
+    } else {
+      const prev = ticks.filter((t) => t < now - 50)
+      target = prev.length ? prev[prev.length - 1] : Math.max(0, now - 5000)
+    }
+    videoEl.currentTime = target / 1000
+  }
   let gameEnd = null // pending GameEndProposal
   let endWinner = 0
   let endPoints = 1
@@ -148,6 +210,8 @@
       matchOver = res.matchOver
       moves = await api().Moves()
       onRoll = await api().OnRoll()
+      selectedSeq = -1
+      refreshBoard()
     } catch (e) {
       error = String(e)
     }
@@ -175,6 +239,8 @@
       firstDigit = null
       onRoll = await api().OnRoll()
       checkGameEnd()
+      selectedSeq = -1
+      refreshBoard()
     } catch (e) {
       error = String(e)
     }
@@ -195,7 +261,13 @@
     // Don't steal keys from form fields (none yet, but harmless).
     if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
 
+    if (e.key === 'Tab') {
+      navTick(e.shiftKey ? -1 : 1)
+      e.preventDefault()
+      return
+    }
     if (e.key >= '1' && e.key <= '6') {
+      if (selectedSeq >= 0) backToLive()
       const d = Number(e.key)
       if (firstDigit === null) {
         firstDigit = d
@@ -276,20 +348,40 @@
 <svelte:window on:keydown={onKeydown} />
 
 <main>
-  <section class="video-zone">
-    {#if videoUrl}
-      <!-- svelte-ignore a11y-media-has-caption -->
-      <video
-        bind:this={videoEl}
-        src={videoUrl}
-        controls
-        on:loadedmetadata={onVideoReady}
-        on:pause={onVideoPause}
-      ></video>
-    {:else}
-      <button class="open" on:click={openVideo}>Open match video…</button>
-    {/if}
-  </section>
+  <div class="left-col">
+    <section class="video-zone">
+      {#if videoUrl}
+        <!-- svelte-ignore a11y-media-has-caption -->
+        <video
+          bind:this={videoEl}
+          src={videoUrl}
+          controls
+          on:loadedmetadata={onVideoReady}
+          on:pause={onVideoPause}
+          on:seeked={snapshotFrame}
+        ></video>
+      {:else}
+        <button class="open" on:click={openVideo}>Open match video…</button>
+      {/if}
+    </section>
+
+    <section class="board-zone">
+      <div class="board-half">
+        <h4>
+          Reconstructed
+          {#if selectedSeq >= 0}
+            (after turn {selectedSeq + 1})
+            <button class="linklike" on:click={backToLive}>back to live</button>
+          {/if}
+        </h4>
+        <Board board={boardState} />
+      </div>
+      <div class="board-half">
+        <h4>Video frame</h4>
+        <canvas bind:this={frameCanvas} class="frame"></canvas>
+      </div>
+    </section>
+  </div>
 
   <aside class="entry-zone">
     {#if warning}
@@ -381,17 +473,24 @@
 
     <h3>Moves</h3>
     <ol class="moves">
-      {#each moves as m}
-        <li>
-          <span class="who">{playerName(m.player)}</span>
-          <span class="dice-lbl">{m.cube ? '' : m.dice + ':'}</span>
-          <span class="notation">
-            {#if m.cube === 'double'}Doubles to {m.cubeValue}{:else if m.cube}{m.cube[0].toUpperCase() + m.cube.slice(1)}{:else if m.cannotMove}Cannot Move{:else}{m.notation}{/if}
-          </span>
-          <span class="tick">{(m.tickMs / 1000).toFixed(1)}s</span>
+      {#each moves as m, seq}
+        <li class:selected={seq === selectedSeq}>
+          <button class="rowbtn" on:click={() => selectTurn(seq)}>
+            <span class="who">{playerName(m.player)}</span>
+            <span class="dice-lbl">{m.cube ? '' : m.dice + ':'}</span>
+            <span class="notation">
+              {#if m.cube === 'double'}Doubles to {m.cubeValue}{:else if m.cube}{m.cube[0].toUpperCase() + m.cube.slice(1)}{:else if m.cannotMove}Cannot Move{:else}{m.notation}{/if}
+            </span>
+            <span class="tick">{(m.tickMs / 1000).toFixed(1)}s</span>
+          </button>
         </li>
       {/each}
     </ol>
+
+    <section class="review-zone">
+      <h3>Review queue {#if reviewCount}<span class="badge">{reviewCount}</span>{/if}</h3>
+      <p class="hint">Resolution panel arrives with the review-queue ticket.</p>
+    </section>
   </aside>
 </main>
 
@@ -406,6 +505,57 @@
     display: grid;
     grid-template-columns: 1fr 380px;
     height: 100vh;
+  }
+  .left-col {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    min-width: 0;
+  }
+  .board-zone {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #141417;
+    border-top: 1px solid #333;
+  }
+  .board-half h4 {
+    margin: 0 0 0.3rem;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    font-weight: 500;
+  }
+  .frame {
+    width: 100%;
+    background: #000;
+    border-radius: 4px;
+    min-height: 40px;
+  }
+  .linklike {
+    background: none;
+    border: none;
+    color: #a5b4fc;
+    cursor: pointer;
+    font-size: 0.75rem;
+    text-decoration: underline;
+    padding: 0;
+    margin-left: 0.4rem;
+  }
+  .rowbtn {
+    all: unset;
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    cursor: pointer;
+    padding: 0.15rem 0.25rem;
+    border-radius: 3px;
+  }
+  .rowbtn:hover { background: #27272a; }
+  .moves li.selected .rowbtn { background: #3730a3; }
+  .review-zone {
+    margin-top: 1rem;
+    border-top: 1px solid #333;
+    padding-top: 0.5rem;
   }
   .video-zone {
     display: flex;
@@ -454,9 +604,7 @@
     font-size: 0.9rem;
   }
   .moves li {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.15rem 0;
+    padding: 0;
   }
   .who { color: #888; width: 4.5rem; }
   .dice-lbl { color: #a5b4fc; }
