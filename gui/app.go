@@ -141,6 +141,21 @@ func (a *App) BoardAt(seq int) (bg.Board, error) {
 	return a.svc.BoardAt(seq)
 }
 
+// GetSetup returns the current session setup (pre-filled form).
+func (a *App) GetSetup() session.Setup {
+	return a.svc.GetSetup()
+}
+
+// SaveSetup stores the setup; recorded turns are never touched.
+func (a *App) SaveSetup(setup session.Setup) error {
+	return a.svc.SaveSetup(setup)
+}
+
+// SetupDone reports whether the blocking setup step is complete.
+func (a *App) SetupDone() bool {
+	return a.svc.SetupDone()
+}
+
 // CandidatesFor re-opens the entry flow at a past turn (edit mode).
 func (a *App) CandidatesFor(seq, d1, d2 int) ([]session.Candidate, error) {
 	return a.svc.CandidatesFor(seq, d1, d2)

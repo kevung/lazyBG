@@ -5,6 +5,7 @@
   // Bindings come from the Wails runtime: window.go.main.App.*
   // (no generated wailsjs imports — keeps the frontend buildable standalone).
   import Board from './Board.svelte'
+  import SetupPanel from './SetupPanel.svelte'
 
   const api = () => window.go?.main?.App
 
@@ -50,6 +51,7 @@
       videoEl.currentTime = resumeTickMs / 1000
       resumeTickMs = 0
     }
+    maybeOpenSetup() // blocking first step for a fresh session
   }
 
   // Persist the last-worked position whenever playback pauses.
@@ -132,6 +134,33 @@
 
   let cubeOptions = []
   let cubeHighlight = 0
+  let setupOpen = false
+  let setupInitial = null
+
+  async function maybeOpenSetup() {
+    try {
+      const done = await api().SetupDone()
+      if (!done) {
+        setupInitial = await api().GetSetup()
+        setupOpen = true
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  async function openCalibration() {
+    setupInitial = await api().GetSetup()
+    setupOpen = true
+  }
+
+  async function onSetupSave(e) {
+    error = ''
+    try {
+      await api().SaveSetup(e.detail)
+      setupOpen = false
+    } catch (err) {
+      error = String(err)
+    }
+  }
   let boardState = null // reconstructed board shown in the board panel
   let selectedSeq = -1 // -1 = live (following the latest turn)
   let frameCanvas // raw-frame snapshot beside the reconstructed board
@@ -305,7 +334,8 @@
   }
 
   function onKeydown(e) {
-    // Don't steal keys from form fields (none yet, but harmless).
+    if (setupOpen) return // the setup form owns the keyboard
+    // Don't steal keys from form fields.
     if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
 
     if (e.key === 'Tab') {
@@ -448,6 +478,7 @@
       <p class="warning">{warning}</p>
     {/if}
     <div class="turn">
+      <button class="linklike" on:click={openCalibration} title="Session Priors + Board Calibration">Calibration…</button>
       <span class="score">{score[0]}–{score[1]}</span>
       On roll: <strong>{playerName(onRoll)}</strong>
       <span class="hint">(p to switch)</span>
@@ -560,6 +591,10 @@
     </section>
   </aside>
 </main>
+
+{#if setupOpen}
+  <SetupPanel {videoEl} initial={setupInitial} on:save={onSetupSave} on:cancel={() => (setupOpen = false)} />
+{/if}
 
 <style>
   :global(body) {
