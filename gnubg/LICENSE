@@ -1,6 +1,14 @@
+The Go code in this directory originates from the bgweb-api project by Rami
+Keränen (https://github.com/foochu/bgweb-api), itself a port of GNU Backgammon.
+It is redistributed here under the terms it was published with, reproduced
+verbatim below. See ../NOTICE.md for the full provenance of this directory and
+of the engine data under ../data/.
+
+---
+
 MIT License
 
-Copyright (c) 2025-2026 Kévin Unger
+Copyright (c) 2022 Rami Keränen
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,9 +27,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This license covers lazyBG's own source. lazyBG bundles third-party components
-covered by their own copyright notices and terms — notably the gnubg engine port
-under `gnubg/` and the engine data under `data/`. See NOTICE.md.

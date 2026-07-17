@@ -40,6 +40,20 @@ go test ./gnubg/...   # engine reuse contract
 
 ## Credits
 
-The engine is a port of [GNU Backgammon](https://www.gnu.org/software/gnubg/); the Go checker
-evaluation port is credited to Rami Keränen (foochu) via the bgweb-api project. lazyBG is
-licensed under the terms in [`LICENSE`](LICENSE).
+lazyBG stands on work by others, taken deliberately and acknowledged here. It is **not** a fork of
+any of these projects and does not track their development.
+
+- **[GNU Backgammon](https://www.gnu.org/software/gnubg/)** — the origin of the engine lazyBG
+  depends on for move legality and ranking, and of the neural-network weights, bearoff databases,
+  and match equity tables embedded from `data/`.
+- **[bgweb-api](https://github.com/foochu/bgweb-api)** by **Rami Keränen** (`foochu`) — the Go port
+  of that engine, published under the MIT License, which is what `gnubg/` actually is. This
+  repository began its life from bgweb-api's history and has since been detached into a standalone
+  project; Rami's commits remain in the log, and his copyright notice is preserved in
+  [`gnubg/LICENSE`](gnubg/LICENSE).
+- **[BackgammonNews](https://www.youtube.com/@BackgammonNews)** — the source of the real-world match
+  footage the perception work is developed and evaluated against.
+
+lazyBG's own source is MIT-licensed, Copyright (c) 2025-2026 Kévin Unger — see
+[`LICENSE`](LICENSE). Full provenance and the terms of every bundled third-party component are in
+[`NOTICE.md`](NOTICE.md).
