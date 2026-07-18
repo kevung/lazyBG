@@ -16,6 +16,7 @@ import (
 	"lazybg/internal/bg"
 	"lazybg/internal/mediaserver"
 	"lazybg/internal/perceive/pointnet"
+	"lazybg/internal/proxy"
 	"lazybg/internal/session"
 )
 
@@ -157,6 +158,43 @@ func (a *App) OpenVideoDialog() (*OpenResult, error) {
 // SetVideoPos persists the last-worked video position (resume state).
 func (a *App) SetVideoPos(tickMs int) {
 	a.service().SetVideoPos(tickMs)
+}
+
+// PlayableResult is what the frontend needs after a proxy build: the media URL
+// to (re)point the <video> at, and a warning if the proxy's timeline diverged.
+type PlayableResult struct {
+	VideoURL string `json:"videoUrl"`
+	Warning  string `json:"warning,omitempty"`
+}
+
+// EnsurePlayable is called by the frontend when the <video> fails to play the
+// original (unsupported codec/container). It builds a Playback Proxy with the
+// bundled ffmpeg — remux when possible, else transcode to H.264/MP4 — points
+// the media server at it, and returns the URL to reload (ADR-0004). The
+// original is untouched; perception still decodes it, so Ticks stay valid.
+func (a *App) EnsurePlayable() (*PlayableResult, error) {
+	a.mu.Lock()
+	src := a.videoPath
+	a.mu.Unlock()
+	if src == "" || a.media == nil {
+		return &PlayableResult{VideoURL: a.mediaURL()}, nil
+	}
+	proxyPath, warning, err := proxy.Build(src, proxyCacheDir())
+	if err != nil {
+		return nil, err
+	}
+	a.media.SetPath(proxyPath)
+	return &PlayableResult{VideoURL: a.media.MediaURL(), Warning: warning}, nil
+}
+
+// proxyCacheDir is where Playback Proxies live: the user cache dir (cleanable,
+// machine-local), falling back to the temp dir.
+func proxyCacheDir() string {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "lazybg", "proxies")
 }
 
 // EnterDice records the observed roll and returns the ranked candidates —
