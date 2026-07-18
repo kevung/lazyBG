@@ -6,11 +6,18 @@
   // (no generated wailsjs imports — keeps the frontend buildable standalone).
   import Board from './Board.svelte'
   import SetupPanel from './SetupPanel.svelte'
+  import VideoControls from './VideoControls.svelte'
+  import { skip } from './lib/video.js'
 
   const api = () => window.go?.main?.App
 
   let videoUrl = ''
   let videoEl
+  // Media state, two-way bound to the <video> element and the control bar.
+  let currentTime = 0
+  let duration = 0
+  let paused = true
+  let playbackRate = 1
   let moves = []
   let candidates = []
   let highlight = 0
@@ -476,6 +483,14 @@
         if (candidates.length) highlight = Math.max(highlight - 1, 0)
         e.preventDefault()
         break
+      case 'ArrowLeft':
+        if (videoEl) videoEl.currentTime = skip(videoEl.currentTime, -5, videoEl.duration)
+        e.preventDefault()
+        break
+      case 'ArrowRight':
+        if (videoEl) videoEl.currentTime = skip(videoEl.currentTime, 5, videoEl.duration)
+        e.preventDefault()
+        break
       case ' ':
       case 'Enter':
         if (selectedSeq >= 0 && editRoll && candidates.length) {
@@ -529,12 +544,16 @@
           bind:this={videoEl}
           src={videoUrl}
           crossorigin="anonymous"
-          controls
+          bind:currentTime
+          bind:duration
+          bind:paused
+          bind:playbackRate
           on:loadedmetadata={onVideoReady}
           on:pause={onVideoPause}
           on:seeked={snapshotFrame}
           on:error={onVideoError}
         ></video>
+        <VideoControls bind:currentTime bind:paused bind:playbackRate {duration} />
       {:else}
         <button class="open" on:click={openVideo}>Open match video…</button>
       {/if}
@@ -783,9 +802,11 @@
   }
   .video-zone {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     background: #000;
+    min-height: 0;
   }
   video {
     max-width: 100%;
