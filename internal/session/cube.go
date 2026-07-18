@@ -42,6 +42,32 @@ func (s *Service) CubeValue() int {
 	return s.cube.value
 }
 
+// CubeView is the cube state the board needs to draw it: value, owner, and
+// whether it sits centered (no owner). Owner is meaningful only when not
+// centered (issue #28).
+type CubeView struct {
+	Value    int  `json:"value"`
+	Owner    int  `json:"owner"`
+	Centered bool `json:"centered"`
+}
+
+// Cube returns the live cube state for the board renderer. A centered cube
+// reports value 1 and Centered=true; once owned it reports the doubled value
+// and the owning player.
+func (s *Service) Cube() CubeView {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v := s.cube.value
+	if v == 0 {
+		v = 1
+	}
+	return CubeView{
+		Value:    v,
+		Owner:    int(s.cube.owner),
+		Centered: !s.cube.owned,
+	}
+}
+
 // EnterCube records a cube action for the player on roll at the video tick.
 // After a double the decision passes to the opponent; after a take the
 // doubler is back on roll. A drop ends the game — the boundary handling
