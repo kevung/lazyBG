@@ -35,6 +35,31 @@ func TestCubeActions_FiltersByState(t *testing.T) {
 	}
 }
 
+// Cube() exposes value + owner + centered to the frontend board (issue #28):
+// the board draws the cube on a player's side (or centered) with its value.
+func TestCubeView_ReflectsOwnershipAndValue(t *testing.T) {
+	s := New()
+	if c := s.Cube(); c.Value != 1 || !c.Centered {
+		t.Fatalf("start cube = %+v, want value 1, centered", c)
+	}
+	if _, err := s.EnterCube("double", 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnterCube("take", 200); err != nil {
+		t.Fatal(err)
+	}
+	c := s.Cube()
+	if c.Centered {
+		t.Errorf("cube should be owned after a take, got centered")
+	}
+	if c.Value != 2 {
+		t.Errorf("cube value = %d, want 2", c.Value)
+	}
+	if c.Owner != 1 {
+		t.Errorf("cube owner = %d, want 1 (the taker)", c.Owner)
+	}
+}
+
 func TestCube_DoubleRecordsPlyAndPassesTurn(t *testing.T) {
 	s := New()
 	ply, err := s.EnterCube("double", 500)

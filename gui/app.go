@@ -324,6 +324,11 @@ func (a *App) Score() [2]int {
 	return a.service().Score()
 }
 
+// Cube returns the live cube state (value, owner, centered) for the board.
+func (a *App) Cube() session.CubeView {
+	return a.service().Cube()
+}
+
 // MarkReviewed resolves a turn's open Review Items without changing it.
 func (a *App) MarkReviewed(seq int) error {
 	return a.service().MarkReviewed(seq)
