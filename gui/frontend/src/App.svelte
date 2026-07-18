@@ -245,11 +245,13 @@
   let boardState = null // reconstructed board shown in the board panel
   let selectedSeq = -1 // -1 = live (following the latest turn)
   let frameCanvas // raw-frame snapshot beside the reconstructed board
+  let cube = { value: 1, owner: 0, centered: true } // drawn on the board (#33)
 
   async function refreshBoard() {
     try {
       boardState =
         selectedSeq >= 0 ? await api().BoardAt(selectedSeq) : await api().BoardState()
+      cube = (await api().Cube?.()) ?? cube
     } catch { /* non-fatal */ }
   }
 
@@ -568,7 +570,7 @@
             <button class="linklike" on:click={backToLive}>back to live</button>
           {/if}
         </h4>
-        <Board board={boardState} />
+        <Board board={boardState} {cube} {score} />
       </div>
       <div class="board-half">
         <h4>Video frame</h4>

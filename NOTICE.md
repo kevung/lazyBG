@@ -46,3 +46,15 @@ Match equity tables distributed as part of GNU Backgammon:
 Each file carries an all-permissive notice in its own header — copying and distribution in any
 medium are permitted without royalty provided the copyright notice and that notice are preserved.
 They are preserved, unmodified, in the files themselves.
+
+---
+
+## 3. Frontend dependencies — `gui/frontend/`
+
+### `two.js`
+
+The GUI board renderer (`gui/frontend/src/Board.svelte`) is built on **[two.js](https://two.js.org/)**,
+a 2D drawing library published under the MIT License, Copyright (c) 2012 - present Jono Brandel. Its
+use, and the board's visual language, were adapted from the author's own **blunderDB** project (also
+MIT, Copyright (c) 2024 Kévin Unger). two.js is fetched as an npm dependency and bundled into the
+shipped frontend assets.
