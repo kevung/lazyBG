@@ -14,6 +14,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -21,12 +22,14 @@ import (
 
 	lazybg "lazybg"
 	"lazybg/internal/engine"
+	"lazybg/internal/gstbundle"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	useBundledGStreamer()
 	if err := engine.Init(lazybg.DataFS); err != nil {
 		log.Fatal("engine init: ", err)
 	}
@@ -45,4 +48,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// useBundledGStreamer points WebKitGTK at plugins shipped next to the
+// executable, so H.264 <video> playback works on Linux machines without a
+// system gst-libav (ADR-0004). It is a no-op unless a bundled plugin directory
+// is present — in dev, or on macOS/Windows (different webviews), the system
+// GStreamer/webview is used unchanged. See gui/PACKAGING.md.
+func useBundledGStreamer() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	dir := gstbundle.PluginDir(exe)
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		return
+	}
+	const key = "GST_PLUGIN_PATH_1_0"
+	os.Setenv(key, gstbundle.Prepend(dir, os.Getenv(key)))
 }
