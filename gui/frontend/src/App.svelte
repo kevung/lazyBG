@@ -22,6 +22,8 @@
 
   let resumeTickMs = 0
   let warning = ''
+  let preparing = false // building a Playback Proxy for an unplayable source
+  let triedProxy = false // guard: attempt the proxy fallback once per source
 
   async function openVideo() {
     error = ''
@@ -31,6 +33,7 @@
       if (res) {
         // Cache-bust so a newly picked file replaces the old <video> source.
         videoUrl = res.videoUrl + '?t=' + Date.now()
+        triedProxy = false
         moves = res.moves ?? []
         candidates = []
         firstDigit = null
@@ -42,6 +45,30 @@
       }
     } catch (e) {
       error = String(e)
+    }
+  }
+
+  // The webview cannot decode the original codec/container: ask the backend to
+  // build a Playback Proxy (bundled ffmpeg → H.264/MP4) and reload from it
+  // (ADR-0004). Attempted once per source to avoid an error/reload loop.
+  async function onVideoError() {
+    if (triedProxy) {
+      error = 'Impossible de lire cette vidéo (le proxy a aussi échoué).'
+      return
+    }
+    triedProxy = true
+    preparing = true
+    error = ''
+    try {
+      const res = await api().EnsurePlayable()
+      if (res && res.videoUrl) {
+        videoUrl = res.videoUrl + '?t=' + Date.now()
+        if (res.warning) warning = res.warning
+      }
+    } catch (e) {
+      error = String(e)
+    } finally {
+      preparing = false
     }
   }
 
@@ -494,6 +521,9 @@
   <div class="left-col">
     <section class="video-zone">
       {#if videoUrl}
+        {#if preparing}
+          <p class="preparing">Préparation de la lecture… (conversion du format)</p>
+        {/if}
         <!-- svelte-ignore a11y-media-has-caption -->
         <video
           bind:this={videoEl}
@@ -503,6 +533,7 @@
           on:loadedmetadata={onVideoReady}
           on:pause={onVideoPause}
           on:seeked={snapshotFrame}
+          on:error={onVideoError}
         ></video>
       {:else}
         <button class="open" on:click={openVideo}>Open match video…</button>
@@ -764,6 +795,14 @@
     font-size: 1.2rem;
     padding: 1rem 2rem;
     cursor: pointer;
+  }
+  .preparing {
+    position: absolute;
+    color: #a5b4fc;
+    background: #1b1b1fcc;
+    padding: 0.5rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
   }
   .entry-zone {
     padding: 1rem;
