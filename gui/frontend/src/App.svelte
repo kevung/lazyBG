@@ -735,11 +735,16 @@
     display: grid;
     grid-template-columns: 1fr 380px;
     height: 100vh;
+    /* The four zones fit the viewport exactly; panels scroll internally
+       (.entry-zone), so the page itself never gets a scrollbar (#39). */
+    overflow: hidden;
   }
   .left-col {
     display: grid;
     grid-template-rows: 1fr auto;
     min-width: 0;
+    /* Let the 1fr video row shrink instead of forcing the column past 100vh. */
+    min-height: 0;
   }
   .board-zone {
     display: grid;
@@ -811,10 +816,13 @@
     justify-content: center;
     background: #000;
     min-height: 0;
+    overflow: hidden;
   }
   video {
     max-width: 100%;
-    max-height: 100vh;
+    /* Fit the video row, not the whole viewport — otherwise a tall video
+       pushes .left-col past 100vh and the page gets a scrollbar (#39). */
+    max-height: 100%;
   }
   .open {
     font-size: 1.2rem;
