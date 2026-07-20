@@ -4,6 +4,10 @@
   // optimization. The 4 corners are clicked on the current video frame.
   import { createEventDispatcher, onMount } from 'svelte'
   import { gridOnFrame } from './lib/calibration.js'
+  import {
+    orientationName, parseOrientation, flipHorizontal, flipVertical,
+  } from './lib/boardGeometry.js'
+  import Board from './Board.svelte'
 
   export let videoEl = null
   export let initial = null // session.Setup for pre-filled correction
@@ -13,9 +17,19 @@
   let players = ['Player 1', 'Player 2']
   let matchLength = 7
   let clock = true
-  let orientation = 'p1-right'
+  let orientation = 0 // bg.Orientation value (WYSIWYG mirror control, #37)
   let checkerA = '#e7e0d5'
   let checkerB = '#31221c'
+
+  // The opening position, drawn in the orientation preview so the user can see
+  // each player's home board and colours and flip until it matches the video.
+  const startBoard = (() => {
+    const Pts = Array.from({ length: 25 }, () => ({ N: 0, Owner: 0 }))
+    const set = (p, n, o) => (Pts[p] = { N: n, Owner: o })
+    set(24, 2, 0); set(13, 5, 0); set(8, 3, 0); set(6, 5, 0) // Player 1
+    set(1, 2, 1); set(12, 5, 1); set(17, 3, 1); set(19, 5, 1) // Player 2
+    return { Pts, Bar: [0, 0], Off: [0, 0] }
+  })()
   let corners = [] // [[x,y] in video pixel coords]
   let videoUrl = ''
   let canvas
@@ -27,7 +41,7 @@
       if (initial.priors) {
         matchLength = initial.priors.matchLength || 7
         clock = !!initial.priors.clock
-        orientation = initial.priors.orientation || 'p1-right'
+        orientation = parseOrientation(initial.priors.orientation)
         checkerA = initial.priors.checkerA || checkerA
         checkerB = initial.priors.checkerB || checkerB
       }
@@ -89,7 +103,7 @@
       priors: {
         clock,
         matchLength: Number(matchLength),
-        orientation,
+        orientation: orientationName(orientation),
         checkerA,
         checkerB,
       },
@@ -111,13 +125,6 @@
       <label>Player 2 <input bind:value={players[1]} /></label>
       <label>Match length <input type="number" min="1" bind:value={matchLength} /></label>
       <label class="row"><input type="checkbox" bind:checked={clock} /> Chess clock visible</label>
-      <label>
-        Orientation
-        <select bind:value={orientation}>
-          <option value="p1-right">Player 1 bears off to the right</option>
-          <option value="p1-left">Player 1 bears off to the left</option>
-        </select>
-      </label>
       <label class="row">
         Checker colors
         <input type="color" bind:value={checkerA} title="Player 1" />
@@ -162,6 +169,25 @@
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
     <canvas bind:this={canvas} class="cal" on:click={clickCorner} role="img" aria-label="video frame for corner calibration"></canvas>
     <p class="hint">{corners.length}/4 corners. Clicking after the 4th starts over.</p>
+
+    <h3>Orientation</h3>
+    <div class="orient">
+      <div class="orient-board">
+        <Board board={startBoard} {orientation} checkerColors={[checkerA, checkerB]} />
+      </div>
+      <div class="orient-controls">
+        <p>
+          Flip until this board matches the video frame above — the <strong>same colours in the
+          same corners</strong>, each player's home board on the correct side. This sets the board
+          orientation and confirms the checker-colour assignment in one step.
+        </p>
+        <div class="orient-buttons">
+          <button type="button" on:click={() => (orientation = flipHorizontal(orientation))}>⇄ Mirror left / right</button>
+          <button type="button" on:click={() => (orientation = flipVertical(orientation))}>⇅ Mirror top / bottom</button>
+        </div>
+        <p class="hint">{orientationName(orientation)}</p>
+      </div>
+    </div>
 
     {#if error}<p class="error">{error}</p>{/if}
 
@@ -227,6 +253,21 @@
   .guide-text strong { color: #38bdf8; font-weight: 600; }
   .cal { width: 100%; background: #000; border-radius: 4px; cursor: crosshair; }
   .hint { color: #9ca3af; font-size: 0.8rem; }
+  .orient {
+    display: flex;
+    gap: 0.9rem;
+    align-items: center;
+    background: #202024;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    padding: 0.6rem 0.75rem;
+    margin: 0.35rem 0 0.6rem;
+  }
+  .orient-board { width: 300px; flex: none; }
+  .orient-controls { font-size: 0.82rem; color: #d4d4d8; line-height: 1.35; }
+  .orient-controls strong { color: #38bdf8; font-weight: 600; }
+  .orient-controls p { margin: 0 0 0.5rem; }
+  .orient-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .error { color: #f87171; }
   .actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
   button { cursor: pointer; padding: 0.4rem 1rem; border-radius: 4px; border: 1px solid #52525b; background: #27272a; color: #e4e4e7; }

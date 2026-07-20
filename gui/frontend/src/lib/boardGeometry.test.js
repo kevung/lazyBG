@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   isTop, colOf, stack, BAR_COL,
   transformPoint, flipH, flipV, flipHorizontal, flipVertical,
+  orientationName, parseOrientation,
   P1_HOME_BOTTOM_RIGHT, P1_HOME_BOTTOM_LEFT, P1_HOME_TOP_RIGHT, P1_HOME_TOP_LEFT,
 } from './boardGeometry.js'
 
@@ -62,6 +63,17 @@ test('flip helpers toggle the expected mirror bits', () => {
   assert.equal(flipH(P1_HOME_TOP_LEFT), true)
   assert.equal(flipV(P1_HOME_TOP_LEFT), true)
   assert.equal(flipH(P1_HOME_TOP_RIGHT), false)
+})
+
+test('orientationName / parseOrientation round-trip and migrate legacy strings', () => {
+  for (const o of [P1_HOME_BOTTOM_RIGHT, P1_HOME_BOTTOM_LEFT, P1_HOME_TOP_RIGHT, P1_HOME_TOP_LEFT]) {
+    assert.equal(parseOrientation(orientationName(o)), o)
+  }
+  assert.equal(parseOrientation('p1-right'), P1_HOME_BOTTOM_RIGHT)
+  assert.equal(parseOrientation('p1-bottom'), P1_HOME_BOTTOM_RIGHT)
+  assert.equal(parseOrientation('p1-left'), P1_HOME_BOTTOM_LEFT)
+  assert.equal(parseOrientation(''), P1_HOME_BOTTOM_RIGHT)
+  assert.equal(parseOrientation('nonsense'), P1_HOME_BOTTOM_RIGHT)
 })
 
 test('stack caps drawn checkers and reports overflow count', () => {
