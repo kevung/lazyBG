@@ -90,6 +90,49 @@ export function gridOnFrame(corners, cb = DEFAULT_CANONICAL) {
   return projectLines(H, lines)
 }
 
+// homographyFromCorners returns the homography mapping canonical coordinates to
+// the source frame, given the four clicked corners (TL,TR,BR,BL), or null if the
+// corners are degenerate. The Perception Overlay (#36) uses it to de-project the
+// backend's canonical-space detections onto the frame.
+export function homographyFromCorners(corners, cb = DEFAULT_CANONICAL) {
+  if (!corners || corners.length !== 4) return null
+  const { w, h } = canonicalSize(cb)
+  return solveHomography([[0, 0], [w, 0], [w, h], [0, h]], corners)
+}
+
+// canonicalPointCenters returns the canonical-space centre [x,y] of each point's
+// stack region, indexed 1..24 (index 0 unused) — matches calibrate.PointRegion.
+export function canonicalPointCenters(cb = DEFAULT_CANONICAL) {
+  const { h } = canonicalSize(cb)
+  const colX = (c) => cb.marginX + c * cb.pointW + (c >= 6 ? cb.barGap : 0)
+  const out = new Array(25)
+  for (let p = 1; p <= 24; p++) {
+    if (p >= 13) {
+      const c = p - 13
+      out[p] = [colX(c) + cb.pointW / 2, cb.marginY + cb.quadH / 2]
+    } else {
+      const c = 12 - p
+      out[p] = [colX(c) + cb.pointW / 2, h - cb.marginY - cb.quadH / 2]
+    }
+  }
+  return out
+}
+
+// roiBBox returns the axis-aligned bounding box {x,y,w,h} of the clicked corners,
+// expanded by marginFrac of its size — the crop region for the overlay frame.
+// Returns null when corners are missing.
+export function roiBBox(corners, marginFrac = 0.04) {
+  if (!corners || corners.length !== 4) return null
+  let minX = corners[0][0], maxX = minX, minY = corners[0][1], maxY = minY
+  for (const [x, y] of corners) {
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+  }
+  const mx = (maxX - minX) * marginFrac
+  const my = (maxY - minY) * marginFrac
+  return { x: minX - mx, y: minY - my, w: maxX - minX + 2 * mx, h: maxY - minY + 2 * my }
+}
+
 // solveLinear solves the n×n system A x = b by Gaussian elimination with partial
 // pivoting. Returns the solution vector, or null if the matrix is singular.
 function solveLinear(A, b) {

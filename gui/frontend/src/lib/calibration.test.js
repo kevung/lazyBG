@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   canonicalSize, canonicalGrid, solveHomography, projectPoint, gridOnFrame, DEFAULT_CANONICAL,
+  homographyFromCorners, canonicalPointCenters, roiBBox,
 } from './calibration.js'
 
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`)
@@ -68,4 +69,35 @@ test('gridOnFrame projects the outer border exactly onto the clicked corners', (
 test('gridOnFrame rejects the wrong number of corners', () => {
   assert.equal(gridOnFrame([[0, 0], [1, 1]]), null)
   assert.equal(gridOnFrame(null), null)
+})
+
+test('homographyFromCorners maps canonical corners onto the clicked corners', () => {
+  const corners = [[100, 120], [980, 90], [1020, 720], [60, 690]]
+  const H = homographyFromCorners(corners)
+  const { w, h } = canonicalSize()
+  const canon = [[0, 0], [w, 0], [w, h], [0, h]]
+  for (let i = 0; i < 4; i++) {
+    const [X, Y] = projectPoint(H, canon[i])
+    approx(X, corners[i][0], 1e-3)
+    approx(Y, corners[i][1], 1e-3)
+  }
+  assert.equal(homographyFromCorners([[0, 0]]), null)
+})
+
+test('canonicalPointCenters places points on the calibrate grid', () => {
+  const c = canonicalPointCenters()
+  assert.deepEqual(c[13], [50, 200]) // top-left cell centre
+  assert.deepEqual(c[24], [750, 200]) // top-right cell centre
+  assert.deepEqual(c[1], [750, 600]) // bottom-right cell centre
+  assert.deepEqual(c[12], [50, 600]) // bottom-left cell centre
+  assert.deepEqual(c[7], [350, 600]) // just left of the bar
+  assert.deepEqual(c[6], [450, 600]) // just right of the bar
+})
+
+test('roiBBox is the corner bounding box expanded by the margin', () => {
+  const box = roiBBox([[100, 200], [300, 210], [310, 400], [90, 390]], 0)
+  assert.deepEqual(box, { x: 90, y: 200, w: 220, h: 200 })
+  const m = roiBBox([[0, 0], [100, 0], [100, 100], [0, 100]], 0.1)
+  assert.deepEqual(m, { x: -10, y: -10, w: 120, h: 120 })
+  assert.equal(roiBBox(null), null)
 })
