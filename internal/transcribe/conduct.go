@@ -52,10 +52,17 @@ type Options struct {
 	// Reading-to-reading comparison cancels stable per-point reader bias.
 	ShiftSkip float64
 	// NewGame: a mid-stream reading at least this close to the standard start
-	// (once a couple of plies were played) closes the game and opens the next.
-	// Tolerant threshold: systematic misreads keep even a true start reading
-	// below a perfect score.
+	// (once the game has clearly left the opening, see GameDiverge) closes the
+	// game and opens the next. Tolerant threshold: systematic misreads keep
+	// even a true start reading below a perfect score.
 	NewGame float64
+	// GameDiverge: the decided board must fall at least this far from the
+	// standard start (WholeBoardMatch <= GameDiverge) at some point before a
+	// return-to-start counts as a new game. No real game revisits the opening
+	// a few plies in, so a near-start reading in the opening is a misread, not
+	// a boundary — this gate blocks the spurious early reset the learned reader
+	// can trip (rawvid regression: the pilot's one game split in two).
+	GameDiverge float64
 	// MinAccept: below this confidence an event is left unexplained (queued
 	// for review) rather than applied — a bad reading must not corrupt the
 	// decided-state chain.
@@ -83,6 +90,7 @@ func DefaultOptions() Options {
 		Policy:         gate.Default(),
 		ShiftSkip:      0.02,
 		NewGame:        0.85,
+		GameDiverge:    0.6,
 		MinAccept:      0.2,
 		DancePenalty:   0.7,
 		CommitPenalty:  0.85,
@@ -137,9 +145,10 @@ type conductor struct {
 	unexplained int
 	review      []pipeline.ReviewItem
 
-	prevObs perceive.ObservedBoard // last reading; deltas are read-to-read
-	hasPrev bool
-	commits []int // clock-press ticks (sorted); empty = no commit cue
+	prevObs  perceive.ObservedBoard // last reading; deltas are read-to-read
+	hasPrev  bool
+	diverged bool  // decided state has left the opening this game (GameDiverge)
+	commits  []int // clock-press ticks (sorted); empty = no commit cue
 }
 
 // nearCommit reports whether a clock press lies within the commit window of
@@ -159,6 +168,7 @@ func (c *conductor) openGame(n int) {
 	c.state = bg.StandardStart()
 	c.onRoll = -1
 	c.hasPrev = false
+	c.diverged = false
 }
 
 // closeGame records the result when the decided state shows a borne-off
@@ -184,12 +194,22 @@ func (c *conductor) step(ev Event) {
 	// the previous one as "what the table looked like last".
 	defer func() { c.prevObs, c.hasPrev = ev.Obs, true }()
 
+	// Once the decided state has clearly left the opening, a later return to
+	// the start is a real game boundary. Tracked on the decided state (not the
+	// raw reading) so a single noisy read can neither set nor clear it.
+	if !c.diverged && boarddiff.WholeBoardMatch(bg.StandardStart(), obsExact(c.state)) <= c.o.GameDiverge {
+		c.diverged = true
+	}
+
 	// Board reset to the standard start mid-game = next game. Tested
 	// BEFORE the unchanged-table skip: after a reset the table stays
 	// visually unchanged across stable windows, and when the first reset
 	// read scored below the bar the skip swallowed every retest — one
-	// noisy read cost the whole boundary (rawvid blind sweep).
-	if len(c.cur.Plies) >= 2 && boarddiff.WholeBoardMatch(bg.StandardStart(), ev.Obs) >= c.o.NewGame {
+	// noisy read cost the whole boundary (rawvid blind sweep). Gated on
+	// c.diverged: no real game returns to the start before leaving the
+	// opening, so a near-start reading in the opening is a misread, not a
+	// boundary (rawvid regression: a spurious early reset split one game).
+	if c.diverged && len(c.cur.Plies) >= 2 && boarddiff.WholeBoardMatch(bg.StandardStart(), ev.Obs) >= c.o.NewGame {
 		c.closeGame()
 		c.openGame(c.cur.Number + 1)
 		c.hasPrev = false // next event diffs against the exact start

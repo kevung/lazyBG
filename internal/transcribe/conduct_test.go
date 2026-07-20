@@ -146,14 +146,20 @@ func TestRunEvents_InsertsDanceOnParityBreak(t *testing.T) {
 	}
 }
 
-// A board back at the standard start mid-stream is a new game.
+// A board back at the standard start mid-stream is a new game — once the game
+// has clearly left the opening (four aggressive plies drop the decided state
+// to ~0.54 against the start, below GameDiverge 0.6).
 func TestRunEvents_NewGameBoundary(t *testing.T) {
-	b1 := best(t, bg.StandardStart(), bg.P1, bg.Dice{3, 1})
-	b2 := best(t, b1, bg.P2, bg.Dice{4, 2})
+	b1 := best(t, bg.StandardStart(), bg.P1, bg.Dice{6, 5})
+	b2 := best(t, b1, bg.P2, bg.Dice{6, 4})
+	b3 := best(t, b2, bg.P1, bg.Dice{5, 4})
+	b4 := best(t, b3, bg.P2, bg.Dice{6, 3})
 	g2first := best(t, bg.StandardStart(), bg.P2, bg.Dice{5, 3})
 	out := RunEvents([]Event{
 		{Tick: 10000, Obs: obsFrom(b1)},
 		{Tick: 20000, Obs: obsFrom(b2)},
+		{Tick: 25000, Obs: obsFrom(b3)},
+		{Tick: 28000, Obs: obsFrom(b4)},
 		{Tick: 30000, Obs: obsFrom(bg.StandardStart())},
 		{Tick: 40000, Obs: obsFrom(g2first)},
 	}, DefaultOptions())
@@ -161,12 +167,33 @@ func TestRunEvents_NewGameBoundary(t *testing.T) {
 	if len(out.Match.Games) != 2 {
 		t.Fatalf("games = %d, want 2", len(out.Match.Games))
 	}
-	if n := len(out.Match.Games[0].Plies); n != 2 {
-		t.Errorf("game 1 plies = %d, want 2", n)
+	if n := len(out.Match.Games[0].Plies); n != 4 {
+		t.Errorf("game 1 plies = %d, want 4", n)
 	}
 	g2 := out.Match.Games[1].Plies
 	if len(g2) != 1 || g2[0].Player != bg.P2 {
 		t.Errorf("game 2 = %+v, want one P2 ply", g2)
+	}
+}
+
+// A reading close to the standard start EARLY in a game — before the board has
+// clearly left the opening — is a misread, not a new game: no real game returns
+// to the start two plies in. Guards the rawvid regression where a noisy near-
+// start read spuriously split the pilot's single game (conduct.go GameDiverge).
+func TestRunEvents_NoResetBeforeGameDiverges(t *testing.T) {
+	b1 := best(t, bg.StandardStart(), bg.P1, bg.Dice{3, 1})
+	b2 := best(t, b1, bg.P2, bg.Dice{4, 2})
+	// A perfect standard-start reading, only two plies in. The decided state
+	// never left the opening, so this must be treated as a misread.
+	out := RunEvents([]Event{
+		{Tick: 10000, Obs: obsFrom(b1)},
+		{Tick: 20000, Obs: obsFrom(b2)},
+		{Tick: 30000, Obs: obsFrom(bg.StandardStart())},
+		{Tick: 40000, Obs: obsFrom(best(t, b2, bg.P1, bg.Dice{5, 2}))},
+	}, DefaultOptions())
+
+	if len(out.Match.Games) != 1 {
+		t.Fatalf("games = %d, want 1 (no reset before the game diverges from the start)", len(out.Match.Games))
 	}
 }
 
@@ -266,6 +293,11 @@ func TestGameBoundaryAfterNoisyReset(t *testing.T) {
 	b2.Pts[16] = bg.Point{Owner: bg.P2, N: 1}
 	b2.Pts[12].N--
 	b2.Pts[17].N++
+	// three more aggressive plies so the decided state clearly leaves the
+	// opening (below GameDiverge 0.6) — the reset gate requires it.
+	b3 := best(t, b2, bg.P1, bg.Dice{6, 5})
+	b4 := best(t, b3, bg.P2, bg.Dice{6, 4})
+	b5 := best(t, b4, bg.P1, bg.Dice{5, 4})
 	// reset read #1: four confident phantoms hold it just under the bar
 	// (WholeBoardMatch 0.841 < NewGame 0.85)
 	r1 := obsOf(start, 0.95)
@@ -282,6 +314,9 @@ func TestGameBoundaryAfterNoisyReset(t *testing.T) {
 	events := []Event{
 		{Tick: 1000, Obs: obsOf(b1, 0.95)},
 		{Tick: 2000, Obs: obsOf(b2, 0.95)},
+		{Tick: 2500, Obs: obsOf(b3, 0.95)},
+		{Tick: 2800, Obs: obsOf(b4, 0.95)},
+		{Tick: 2900, Obs: obsOf(b5, 0.95)},
 		{Tick: 3000, Obs: r1},
 		{Tick: 4000, Obs: r2},
 	}
