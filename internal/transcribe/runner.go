@@ -6,17 +6,18 @@ import (
 	"io"
 	"path/filepath"
 
+	"image/draw"
+	"lazybg/internal/bg"
 	"lazybg/internal/calibrate"
 	"lazybg/internal/capture"
 	"lazybg/internal/corpus"
 	"lazybg/internal/geom"
 	"lazybg/internal/perceive"
+	"lazybg/internal/perceive/boarddiff"
 	"lazybg/internal/perceive/boardstate"
 	"lazybg/internal/perceive/checker"
 	"lazybg/internal/perceive/clockhit"
 	"lazybg/internal/perceive/dienet"
-	"lazybg/internal/bg"
-	"image/draw"
 	"lazybg/internal/perceive/pointnet"
 	"lazybg/internal/perceive/stableframe"
 	"lazybg/internal/profile"
@@ -204,6 +205,7 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 		}}
 
 		roi := scaledBBox(part.Calibration.Corners, srcW, srcH, o.StreamW, o.StreamH)
+		orient, _ := bg.ParseOrientation(part.Priors.Orientation)
 		var reader boardReader = boardstate.CircleReader{Profile: prof, Params: checker.Params{PeakFrac: o.PeakFrac}}
 		if learned != nil {
 			reader = pointnet.Reader{Net: learned}
@@ -229,7 +231,8 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 				return true
 			}
 			mid := w.StartTick + span/2
-			events = append(events, Event{Tick: mid, Part: pi, Obs: VoteObservations(reads)})
+			// Perception-in boundary: canonicalise the voted reading (ADR-0006).
+			events = append(events, Event{Tick: mid, Part: pi, Obs: boarddiff.Reorient(VoteObservations(reads), orient)})
 			if o.Log != nil {
 				fmt.Fprintf(o.Log, "part %d window %d @%dms (%d frames, %d reads)\n", pi, nWin, mid, w.Frames, len(reads))
 			}
@@ -320,20 +323,6 @@ func scaledBBox(corners [][2]float64, srcW, srcH, dstW, dstH int) image.Rectangl
 	}
 	sx, sy := float64(dstW)/float64(srcW), float64(dstH)/float64(srcH)
 	return image.Rect(int(minX*sx), int(minY*sy), int(maxX*sx), int(maxY*sy))
-}
-
-// obsFlipSides swaps the A/B ownership of a reading — the orientation prior
-// when CheckerA belongs to P2.
-func obsFlipSides(ob perceive.ObservedBoard) perceive.ObservedBoard {
-	for p := 1; p <= 24; p++ {
-		switch ob.Points[p].Side {
-		case perceive.A:
-			ob.Points[p].Side = perceive.B
-		case perceive.B:
-			ob.Points[p].Side = perceive.A
-		}
-	}
-	return ob
 }
 
 // VoteObservations fuses several readings of the same stable window into one:

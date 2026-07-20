@@ -90,22 +90,21 @@ func Decide(pre bg.Position, post perceive.ObservedBoard, observedDice *bg.Dice,
 	return fusion.Fuse(pre.PlayerOnRoll, tick, cues, candidates, prior, w), nil
 }
 
-// BoardFromObserved converts a perception reading into an absolute board. sideA
-// declares which player CheckerA (perceive.A) belongs to — an orientation prior.
-func BoardFromObserved(ob perceive.ObservedBoard, sideA bg.Player) bg.Board {
-	var b bg.Board
-	for p := 1; p <= 24; p++ {
-		o := ob.Points[p]
-		if o.Count == 0 || o.Side == perceive.None {
-			continue
-		}
-		who := sideA
-		if o.Side == perceive.B {
-			who = otherPlayer(sideA)
-		}
-		b.Pts[p] = bg.Point{N: o.Count, Owner: who}
+// Reorient maps a reading from camera-view canonical regions onto the canonical
+// bg point numbering by applying the Orientation prior (ADR-0006). The reading
+// at region p belongs to point o.TransformPoint(p); bar/off are unaffected.
+// Since every Orientation is an involution this is also its own inverse. The
+// perception-in boundary calls it right after the board reader, so every
+// downstream consumer sees a canonically-numbered board (P1 home = 1..6).
+func Reorient(ob perceive.ObservedBoard, o bg.Orientation) perceive.ObservedBoard {
+	if o == bg.P1HomeBottomRight {
+		return ob // identity fast path
 	}
-	return b
+	var out perceive.ObservedBoard
+	for p := 1; p <= 24; p++ {
+		out.Points[o.TransformPoint(p)] = ob.Points[p]
+	}
+	return out
 }
 
 // matchScore is the confidence-weighted fraction of points (1..24) where the
@@ -140,13 +139,6 @@ func cellAgrees(o perceive.PointObs, c bg.Point) bool {
 // (CheckerA = P1). Orientation is a Session Prior; this is the skeleton default.
 func playerOf(s perceive.Side) bg.Player {
 	if s == perceive.B {
-		return bg.P2
-	}
-	return bg.P1
-}
-
-func otherPlayer(p bg.Player) bg.Player {
-	if p == bg.P1 {
 		return bg.P2
 	}
 	return bg.P1

@@ -14,11 +14,13 @@ package session
 import (
 	"image"
 
+	"lazybg/internal/bg"
 	"lazybg/internal/calibrate"
 	"lazybg/internal/capture"
 	"lazybg/internal/corpus"
 	"lazybg/internal/geom"
 	"lazybg/internal/perceive"
+	"lazybg/internal/perceive/boarddiff"
 )
 
 // BoardReader reads a rectified board image into a per-point ObservedBoard —
@@ -78,6 +80,11 @@ func (s *Service) observeLocked(tickMs int) *perceive.ObservedBoard {
 		return nil
 	}
 	ob := s.reader.Read(cal.RectifyMasked(frame), cb)
+	// Perception-in boundary: map the camera-view reading onto the canonical
+	// bg numbering per the Orientation prior (ADR-0006) so downstream fusion
+	// sees P1 home at points 1..6 regardless of camera setup.
+	o, _ := bg.ParseOrientation(s.doc.Parts[0].Priors.Orientation)
+	ob = boarddiff.Reorient(ob, o)
 	return &ob
 }
 

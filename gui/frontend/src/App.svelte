@@ -246,12 +246,14 @@
   let selectedSeq = -1 // -1 = live (following the latest turn)
   let frameCanvas // raw-frame snapshot beside the reconstructed board
   let cube = { value: 1, owner: 0, centered: true } // drawn on the board (#33)
+  let orientation = 0 // board orientation prior, mirrors the render (ADR-0006)
 
   async function refreshBoard() {
     try {
       boardState =
         selectedSeq >= 0 ? await api().BoardAt(selectedSeq) : await api().BoardState()
       cube = (await api().Cube?.()) ?? cube
+      orientation = (await api().Orientation?.()) ?? orientation
     } catch { /* non-fatal */ }
   }
 
@@ -570,7 +572,7 @@
             <button class="linklike" on:click={backToLive}>back to live</button>
           {/if}
         </h4>
-        <Board board={boardState} {cube} {score} />
+        <Board board={boardState} {cube} {score} {orientation} />
       </div>
       <div class="board-half">
         <h4>Video frame</h4>
