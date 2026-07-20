@@ -234,6 +234,13 @@ func (a *App) BoardAt(seq int) (bg.Board, error) {
 	return a.service().BoardAt(seq)
 }
 
+// Orientation returns the board orientation prior as an int (0..3) for the
+// reconstructed-board renderer (ADR-0006); it mirrors bg.Orientation and
+// boardGeometry's constants.
+func (a *App) Orientation() int {
+	return int(a.service().Orientation())
+}
+
 // ExportDialog asks where to save the .mat and writes both projections
 // (.mat + .manifest.json) from the current session state. Returns the paths
 // written, or empty strings if the user cancelled.

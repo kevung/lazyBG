@@ -23,6 +23,48 @@ export function colOf(p) {
   return 13 - p // 1..6
 }
 
+// Orientation is the board's on-screen orientation (ADR-0006), mirroring the Go
+// bg.Orientation enum: the video quadrant holding Player 1's home board. The
+// integer values MUST match internal/bg/orientation.go (bit 0 = horizontal
+// mirror, bit 1 = vertical mirror) — they cross the Wails boundary as ints.
+export const P1_HOME_BOTTOM_RIGHT = 0 // canonical reference / identity
+export const P1_HOME_BOTTOM_LEFT = 1 // horizontal mirror
+export const P1_HOME_TOP_RIGHT = 2 // vertical mirror
+export const P1_HOME_TOP_LEFT = 3 // 180° rotation
+
+// flipH / flipV report whether orientation o mirrors horizontally / vertically.
+export function flipH(o) {
+  return (o & 1) !== 0
+}
+export function flipV(o) {
+  return (o & 2) !== 0
+}
+
+// flipHorizontal / flipVertical toggle one mirror bit — the two WYSIWYG mirror
+// buttons (issue #37).
+export function flipHorizontal(o) {
+  return o ^ 1
+}
+export function flipVertical(o) {
+  return o ^ 2
+}
+
+// transformPoint maps between a canonical point (1..24) and the point occupying
+// the same on-screen position under orientation o — the JS twin of
+// bg.Orientation.TransformPoint, a dihedral involution serving both boundaries.
+// The renderer mirrors geometry directly (equivalent); this exists for parity
+// tests and any data-space use. Points outside 1..24 pass through unchanged.
+export function transformPoint(o, p) {
+  if (p < 1 || p > 24) return p
+  // Cell in the calibrate canonical grid: top row 13..24 at cols 0..11,
+  // bottom row 12..1 at cols 0..11.
+  let col = p >= 13 ? p - 13 : 12 - p
+  const top = p >= 13
+  if (flipH(o)) col = 11 - col
+  const outTop = flipV(o) ? !top : top
+  return outTop ? 13 + col : 12 - col
+}
+
 // stack returns how many checkers to draw for a stack of n and, when n exceeds
 // the cap, the total to print as a count on the last checker.
 export function stack(n, cap = MAX_STACK) {

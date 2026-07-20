@@ -7,6 +7,7 @@ package session
 import (
 	"fmt"
 
+	"lazybg/internal/bg"
 	"lazybg/internal/corpus"
 )
 
@@ -60,6 +61,19 @@ func (s *Service) GetSetup() Setup {
 		out.VideoURL = s.doc.Parts[0].URL
 	}
 	return out
+}
+
+// Orientation returns the parsed board-orientation prior of the (first) Part —
+// P1HomeBottomRight when unset. It drives the reconstructed board's on-screen
+// orientation (display-out boundary, ADR-0006).
+func (s *Service) Orientation() bg.Orientation {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.doc == nil || len(s.doc.Parts) == 0 {
+		return bg.P1HomeBottomRight
+	}
+	o, _ := bg.ParseOrientation(s.doc.Parts[0].Priors.Orientation)
+	return o
 }
 
 // SetupDone reports whether the blocking setup step is complete (the 4
