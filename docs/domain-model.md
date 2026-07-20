@@ -90,7 +90,15 @@ on open and a mismatch is surfaced.* See ADR-0004.
 biggest robustness lever (survey §0, §12). Declared once at transcription setup, editable later.
 Fields (all optional; each present prior tightens perception and raises baseline confidence):
 - **Clock present?** and its rough on-screen location (drives Commit-Event detection).
-- **Board orientation** — which player sits on which side; home-board direction; bar side.
+- **Board orientation** — a closed 4-value **`Orientation`** enum naming the video quadrant that
+  holds **Player 1's home (inner) board**: `P1HomeBottomRight` (canonical reference),
+  `P1HomeBottomLeft`, `P1HomeTopRight`, `P1HomeTopLeft`. This single fact fixes both the bearing
+  direction (left/right) *and* near/far (top/bottom row) — competition footage puts P1 on either
+  side. It is a **boundary transform**, never in the core model: applied at perception-in
+  (observed point → canonical `bg.Board` number) and display-out (rendering the reconstructed
+  board in the video's sense). One `Transform()` owns the dihedral logic (bar stays centered, off
+  tray flips with the home). See ADR-0006. *(Supersedes the old `p1-right`/`p1-left` /
+  `p1-bottom` strings.)*
 - **Board color scheme** — surface, point colors, checker colors (drives color-segmentation).
 - **Players** — names and checker colors (Black/White mapping), for the `.mat` metadata.
 - **Match length** — target score (e.g. 7-point match), and rule flags (**Crawford**, **Jacoby**,
@@ -104,11 +112,19 @@ perception may flag contradictions (e.g. checkers detected where the declared co
 ### Board Calibration
 The mapping from Capture pixels to the **canonical rectified board** (a top-down, axis-aligned
 coordinate system with fixed positions for the 24 points, bar, and bearoff trays). In the MVP the
-user clicks the board corners/landmarks **once** (fixed-camera assumption) and lazyBG computes one
-**homography**; it is reused for every Tick. Attributes: source corner points, homography matrix,
-the canonical grid definition, and a validity confidence. It is held **per Part** and inherits from
-the previous Part when the camera is unchanged. Later: semi- or fully-automatic calibration
-(survey §1). *Rule: board reading is undefined without a Board Calibration.*
+user clicks the **four corners of the playing surface** — the quadrilateral enclosing the 24
+triangles *with the bar included at the middle* (one single rectangle), i.e. the outer tips of the
+corner triangles — **not** the outer wooden frame. The canonical grid places the points as
+fractions of that rectangle, so clicking the wooden border shifts every point. The corner clicks
+are ordered (top-left, top-right, bottom-right, bottom-left, camera view); as a non-rectangular
+quadrilateral they also encode the perspective distortion the homography corrects. lazyBG computes
+one **homography** from them, reused for every Tick. Attributes: source corner points, homography
+matrix, the canonical grid definition, and a validity confidence. It is held **per Part** and
+inherits from the previous Part when the camera is unchanged. Later: semi- or fully-automatic
+calibration (survey §1). *Rule: board reading is undefined without a Board Calibration.*
+*UX corollary: the calibration screen must say what to click (playing surface, bar included, not
+the frame) and immediately draw the derived grid back onto the frame as validation — see the
+**Perception Overlay** concept and `docs/ux-spec.md` §10.*
 
 ---
 
@@ -146,6 +162,23 @@ board-state Detector on a Stable Frame via the Board Calibration. It is an *obse
 validated Position — it may be illegal or internally inconsistent (that's the Inference layer's
 problem to resolve). *Invariant: an Observed Board records what was seen and how sure, nothing
 more.*
+
+### Perception Overlay
+The **visual back-projection of perception evidence onto the Capture frame** — a read-only,
+GUI-facing view, not a new detector. For a given (stable) Tick it draws, in **Capture pixel
+space** (detections de-projected through the Board Calibration homography, `boardsynth.WarpToSource`
+machinery), three layers over the video frame cropped to the calibrated ROI:
+1. **Calibration grid** — the board quadrilateral + the 24 point cells + bar + off, derived from
+   the corners (not detected). Shows *where the app believes each point is* → validates the corner
+   clicks. Cheap geometry; the only layer kept live during playback.
+2. **Per-point occupancy** — the `ObservedBoard` count + color per point, tinted by per-point
+   confidence (uncertain = flagged).
+3. **Fine detections** — raw checker circles (`checker.Detect`) and dice pips (`dice.ReadPips`),
+   for detector debugging.
+It runs **only on a stabilised frame** (pause / seek-settle / step, debounced, cached per Tick),
+never per-frame during continuous playback — perception cares about **Stable Board States**, and
+CPU-only is a locked constraint. *Rule: the overlay is a projection of existing evidence; it adds
+no state to the Transcription and never edits the game.* See `docs/ux-spec.md` §6.
 
 ### Commit Event
 The anchor that defeats the **"players try variations before deciding"** problem. A Commit Event
@@ -247,9 +280,11 @@ noisy perception.
 
 ### Board
 Checker layout: 24 **Points** (each holding N checkers of one color), the **Bar** (per color), and
-**Off**/bearoff (per color). Points are numbered 1–24 from a player's perspective; the model fixes
-one canonical numbering and translates for display/orientation (a Session Prior). Colors:
-**Black** and **White** (with the Player↔color mapping declared in the Capture Profile).
+**Off**/bearoff (per color). Points are numbered 1–24 from a player's perspective; **the core fixes
+one canonical numbering (P1 home = 1–6) and never varies it** — the gnubg reuse contract. The
+**`Orientation`** enum (Capture Profile) translates only at the edges (perception-in, display-out),
+never here (ADR-0006). Colors: **Black** and **White** (with the Player↔color mapping declared in
+the Capture Profile).
 
 ### Dice
 The two dice for a Turn (`d1,d2`, each 1–6). **Doubles** yield four moves of the same pip value.
@@ -365,8 +400,9 @@ Commit Event (clock hit) ──anchors──► Turn Segment
 ## 10. Naming conventions for code
 
 Use these exact terms in package, type, and test names so code reads like this document:
-`Capture`, `Tick`, `CaptureProfile` (a.k.a. Session Priors), `BoardCalibration`, `Cue`,
-`Detector`, `CommitEvent`, `StableBoardState` / `ObservedBoard`, `TurnSegment`, `MoveHypothesis`,
-`Fusion`, `MoveDecision`, `Confidence`, `Gate`, `ReviewItem`, `Transcription`, and the core
+`Capture`, `Tick`, `CaptureProfile` (a.k.a. Session Priors), `BoardCalibration`, `Orientation`,
+`Cue`, `Detector`, `CommitEvent`, `StableBoardState` / `ObservedBoard`, `PerceptionOverlay`,
+`TurnSegment`, `MoveHypothesis`, `Fusion`, `MoveDecision`, `Confidence`, `Gate`, `ReviewItem`,
+`Transcription`, and the core
 `Match / Game / Turn / Move / Position / Board / Dice / Cube / Score`. When a name here disagrees
 with a legacy identifier, **this document wins**; port the legacy name deliberately.

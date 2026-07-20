@@ -51,10 +51,21 @@ queue panel — never a popup or forced redirect (functional-spec.md's non-block
 
 ## 6. Board render panel
 
-Two sub-views side by side: the **reconstructed board** (rendered from `bg.Board`, independent of
-video quality — confirms "what the app believes") and the **raw video frame at the current tick**
-(`capture.FrameAt`, for visual sanity-check against reality). Both already exist as primitives; no
-new data-side work, just laying them out together.
+Two sub-views side by side:
+
+- The **reconstructed board** (rendered from `bg.Board` — confirms "what the app believes"),
+  **orientation-aware**: it takes the `Orientation` prop and draws in the *same sense as the video*
+  (tray on the same side, homes in the same corners) via the dihedral transform, so the two
+  sub-views are directly comparable. It no longer hardcodes P1-home-bottom-right (ADR-0006).
+- The **video frame at the current tick**, **cropped to the calibrated ROI** (the corner
+  quadrilateral + a small margin, so the small bottom-right image is filled with the playing area,
+  not background), carrying the **Perception Overlay** (domain model §3): layer 1 the calibration
+  grid, layer 2 per-point occupancy tinted by confidence, layer 3 raw checker circles / dice pips
+  — with toggles to declutter. The overlay recomputes only on a **stabilised frame** (pause /
+  seek-settle / step, debounced, cached per tick); during continuous playback only the grid stays
+  drawn (§ the CPU-only constraint). Exposing detections to the GUI needs a new thin
+  `gui/app.go` binding (run the readers for a tick, de-project through the homography, return
+  {grid, `ObservedBoard`, circles, dice}) — today `app.go` exposes only the plies-replayed board.
 
 ## 7. Review queue panel
 
@@ -77,6 +88,21 @@ displayed frame — no keyboard optimization needed, this happens once per Part,
 persistent **"Calibration…"** menu item/shortcut is reachable at any time during the four-zone
 screen and re-opens this same form pre-filled with current values for correction
 (`functional-spec.md` §3) — no separate mid-session-specific UI.
+
+**Corner clicking is guided (two levers).** *Before* the clicks, a schematic reference diagram +
+one line states what to click: the **four corners of the playing surface** (outer tips of the
+corner triangles, **bar included** at the middle — one rectangle), *not* the outer wooden frame,
+in order TL, TR, BR, BL. *After* the 4th click, the derived **calibration grid is drawn back onto
+the frame** (Perception Overlay layer 1) so the user sees at a glance whether the 24 cells fall on
+the real triangles; if it overflows or shifts, they re-click. The grid is the real safety net; the
+diagram prevents the first mistake.
+
+**Orientation is declared WYSIWYG, by mirroring** (ADR-0006) — not a dropdown. The
+orientation-aware reconstructed board is shown beside the video frame with two **mirror buttons**
+(horizontal / vertical = the four dihedral states); the user flips the synthetic board until it
+coincides with the video (same colors in the same corners, home on the correct side). What they
+set *is* the `Orientation`, and it simultaneously validates the checker-color assignment. This
+replaces the old two-value "P1 bears off left/right" `<select>`.
 
 ## 11. Pass 3 checkpoint
 
