@@ -8,6 +8,9 @@
   import SetupPanel from './SetupPanel.svelte'
   import VideoControls from './VideoControls.svelte'
   import { skip } from './lib/video.js'
+  import {
+    gridOnFrame, homographyFromCorners, canonicalPointCenters, roiBBox, projectPoint,
+  } from './lib/calibration.js'
 
   const api = () => window.go?.main?.App
 
@@ -86,12 +89,13 @@
       resumeTickMs = 0
     }
     maybeOpenSetup() // blocking first step for a fresh session
+    refreshCalibration() // corners for the ROI crop + overlay grid (#36)
   }
 
   // Persist the last-worked position whenever playback pauses.
   function onVideoPause() {
     if (videoEl) api().SetVideoPos(Math.round(videoEl.currentTime * 1000))
-    snapshotFrame()
+    onStableFrame()
   }
 
   let reviewCount = 0
@@ -238,15 +242,24 @@
     try {
       await api().SaveSetup(e.detail)
       setupOpen = false
+      await refreshCalibration() // new corners → refresh ROI/grid, drop cache
+      onStableFrame()
     } catch (err) {
       error = String(err)
     }
   }
   let boardState = null // reconstructed board shown in the board panel
   let selectedSeq = -1 // -1 = live (following the latest turn)
-  let frameCanvas // raw-frame snapshot beside the reconstructed board
+  let frameCanvas // ROI-cropped frame with the Perception Overlay (#36)
   let cube = { value: 1, owner: 0, centered: true } // drawn on the board (#33)
   let orientation = 0 // board orientation prior, mirrors the render (ADR-0006)
+
+  // Perception Overlay (#36, domain-model §3): calibration grid + detections
+  // drawn on the ROI-cropped frame, recomputed only on a stabilised frame.
+  let calCorners = [] // calibrated source corners (TL,TR,BR,BL)
+  let overlayLayers = { grid: true, occupancy: true, discs: false, pips: false }
+  const overlayCache = new Map() // tickMs -> Overlay view (per-tick cache)
+  let overlayTimer = null
 
   async function refreshBoard() {
     try {
@@ -257,14 +270,113 @@
     } catch { /* non-fatal */ }
   }
 
-  // Copy the current video frame into the snapshot canvas (ux-spec §6:
-  // reconstructed board and raw frame side by side).
-  function snapshotFrame() {
+  // Fetch the calibrated corners (for the grid + ROI); clears the stale overlay
+  // cache since a re-calibration moves every detection.
+  async function refreshCalibration() {
+    try {
+      const s = await api().GetSetup?.()
+      calCorners = s?.corners ?? []
+      overlayCache.clear()
+    } catch { /* non-fatal */ }
+  }
+
+  const currentTickMs = () => Math.round((videoEl?.currentTime ?? 0) * 1000)
+
+  // Called whenever the frame settles (seek end / pause): redraw immediately
+  // (frame + grid), then, when paused, fetch+cache the detections and redraw.
+  function onStableFrame() {
+    drawOverlayFrame()
+    if (!paused) return // grid only during playback — no per-frame perception
+    const tick = currentTickMs()
+    if (overlayCache.has(tick)) { drawOverlayFrame(); return }
+    clearTimeout(overlayTimer)
+    overlayTimer = setTimeout(async () => {
+      try {
+        const ov = await api().Overlay?.(tick)
+        if (ov) { overlayCache.set(tick, ov); if (currentTickMs() === tick) drawOverlayFrame() }
+      } catch { /* non-fatal */ }
+    }, 150)
+  }
+
+  // Draw the ROI-cropped frame and whichever overlay layers are enabled. Layers
+  // 2/3 use the cached detections for the current tick when present.
+  function drawOverlayFrame() {
     if (!videoEl || !frameCanvas || !videoEl.videoWidth) return
     const ctx = frameCanvas.getContext('2d')
-    frameCanvas.width = videoEl.videoWidth
-    frameCanvas.height = videoEl.videoHeight
-    ctx.drawImage(videoEl, 0, 0)
+    const roi = roiBBox(calCorners)
+    if (!roi) {
+      // Uncalibrated: fall back to the plain full frame.
+      frameCanvas.width = videoEl.videoWidth
+      frameCanvas.height = videoEl.videoHeight
+      ctx.drawImage(videoEl, 0, 0)
+      return
+    }
+    const w = Math.max(1, Math.round(roi.w))
+    const h = Math.max(1, Math.round(roi.h))
+    frameCanvas.width = w
+    frameCanvas.height = h
+    ctx.drawImage(videoEl, roi.x, roi.y, roi.w, roi.h, 0, 0, w, h)
+    const tx = (p) => [p[0] - roi.x, p[1] - roi.y] // source px -> canvas px
+
+    if (overlayLayers.grid) {
+      const lines = gridOnFrame(calCorners)
+      if (lines) {
+        ctx.lineWidth = Math.max(1, w / 500)
+        ctx.strokeStyle = '#38bdf8cc'
+        for (const line of lines) {
+          ctx.beginPath()
+          line.forEach((pt, i) => { const [x, y] = tx(pt); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y) })
+          ctx.stroke()
+        }
+      }
+    }
+
+    const ov = overlayCache.get(currentTickMs())
+    if (!ov || !ov.OK) return
+    const H = homographyFromCorners(calCorners)
+    if (!H) return
+    const proj = (cx, cy) => tx(projectPoint(H, [cx, cy]))
+    const rad = Math.max(4, w / 45)
+
+    if (overlayLayers.occupancy && ov.Points) {
+      const centers = canonicalPointCenters()
+      for (let p = 1; p <= 24; p++) {
+        const o = ov.Points[p]
+        if (!o || o.Count === 0) continue
+        const [x, y] = proj(centers[p][0], centers[p][1])
+        ctx.beginPath()
+        ctx.arc(x, y, rad, 0, 2 * Math.PI)
+        ctx.fillStyle = o.Side === 2 ? '#f472b6cc' : '#38bdf8cc' // B=pink, A=blue
+        ctx.fill()
+        ctx.lineWidth = 2
+        ctx.strokeStyle = o.Confidence < 0.5 ? '#ef4444' : '#22c55e' // low conf = red
+        ctx.stroke()
+        ctx.fillStyle = '#000'
+        ctx.font = `bold ${Math.round(rad * 1.3)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(String(o.Count), x, y)
+      }
+    }
+    if (overlayLayers.discs && ov.Circles) {
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = '#fde047cc' // yellow discs
+      for (const c of ov.Circles) {
+        const [x, y] = proj(c.X, c.Y)
+        ctx.beginPath()
+        ctx.arc(x, y, rad * 0.9, 0, 2 * Math.PI)
+        ctx.stroke()
+      }
+    }
+    if (overlayLayers.pips && ov.Pips) {
+      ctx.fillStyle = '#a3e635ee' // lime pips
+      for (const pip of ov.Pips) {
+        const [x, y] = proj(pip.X, pip.Y)
+        ctx.beginPath()
+        ctx.arc(x, y, Math.max(2, rad * 0.25), 0, 2 * Math.PI)
+        ctx.fill()
+      }
+    }
   }
 
   // Select a past turn: video jumps to its tick, the board panel shows the
@@ -554,7 +666,7 @@
           bind:playbackRate
           on:loadedmetadata={onVideoReady}
           on:pause={onVideoPause}
-          on:seeked={snapshotFrame}
+          on:seeked={onStableFrame}
           on:error={onVideoError}
         ></video>
         <VideoControls bind:currentTime bind:paused bind:playbackRate {duration} />
@@ -575,7 +687,15 @@
         <Board board={boardState} {cube} {score} {orientation} />
       </div>
       <div class="board-half">
-        <h4>Video frame</h4>
+        <h4>
+          Video frame
+          <span class="layers">
+            <label><input type="checkbox" bind:checked={overlayLayers.grid} on:change={drawOverlayFrame} /> grid</label>
+            <label><input type="checkbox" bind:checked={overlayLayers.occupancy} on:change={drawOverlayFrame} /> reading</label>
+            <label><input type="checkbox" bind:checked={overlayLayers.discs} on:change={drawOverlayFrame} /> discs</label>
+            <label><input type="checkbox" bind:checked={overlayLayers.pips} on:change={drawOverlayFrame} /> pips</label>
+          </span>
+        </h4>
         <canvas bind:this={frameCanvas} class="frame"></canvas>
       </div>
     </section>
@@ -766,6 +886,15 @@
     border-radius: 4px;
     min-height: 40px;
   }
+  .layers {
+    display: inline-flex;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    color: #9ca3af;
+    font-weight: 400;
+  }
+  .layers label { display: inline-flex; align-items: center; gap: 0.15rem; cursor: pointer; }
   .linklike {
     background: none;
     border: none;

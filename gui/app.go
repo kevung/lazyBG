@@ -241,6 +241,13 @@ func (a *App) Orientation() int {
 	return int(a.service().Orientation())
 }
 
+// Overlay returns the perception detections at tickMs (raw ObservedBoard,
+// checker circles, dice pips) in canonical coordinates for the Perception
+// Overlay (issue #36); the frontend de-projects them onto the ROI-cropped frame.
+func (a *App) Overlay(tickMs int) session.OverlayView {
+	return a.service().Overlay(tickMs)
+}
+
 // ExportDialog asks where to save the .mat and writes both projections
 // (.mat + .manifest.json) from the current session state. Returns the paths
 // written, or empty strings if the user cancelled.
