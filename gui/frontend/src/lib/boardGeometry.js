@@ -65,6 +65,30 @@ export function transformPoint(o, p) {
   return outTop ? 13 + col : 12 - col
 }
 
+// ORIENTATION_NAMES are the canonical persistence strings, indexed by value —
+// they MUST match bg.Orientation.String() (internal/bg/orientation.go).
+export const ORIENTATION_NAMES = [
+  'p1-home-bottom-right',
+  'p1-home-bottom-left',
+  'p1-home-top-right',
+  'p1-home-top-left',
+]
+
+// orientationName renders an orientation value as its persistence string.
+export function orientationName(o) {
+  return ORIENTATION_NAMES[o] ?? ORIENTATION_NAMES[0]
+}
+
+// parseOrientation maps a stored string to an orientation value, migrating the
+// legacy vocabularies (ADR-0006): p1-right/p1-bottom/'' → bottom-right,
+// p1-left → bottom-left. Unknown strings fall back to the identity.
+export function parseOrientation(s) {
+  const i = ORIENTATION_NAMES.indexOf(s)
+  if (i >= 0) return i
+  if (s === 'p1-left') return P1_HOME_BOTTOM_LEFT
+  return P1_HOME_BOTTOM_RIGHT // p1-right, p1-bottom, '', or unknown
+}
+
 // stack returns how many checkers to draw for a stack of n and, when n exceeds
 // the cap, the total to print as a count on the last checker.
 export function stack(n, cap = MAX_STACK) {

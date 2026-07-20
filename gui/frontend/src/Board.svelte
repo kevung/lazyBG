@@ -16,6 +16,10 @@
     cube = { value: 1, owner: 0, centered: true },
     score = [0, 0],
     orientation = 0,
+    // Optional [P1, P2] checker fill colours (the declared checkerA/checkerB).
+    // When set, they override the defaults so the board matches the video — the
+    // WYSIWYG orientation control relies on this (issue #37).
+    checkerColors = null,
   } = $props()
 
   const CFG = {
@@ -147,7 +151,7 @@
 
   function placeChecker(cx, cy, r, owner, label) {
     const c = two.makeCircle(cx, cy, r)
-    c.fill = CFG.checker[owner] ?? CFG.checker[0]
+    c.fill = checkerColors?.[owner] ?? CFG.checker[owner] ?? CFG.checker[0]
     c.stroke = CFG.checkerStroke[owner] ?? '#000'
     c.linewidth = 1.5
     if (label) {
