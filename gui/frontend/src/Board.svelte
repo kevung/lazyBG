@@ -30,16 +30,31 @@
 
   let container
   let two = null
+  let ro = null
+
+  const sizeOf = () => ({
+    width: container?.clientWidth || 520,
+    height: container?.clientHeight || 360,
+  })
 
   onMount(() => {
-    two = new Two({ type: Two.Types.svg, fit: true }).appendTo(container)
-    two.bind('resize', draw)
+    // Explicit width/height (blunderDB's proven pattern) rather than two.js
+    // `fit`, plus a ResizeObserver to stay responsive to the panel size.
+    const { width, height } = sizeOf()
+    two = new Two({ type: Two.Types.svg, width, height }).appendTo(container)
     draw()
+    ro = new ResizeObserver(() => {
+      if (!two) return
+      const s = sizeOf()
+      two.width = s.width
+      two.height = s.height
+      if (two.renderer && two.renderer.setSize) two.renderer.setSize(s.width, s.height)
+      draw()
+    })
+    ro.observe(container)
     return () => {
-      if (two) {
-        two.unbind('resize', draw)
-        two.clear()
-      }
+      if (ro) ro.disconnect()
+      if (two) two.clear()
     }
   })
 
