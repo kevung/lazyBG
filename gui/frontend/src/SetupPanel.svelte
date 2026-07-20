@@ -3,6 +3,7 @@
   // this runs once per Part (and again only for corrections), so no keyboard
   // optimization. The 4 corners are clicked on the current video frame.
   import { createEventDispatcher, onMount } from 'svelte'
+  import { gridOnFrame } from './lib/calibration.js'
 
   export let videoEl = null
   export let initial = null // session.Setup for pre-filled correction
@@ -42,6 +43,19 @@
     canvas.height = videoEl.videoHeight
     const ctx = canvas.getContext('2d')
     ctx.drawImage(videoEl, 0, 0)
+    // Once all 4 corners are set, project the canonical grid back onto the
+    // frame (#38): if the 24 cells / bar / tray don't sit on the real board,
+    // the corners were clicked on the wooden frame — re-click.
+    const grid = corners.length === 4 ? gridOnFrame(corners) : null
+    if (grid) {
+      ctx.lineWidth = Math.max(1, canvas.width / 600)
+      ctx.strokeStyle = '#38bdf8cc'
+      for (const line of grid) {
+        ctx.beginPath()
+        line.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
+        ctx.stroke()
+      }
+    }
     for (const [i, [x, y]] of corners.entries()) {
       ctx.fillStyle = '#22c55e'
       ctx.beginPath()
@@ -114,7 +128,37 @@
       </label>
     </div>
 
-    <h3>Board calibration — click the 4 corners (TL, TR, BR, BL)</h3>
+    <h3>Board calibration</h3>
+    <div class="cal-guide">
+      <svg viewBox="0 0 200 130" class="schematic" aria-hidden="true">
+        <!-- wooden frame (do NOT click here) -->
+        <rect x="1" y="1" width="198" height="128" rx="6" fill="#4a3728" stroke="#2c2016" />
+        <!-- playing surface (click its 4 corners) -->
+        <rect x="16" y="14" width="168" height="102" fill="#6b503b" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5 3" />
+        <!-- centre bar, included in the rectangle -->
+        <rect x="94" y="14" width="12" height="102" fill="#2c2016" />
+        <!-- a few triangles to read as a board -->
+        {#each [0, 1, 2, 3, 4, 5] as i}
+          <polygon points={`${18 + i * 12},14 ${30 + i * 12},14 ${24 + i * 12},58`} fill={i % 2 ? '#8a6b4f' : '#5c4433'} />
+          <polygon points={`${112 + i * 12},14 ${124 + i * 12},14 ${118 + i * 12},58`} fill={i % 2 ? '#5c4433' : '#8a6b4f'} />
+          <polygon points={`${18 + i * 12},116 ${30 + i * 12},116 ${24 + i * 12},72`} fill={i % 2 ? '#5c4433' : '#8a6b4f'} />
+          <polygon points={`${112 + i * 12},116 ${124 + i * 12},116 ${118 + i * 12},72`} fill={i % 2 ? '#8a6b4f' : '#5c4433'} />
+        {/each}
+        <!-- corner markers, in click order -->
+        {#each [[16, 14, '1'], [184, 14, '2'], [184, 116, '3'], [16, 116, '4']] as [cx, cy, n]}
+          <circle {cx} {cy} r="7" fill="#22c55e" />
+          <text x={cx} y={cy + 4} text-anchor="middle" font-size="10" fill="#fff">{n}</text>
+        {/each}
+      </svg>
+      <p class="guide-text">
+        Click the <strong>4 corners of the playing surface</strong> — the outer tips of the corner
+        triangles, with the <strong>bar included</strong> in the middle (one rectangle).
+        <strong>Not</strong> the wooden frame. Order: <strong>1</strong> top-left,
+        <strong>2</strong> top-right, <strong>3</strong> bottom-right, <strong>4</strong> bottom-left.
+        After the 4th click, a blue grid is drawn on the frame — if its cells don't sit on the real
+        triangles, re-click.
+      </p>
+    </div>
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
     <canvas bind:this={canvas} class="cal" on:click={clickCorner} role="img" aria-label="video frame for corner calibration"></canvas>
     <p class="hint">{corners.length}/4 corners. Clicking after the 4th starts over.</p>
@@ -168,6 +212,19 @@
     padding: 0.3rem 0.45rem;
   }
   input[type='color'] { padding: 0; width: 2.2rem; height: 1.6rem; }
+  .cal-guide {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    background: #202024;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    padding: 0.6rem 0.75rem;
+    margin: 0.35rem 0 0.6rem;
+  }
+  .schematic { width: 160px; flex: none; border-radius: 4px; }
+  .guide-text { margin: 0; font-size: 0.82rem; color: #d4d4d8; line-height: 1.35; }
+  .guide-text strong { color: #38bdf8; font-weight: 600; }
   .cal { width: 100%; background: #000; border-radius: 4px; cursor: crosshair; }
   .hint { color: #9ca3af; font-size: 0.8rem; }
   .error { color: #f87171; }
