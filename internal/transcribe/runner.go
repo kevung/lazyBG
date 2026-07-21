@@ -84,7 +84,7 @@ func PartSetup(part corpus.Part) (calibrate.BoardCalibration, calibrate.Canonica
 	}
 	lens := calibrate.Lens{}
 	if l := part.Calibration.Lens; l != nil {
-		lens = calibrate.Lens{K1: l.K1, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
+		lens = calibrate.Lens{K1: l.K1, K2: l.K2, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
 	}
 	var barEdges []geom.Pt
 	if e := part.Calibration.BarEdges; len(e) == 4 {

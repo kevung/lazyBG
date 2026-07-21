@@ -10,6 +10,7 @@ import (
 	"log"
 
 	"lazybg/internal/autocal"
+	"lazybg/internal/corpus"
 )
 
 // DetectedHandles is a best-effort auto-calibration seed: the four playing-surface
@@ -18,6 +19,9 @@ import (
 type DetectedHandles struct {
 	Corners  [][2]float64
 	BarEdges [][2]float64
+	// Lens is the fit's admitted radial distortion (nil = pinhole), in the
+	// manifest's schema so the GUI/session can persist it as-is.
+	Lens *corpus.Lens
 }
 
 // DetectCorners detects the eight calibration handles on the frame at tickMs and
@@ -32,12 +36,15 @@ func (s *Service) DetectCorners(tickMs int) (DetectedHandles, error) {
 	if video == "" {
 		return DetectedHandles{}, fmt.Errorf("no video to detect from")
 	}
-	corners, barEdges, err := autocal.DetectHandles(video, tickMs, autocal.DefaultOptions())
+	corners, barEdges, lens, err := autocal.DetectHandles(video, tickMs, autocal.DefaultOptions())
 	if err != nil {
 		log.Printf("DetectCorners @%dms: %v", tickMs, err)
 		return DetectedHandles{}, err
 	}
 	out := DetectedHandles{Corners: make([][2]float64, 4), BarEdges: make([][2]float64, 4)}
+	if lens.K1 != 0 || lens.K2 != 0 {
+		out.Lens = &corpus.Lens{K1: lens.K1, K2: lens.K2, CenterX: lens.CenterX, CenterY: lens.CenterY, Norm: lens.Norm}
+	}
 	for i := 0; i < 4; i++ {
 		out.Corners[i] = [2]float64{corners[i].X, corners[i].Y}
 		out.BarEdges[i] = [2]float64{barEdges[i].X, barEdges[i].Y}

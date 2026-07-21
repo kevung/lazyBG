@@ -173,10 +173,12 @@ func Calibrate(video string, o Options) (Result, error) {
 // scan and no opening verification, so it returns in a moment and works on any
 // frame that shows the board. The result is a best-effort SEED the user refines
 // by dragging, not a trusted calibration. All points are source-frame pixels.
-func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, err error) {
+// The returned lens (zero = pinhole) is the fit's admitted radial
+// distortion, already scaled to source pixels.
+func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, err error) {
 	probe, err := capture.FrameAt(video, tickMs)
 	if err != nil {
-		return corners, barEdges, fmt.Errorf("decode at %dms: %w", tickMs, err)
+		return corners, barEdges, lens, fmt.Errorf("decode at %dms: %w", tickMs, err)
 	}
 	srcW, srcH := probe.Bounds().Dx(), probe.Bounds().Dy()
 	// Detect at the tuned default resolution: the mask/component thresholds and
@@ -187,13 +189,13 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	// A short median suppresses transient hands/dice without scanning the video.
 	med, err := MedianFrame(video, tickMs, tickMs+1500, 5, detW, detH)
 	if err != nil {
-		return corners, barEdges, fmt.Errorf("sample near %dms: %w", tickMs, err)
+		return corners, barEdges, lens, fmt.Errorf("sample near %dms: %w", tickMs, err)
 	}
 	colors := o.Colors
 	if colors == (Colors{}) {
 		var ok bool
 		if colors, ok = AutoColors(med); !ok {
-			return corners, barEdges, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
+			return corners, barEdges, lens, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
 		}
 	}
 	mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
@@ -206,7 +208,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		quad, got = q, true
 	}
 	if !got {
-		return corners, barEdges, fmt.Errorf("no plausible board found in the frame")
+		return corners, barEdges, lens, fmt.Errorf("no plausible board found in the frame")
 	}
 	if !quadInBounds(quad, detW, detH) {
 		quad = clampQuad(quad, detW, detH)
@@ -235,6 +237,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	// matches, loose residual), in which case the mask-extremes seed stands.
 	if fit, ok := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); ok {
 		seedC, seedB = fit.Corners, fit.BarEdges
+		lens = fit.Lens
 	}
 
 	sx := float64(srcW) / float64(detW)
@@ -244,7 +247,14 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	for i := range seedB {
 		barEdges[i] = geom.P(seedB[i].X*sx, seedB[i].Y*sx)
 	}
-	return corners, barEdges, nil
+	// The lens was estimated in detection space; its coefficients are
+	// dimensionless, only centre and norm scale to source pixels.
+	if lens.Norm > 0 {
+		lens.CenterX *= sx
+		lens.CenterY *= sx
+		lens.Norm *= sx
+	}
+	return corners, barEdges, lens, nil
 }
 
 // barFractions finds the bar's left/right position as fractions of the board

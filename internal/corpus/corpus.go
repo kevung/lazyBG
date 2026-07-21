@@ -115,11 +115,14 @@ type Calibration struct {
 	OpeningScore int `json:"openingScore,omitempty"`
 }
 
-// Lens mirrors calibrate.Lens for the manifest: single-k1 radial distortion
-// of the capture camera (negative = barrel, typical wide action cams). Kept
-// as a plain struct so the schema package stays dependency-free.
+// Lens mirrors calibrate.Lens for the manifest: radial distortion of the
+// capture camera (negative K1 = barrel, typical wide action cams; K2 is the
+// r⁴ refinement for strongly deformed optics, 0 for ordinary lenses). Kept
+// as a plain struct so the schema package stays dependency-free. K2 is
+// omitempty: older manifests read unchanged (ADR-0008 §8, no version bump).
 type Lens struct {
 	K1      float64 `json:"k1"`
+	K2      float64 `json:"k2,omitempty"`
 	CenterX float64 `json:"centerX"`
 	CenterY float64 `json:"centerY"`
 	Norm    float64 `json:"norm"`
