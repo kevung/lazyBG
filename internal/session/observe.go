@@ -88,6 +88,19 @@ func (s *Service) observeLocked(tickMs int) *perceive.ObservedBoard {
 	return &ob
 }
 
+// barEdgePts converts stored bar-edge coordinates to geom points, or nil when
+// absent (a v1 four-corner calibration migrates instead).
+func barEdgePts(edges [][2]float64) []geom.Pt {
+	if len(edges) != 4 {
+		return nil
+	}
+	out := make([]geom.Pt, 4)
+	for i, p := range edges {
+		out[i] = geom.P(p[0], p[1])
+	}
+	return out
+}
+
 // buildCalibration turns a stored corpus.Calibration into the geometry the
 // board reader needs — the learned reader needs geometry only, so this is the
 // color-free half of transcribe.PartSetup. ok is false when the session is not
@@ -109,7 +122,7 @@ func buildCalibration(c corpus.Calibration) (calibrate.BoardCalibration, calibra
 	if l := c.Lens; l != nil {
 		lens = calibrate.Lens{K1: l.K1, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
 	}
-	cal, ok := calibrate.NewWithLens(corners, cb, lens)
+	cal, ok := calibrate.NewFromHandles(corners, barEdgePts(c.BarEdges), cb, lens)
 	if !ok {
 		return calibrate.BoardCalibration{}, cb, false
 	}

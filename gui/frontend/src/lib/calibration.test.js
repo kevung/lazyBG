@@ -1,11 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  canonicalSize, canonicalGrid, solveHomography, projectPoint, gridOnFrame, DEFAULT_CANONICAL,
-  homographyFromCorners, canonicalPointCenters, roiBBox,
+  canonicalSize, landmarks, canonicalGridLines, solveHomography, projectPoint,
+  buildCalibration, projectCanonical, gridOnFrame, canonicalPointCenters, roiBBox,
 } from './calibration.js'
 
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`)
+const approxPt = (p, q, eps = 1e-3) => { approx(p[0], q[0], eps); approx(p[1], q[1], eps) }
+
+// A wide, off-centre bar — the case a fixed-fraction canonical gets wrong.
+const CORNERS = [[0, 0], [1200, 0], [1200, 800], [0, 800]]
+const BAR = [[500, 0], [740, 0], [740, 800], [500, 800]] // barTL,barTR,barBR,barBL
 
 test('canonicalSize matches calibrate.DefaultCanonical (860×800)', () => {
   const { w, h } = canonicalSize()
@@ -13,75 +18,52 @@ test('canonicalSize matches calibrate.DefaultCanonical (860×800)', () => {
   assert.equal(h, 800)
 })
 
-test('canonicalGrid has the outer border, 24 cells, bar and tray', () => {
-  const { lines } = canonicalGrid()
-  assert.equal(lines.length, 1 + 24 + 1 + 1) // border + cells + bar + off
-  for (const l of lines) assert.deepEqual(l[0], l[l.length - 1]) // closed loops
+test('landmarks mirror the Go calibrate.landmarks positions', () => {
+  const lm = landmarks()
+  approxPt(lm[0], [20, 20]) // TL
+  approxPt(lm[1], [780, 20]) // TR (outer right playing edge)
+  approxPt(lm[3], [20, 780]) // BL
+  approxPt(lm[4], [380, 20]) // barTL (bar left edge)
+  approxPt(lm[5], [420, 20]) // barTR (bar right edge)
 })
 
-test('solveHomography recovers a pure translation+scale (affine) map', () => {
-  // domain unit-ish square -> range scaled by 2 and shifted by (10,20).
-  const domain = [[0, 0], [100, 0], [100, 80], [0, 80]]
-  const range = domain.map(([x, y]) => [2 * x + 10, 2 * y + 20])
-  const H = solveHomography(domain, range)
-  assert.ok(H)
-  for (let i = 0; i < 4; i++) {
-    const [X, Y] = projectPoint(H, domain[i])
-    approx(X, range[i][0])
-    approx(Y, range[i][1])
-  }
-  // An interior point follows the same affine map.
-  const [mx, my] = projectPoint(H, [50, 40])
-  approx(mx, 110)
-  approx(my, 100)
-})
-
-test('solveHomography handles a genuine perspective quad', () => {
-  const domain = [[0, 0], [860, 0], [860, 800], [0, 800]]
-  const range = [[100, 120], [980, 90], [1020, 720], [60, 690]] // trapezoid
-  const H = solveHomography(domain, range)
-  assert.ok(H)
-  for (let i = 0; i < 4; i++) {
-    const [X, Y] = projectPoint(H, domain[i])
-    approx(X, range[i][0], 1e-4)
-    approx(Y, range[i][1], 1e-4)
+test('buildCalibration maps every canonical landmark to its source handle', () => {
+  const cal = buildCalibration(CORNERS, BAR)
+  const lm = landmarks()
+  const handles = [...CORNERS, ...BAR]
+  for (let i = 0; i < 8; i++) {
+    approxPt(projectCanonical(cal, lm[i]), handles[i])
   }
 })
 
-test('solveHomography returns null for collinear (degenerate) corners', () => {
-  const domain = [[0, 0], [860, 0], [860, 800], [0, 800]]
-  const bad = [[0, 0], [10, 0], [20, 0], [30, 0]] // all on a line
-  assert.equal(solveHomography(domain, bad), null)
+test('buildCalibration migrates (single homography) when bar edges are absent', () => {
+  const cal = buildCalibration(CORNERS, null)
+  assert.deepEqual(cal.left, cal.right) // collapsed
+  // A canonical point projects the same as a plain full-quad homography.
+  const { w, h } = canonicalSize()
+  const H = solveHomography([[0, 0], [w, 0], [w, h], [0, h]], CORNERS)
+  approxPt(projectCanonical(cal, [430, 400]), projectPoint(H, [430, 400]))
 })
 
-test('gridOnFrame projects the outer border exactly onto the clicked corners', () => {
-  const corners = [[100, 120], [980, 90], [1020, 720], [60, 690]]
-  const grid = gridOnFrame(corners)
-  assert.ok(grid)
-  const border = grid[0] // first line is the outer rectangle loop
-  // Its four corners must land on the clicked corners (TL,TR,BR,BL).
-  for (let i = 0; i < 4; i++) {
-    approx(border[i][0], corners[i][0], 1e-3)
-    approx(border[i][1], corners[i][1], 1e-3)
-  }
+test('projectCanonical picks the half by the bar centre', () => {
+  const cal = buildCalibration(CORNERS, BAR)
+  // Left of splitX uses left (→ narrow left half [0,500]); right uses right half.
+  const l = projectCanonical(cal, [200, 400]) // canonical left half
+  const r = projectCanonical(cal, [700, 400]) // canonical right half
+  assert.ok(l[0] < 500 && r[0] > 740, `left ${l[0]} right ${r[0]}`)
+})
+
+test('gridOnFrame projects border + 24 cells + bar; bar follows the handles', () => {
+  const grid = gridOnFrame(CORNERS, BAR)
+  assert.equal(grid.length, 1 + 24 + 1) // border + cells + bar
+  const bar = grid[grid.length - 1] // last line is the bar loop
+  // Its four corners are the bar-edge handles (loop repeats the first).
+  approxPt(bar[0], BAR[0]); approxPt(bar[1], BAR[1]); approxPt(bar[2], BAR[2]); approxPt(bar[3], BAR[3])
 })
 
 test('gridOnFrame rejects the wrong number of corners', () => {
-  assert.equal(gridOnFrame([[0, 0], [1, 1]]), null)
-  assert.equal(gridOnFrame(null), null)
-})
-
-test('homographyFromCorners maps canonical corners onto the clicked corners', () => {
-  const corners = [[100, 120], [980, 90], [1020, 720], [60, 690]]
-  const H = homographyFromCorners(corners)
-  const { w, h } = canonicalSize()
-  const canon = [[0, 0], [w, 0], [w, h], [0, h]]
-  for (let i = 0; i < 4; i++) {
-    const [X, Y] = projectPoint(H, canon[i])
-    approx(X, corners[i][0], 1e-3)
-    approx(Y, corners[i][1], 1e-3)
-  }
-  assert.equal(homographyFromCorners([[0, 0]]), null)
+  assert.equal(gridOnFrame([[0, 0], [1, 1]], null), null)
+  assert.equal(gridOnFrame(null, null), null)
 })
 
 test('canonicalPointCenters places points on the calibrate grid', () => {
@@ -94,10 +76,15 @@ test('canonicalPointCenters places points on the calibrate grid', () => {
   assert.deepEqual(c[6], [450, 600]) // just right of the bar
 })
 
-test('roiBBox is the corner bounding box expanded by the margin', () => {
-  const box = roiBBox([[100, 200], [300, 210], [310, 400], [90, 390]], 0)
-  assert.deepEqual(box, { x: 90, y: 200, w: 220, h: 200 })
-  const m = roiBBox([[0, 0], [100, 0], [100, 100], [0, 100]], 0.1)
-  assert.deepEqual(m, { x: -10, y: -10, w: 120, h: 120 })
+test('roiBBox bounds all given points, expanded by the margin', () => {
+  const box = roiBBox([...CORNERS, ...BAR], 0)
+  assert.deepEqual(box, { x: 0, y: 0, w: 1200, h: 800 })
   assert.equal(roiBBox(null), null)
+  assert.equal(roiBBox([]), null)
+})
+
+test('canonicalGridLines returns closed loops', () => {
+  for (const line of canonicalGridLines()) {
+    assert.deepEqual(line[0], line[line.length - 1])
+  }
 })

@@ -86,7 +86,14 @@ func PartSetup(part corpus.Part) (calibrate.BoardCalibration, calibrate.Canonica
 	if l := part.Calibration.Lens; l != nil {
 		lens = calibrate.Lens{K1: l.K1, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
 	}
-	cal, ok := calibrate.NewWithLens(corners, cb, lens)
+	var barEdges []geom.Pt
+	if e := part.Calibration.BarEdges; len(e) == 4 {
+		barEdges = make([]geom.Pt, 4)
+		for i, p := range e {
+			barEdges[i] = geom.P(p[0], p[1])
+		}
+	}
+	cal, ok := calibrate.NewFromHandles(corners, barEdges, cb, lens)
 	if !ok {
 		return calibrate.BoardCalibration{}, cb, profile.CaptureProfile{},
 			fmt.Errorf("part %q: degenerate calibration", part.File)

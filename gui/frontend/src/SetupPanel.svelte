@@ -30,10 +30,45 @@
     set(1, 2, 1); set(12, 5, 1); set(17, 3, 1); set(19, 5, 1) // Player 2
     return { Pts, Bar: [0, 0], Off: [0, 0] }
   })()
-  let corners = [] // [[x,y] in video pixel coords]
+  // Calibration handles (ADR-0007): four draggable corners + the bar located by
+  // four fractions along the top/bottom playing edges, so the reader can rectify
+  // each half-board (the bar width is explicit, not a fixed guess).
+  let corners = [] // [[x,y]] TL,TR,BR,BL in video-pixel coords
+  let barFrac = { tl: 0.47, tr: 0.53, bl: 0.47, br: 0.53 } // along TL-TR / BL-BR
+  let dragging = null // handle id ('c0'..'c3','btl','btr','bbr','bbl') or null
   let videoUrl = ''
   let canvas
   let error = ''
+
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+
+  // barEdges returns [barTL,barTR,barBR,barBL] from the corners and fractions.
+  function barEdges() {
+    if (corners.length !== 4) return []
+    const [TL, TR, BR, BL] = corners
+    return [lerp(TL, TR, barFrac.tl), lerp(TL, TR, barFrac.tr), lerp(BL, BR, barFrac.br), lerp(BL, BR, barFrac.bl)]
+  }
+
+  // fracAlong is the clamped [0,1] projection of p onto segment a→b.
+  function fracAlong(p, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1]
+    const len2 = dx * dx + dy * dy || 1
+    const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2
+    return Math.max(0.02, Math.min(0.98, t))
+  }
+
+  // handleList returns the drawable/hit-testable handles.
+  function handleList() {
+    if (corners.length !== 4) return []
+    const be = barEdges()
+    return [
+      ...corners.map(([x, y], i) => ({ id: 'c' + i, x, y, kind: 'corner', label: String(i + 1) })),
+      { id: 'btl', x: be[0][0], y: be[0][1], kind: 'bar' },
+      { id: 'btr', x: be[1][0], y: be[1][1], kind: 'bar' },
+      { id: 'bbr', x: be[2][0], y: be[2][1], kind: 'bar' },
+      { id: 'bbl', x: be[3][0], y: be[3][1], kind: 'bar' },
+    ]
+  }
 
   onMount(() => {
     if (initial) {
@@ -45,11 +80,36 @@
         checkerA = initial.priors.checkerA || checkerA
         checkerB = initial.priors.checkerB || checkerB
       }
-      corners = (initial.corners ?? []).map((c) => [...c])
       videoUrl = initial.videoUrl || ''
     }
+    seedCalibration()
     drawFrame()
+    window.addEventListener('mousemove', onDrag)
+    window.addEventListener('mouseup', endDrag)
+    return () => {
+      window.removeEventListener('mousemove', onDrag)
+      window.removeEventListener('mouseup', endDrag)
+    }
   })
+
+  // seedCalibration pre-places the handles so the user adjusts rather than
+  // placing from scratch: prior values when correcting, else a default inset.
+  function seedCalibration() {
+    const w = videoEl?.videoWidth || 640
+    const h = videoEl?.videoHeight || 360
+    corners = initial?.corners?.length === 4
+      ? initial.corners.map((c) => [...c])
+      : [[0.15 * w, 0.18 * h], [0.85 * w, 0.18 * h], [0.85 * w, 0.82 * h], [0.15 * w, 0.82 * h]]
+    if (initial?.barEdges?.length === 4) {
+      const [TL, TR, BR, BL] = corners
+      barFrac = {
+        tl: fracAlong(initial.barEdges[0], TL, TR),
+        tr: fracAlong(initial.barEdges[1], TL, TR),
+        br: fracAlong(initial.barEdges[2], BL, BR),
+        bl: fracAlong(initial.barEdges[3], BL, BR),
+      }
+    }
+  }
 
   function drawFrame() {
     if (!canvas || !videoEl || !videoEl.videoWidth) return
@@ -57,10 +117,9 @@
     canvas.height = videoEl.videoHeight
     const ctx = canvas.getContext('2d')
     ctx.drawImage(videoEl, 0, 0)
-    // Once all 4 corners are set, project the canonical grid back onto the
-    // frame (#38): if the 24 cells / bar / tray don't sit on the real board,
-    // the corners were clicked on the wooden frame — re-click.
-    const grid = corners.length === 4 ? gridOnFrame(corners) : null
+    // Live dual half-grid: if the 24 cells / bar don't sit on the real triangles,
+    // drag the handles until they do (#46).
+    const grid = gridOnFrame(corners, barEdges())
     if (grid) {
       ctx.lineWidth = Math.max(1, canvas.width / 600)
       ctx.strokeStyle = '#38bdf8cc'
@@ -70,31 +129,71 @@
         ctx.stroke()
       }
     }
-    for (const [i, [x, y]] of corners.entries()) {
-      ctx.fillStyle = '#22c55e'
+    const r = Math.max(6, canvas.width / 120)
+    for (const hd of handleList()) {
+      ctx.fillStyle = hd.kind === 'corner' ? '#22c55e' : '#f59e0b'
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(x, y, 8, 0, 2 * Math.PI)
+      ctx.arc(hd.x, hd.y, r, 0, 2 * Math.PI)
       ctx.fill()
-      ctx.fillStyle = '#fff'
-      ctx.font = '16px sans-serif'
-      ctx.fillText(String(i + 1), x + 10, y - 10)
+      ctx.stroke()
+      if (hd.label) {
+        ctx.fillStyle = '#fff'
+        ctx.font = `bold ${Math.round(r * 1.6)}px sans-serif`
+        ctx.fillText(hd.label, hd.x + r, hd.y - r)
+      }
     }
   }
 
-  function clickCorner(e) {
-    if (!canvas) return
+  function canvasPt(e) {
     const rect = canvas.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * canvas.width
-    const y = ((e.clientY - rect.top) / rect.height) * canvas.height
-    if (corners.length >= 4) corners = []
-    corners = [...corners, [x, y]]
+    return [
+      ((e.clientX - rect.left) / rect.width) * canvas.width,
+      ((e.clientY - rect.top) / rect.height) * canvas.height,
+    ]
+  }
+
+  function startDrag(e) {
+    if (!canvas) return
+    const p = canvasPt(e)
+    let best = null, bestD = Infinity
+    for (const hd of handleList()) {
+      const d = (hd.x - p[0]) ** 2 + (hd.y - p[1]) ** 2
+      if (d < bestD) { bestD = d; best = hd }
+    }
+    const tol = (canvas.width * 0.04) ** 2
+    if (best && bestD <= tol) {
+      dragging = best.id
+      e.preventDefault()
+    }
+  }
+
+  function onDrag(e) {
+    if (!dragging || corners.length !== 4) return
+    const p = canvasPt(e)
+    if (dragging[0] === 'c') {
+      corners[+dragging[1]] = p
+      corners = corners
+    } else {
+      const [TL, TR, BR, BL] = corners
+      if (dragging === 'btl') barFrac.tl = fracAlong(p, TL, TR)
+      else if (dragging === 'btr') barFrac.tr = fracAlong(p, TL, TR)
+      else if (dragging === 'bbl') barFrac.bl = fracAlong(p, BL, BR)
+      else if (dragging === 'bbr') barFrac.br = fracAlong(p, BL, BR)
+      barFrac = barFrac
+    }
     drawFrame()
+  }
+
+  function endDrag() {
+    dragging = null
   }
 
   function save() {
     error = ''
     if (corners.length !== 4) {
-      error = 'Click the 4 board corners (TL, TR, BR, BL) on the frame.'
+      error = 'Place the 4 corner handles on the playing surface.'
       return
     }
     dispatch('save', {
@@ -108,6 +207,7 @@
         checkerB,
       },
       corners,
+      barEdges: barEdges(),
     })
   }
 </script>
@@ -142,7 +242,7 @@
         <rect x="1" y="1" width="198" height="128" rx="6" fill="#4a3728" stroke="#2c2016" />
         <!-- playing surface (click its 4 corners) -->
         <rect x="16" y="14" width="168" height="102" fill="#6b503b" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5 3" />
-        <!-- centre bar, included in the rectangle -->
+        <!-- centre bar, located by its own draggable edge handles -->
         <rect x="94" y="14" width="12" height="102" fill="#2c2016" />
         <!-- a few triangles to read as a board -->
         {#each [0, 1, 2, 3, 4, 5] as i}
@@ -151,24 +251,27 @@
           <polygon points={`${18 + i * 12},116 ${30 + i * 12},116 ${24 + i * 12},72`} fill={i % 2 ? '#5c4433' : '#8a6b4f'} />
           <polygon points={`${112 + i * 12},116 ${124 + i * 12},116 ${118 + i * 12},72`} fill={i % 2 ? '#8a6b4f' : '#5c4433'} />
         {/each}
-        <!-- corner markers, in click order -->
+        <!-- corner handles (green) -->
         {#each [[16, 14, '1'], [184, 14, '2'], [184, 116, '3'], [16, 116, '4']] as [cx, cy, n]}
           <circle {cx} {cy} r="7" fill="#22c55e" />
           <text x={cx} y={cy + 4} text-anchor="middle" font-size="10" fill="#fff">{n}</text>
         {/each}
+        <!-- bar-edge handles (orange) -->
+        {#each [[94, 14], [106, 14], [106, 116], [94, 116]] as [cx, cy]}
+          <circle {cx} {cy} r="6" fill="#f59e0b" stroke="#000" stroke-width="1" />
+        {/each}
       </svg>
       <p class="guide-text">
-        Click the <strong>4 corners of the playing surface</strong> — the outer tips of the corner
-        triangles, with the <strong>bar included</strong> in the middle (one rectangle).
-        <strong>Not</strong> the wooden frame. Order: <strong>1</strong> top-left,
-        <strong>2</strong> top-right, <strong>3</strong> bottom-right, <strong>4</strong> bottom-left.
-        After the 4th click, a blue grid is drawn on the frame — if its cells don't sit on the real
-        triangles, re-click.
+        Drag the <strong>4 green corner handles</strong> onto the corners of the playing surface —
+        the outer tips of the corner triangles, <strong>not</strong> the wooden frame. Then drag the
+        <strong>4 orange bar handles</strong> onto the two edges of the centre bar (they slide along
+        the top/bottom edges). A blue grid follows live — adjust until its 24 cells sit on the real
+        triangles.
       </p>
     </div>
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
-    <canvas bind:this={canvas} class="cal" on:click={clickCorner} role="img" aria-label="video frame for corner calibration"></canvas>
-    <p class="hint">{corners.length}/4 corners. Clicking after the 4th starts over.</p>
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <canvas bind:this={canvas} class="cal" on:mousedown={startDrag} role="img" aria-label="video frame for board calibration handles"></canvas>
+    <p class="hint">Drag the green corners and the orange bar handles until the grid matches the board.</p>
 
     <h3>Orientation</h3>
     <div class="orient">
@@ -251,7 +354,8 @@
   .schematic { width: 160px; flex: none; border-radius: 4px; }
   .guide-text { margin: 0; font-size: 0.82rem; color: #d4d4d8; line-height: 1.35; }
   .guide-text strong { color: #38bdf8; font-weight: 600; }
-  .cal { width: 100%; background: #000; border-radius: 4px; cursor: crosshair; }
+  .cal { width: 100%; background: #000; border-radius: 4px; cursor: grab; }
+  .cal:active { cursor: grabbing; }
   .hint { color: #9ca3af; font-size: 0.8rem; }
   .orient {
     display: flex;
