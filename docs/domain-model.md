@@ -111,20 +111,28 @@ perception may flag contradictions (e.g. checkers detected where the declared co
 
 ### Board Calibration
 The mapping from Capture pixels to the **canonical rectified board** (a top-down, axis-aligned
-coordinate system with fixed positions for the 24 points, bar, and bearoff trays). In the MVP the
-user clicks the **four corners of the playing surface** — the quadrilateral enclosing the 24
-triangles *with the bar included at the middle* (one single rectangle), i.e. the outer tips of the
-corner triangles — **not** the outer wooden frame. The canonical grid places the points as
-fractions of that rectangle, so clicking the wooden border shifts every point. The corner clicks
-are ordered (top-left, top-right, bottom-right, bottom-left, camera view); as a non-rectangular
-quadrilateral they also encode the perspective distortion the homography corrects. lazyBG computes
-one **homography** from them, reused for every Tick. Attributes: source corner points, homography
-matrix, the canonical grid definition, and a validity confidence. It is held **per Part** and
-inherits from the previous Part when the camera is unchanged. Later: semi- or fully-automatic
-calibration (survey §1). *Rule: board reading is undefined without a Board Calibration.*
-*UX corollary: the calibration screen must say what to click (playing surface, bar included, not
-the frame) and immediately draw the derived grid back onto the frame as validation — see the
-**Perception Overlay** concept and `docs/ux-spec.md` §10.*
+coordinate system with fixed positions for the 24 points). It is **two homographies split by the
+bar** (ADR-0007), *not* one: the playing surface is captured as two half-board quads — left
+`[TL, barTL, barBL, BL]`, right `[barTR, TR, BR, barBR]` — each mapped to a canonical half. Within a
+half the six points are evenly spaced and fill the space from the outer playing edge to the bar
+edge (true for every board), so the subdivision is exact with **no guessed proportion**; two
+homographies also tolerate the slight **fold** at the board's hinge, which one cannot. A single
+homography *does* capture perspective exactly — the earlier one-homography model failed not on
+perspective but on **fixed internal proportions** (bar width, margins) that a real board does not
+match; the bar width is the dominant error.
+
+Captured as **eight source points**: four outer corners + four bar-edge points. In the GUI these are
+**draggable handles** (corners free; bar points slide along the top/bottom edges so the bar stays a
+clean strip), pre-seeded and adjusted against a **live dual half-grid preview** (`ux-spec.md` §10).
+The perimeter is the **24 points and the bar only** — the bearoff tray leaves the model (bearoff is
+derived from game state) and the cube is out of scope (a centred cube sits on the calibrated bar; a
+rail cube is a future cube-perception ROI). Attributes: schema **version**, the eight source points,
+the two homographies, the canonical half geometry, and a validity confidence. Held **per Part**,
+inheriting from the previous Part when the camera is unchanged. The stored format is **versioned**;
+legacy four-corner calibrations **migrate deterministically** (bar edges synthesised via the old
+homography) so they reproduce the old grid and re-calibrate to gain accuracy. Later: automatic
+calibration (`internal/autocal`) as a best-effort **seed** for the handles, never the final word.
+*Rule: board reading is undefined without a Board Calibration.*
 
 ---
 
@@ -166,11 +174,11 @@ more.*
 ### Perception Overlay
 The **visual back-projection of perception evidence onto the Capture frame** — a read-only,
 GUI-facing view, not a new detector. For a given (stable) Tick it draws, in **Capture pixel
-space** (detections de-projected through the Board Calibration homography, `boardsynth.WarpToSource`
-machinery), three layers over the video frame cropped to the calibrated ROI:
-1. **Calibration grid** — the board quadrilateral + the 24 point cells + bar + off, derived from
-   the corners (not detected). Shows *where the app believes each point is* → validates the corner
-   clicks. Cheap geometry; the only layer kept live during playback.
+space** (detections de-projected through the Board Calibration's two homographies), three layers
+over the video frame cropped to the calibrated ROI:
+1. **Calibration grid** — the two half-board quads' 24 point cells + the bar, derived from the eight
+   handles (not detected). Shows *where the app believes each point is* → validates the calibration.
+   Cheap geometry; the only layer kept live during playback.
 2. **Per-point occupancy** — the `ObservedBoard` count + color per point, tinted by per-point
    confidence (uncertain = flagged).
 3. **Fine detections** — raw checker circles (`checker.Detect`) and dice pips (`dice.ReadPips`),
