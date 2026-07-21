@@ -255,6 +255,15 @@
     }
   }
   let boardState = null // reconstructed board shown in the board panel
+  // The opening position, shown in the reconstructed board before any session
+  // is loaded so the panel is never blank.
+  const START_BOARD = (() => {
+    const Pts = Array.from({ length: 25 }, () => ({ N: 0, Owner: 0 }))
+    const set = (p, n, o) => (Pts[p] = { N: n, Owner: o })
+    set(24, 2, 0); set(13, 5, 0); set(8, 3, 0); set(6, 5, 0) // Player 1
+    set(1, 2, 1); set(12, 5, 1); set(17, 3, 1); set(19, 5, 1) // Player 2
+    return { Pts, Bar: [0, 0], Off: [0, 0] }
+  })()
   let selectedSeq = -1 // -1 = live (following the latest turn)
   let frameCanvas // ROI-cropped frame with the Perception Overlay (#36)
   let cube = { value: 1, owner: 0, centered: true } // drawn on the board (#33)
@@ -730,7 +739,7 @@
             <button class="linklike" on:click={backToLive}>back to live</button>
           {/if}
         </h4>
-        <Board board={boardState} {cube} {score} {orientation} {checkerColors} />
+        <Board board={boardState ?? START_BOARD} {cube} {score} {orientation} {checkerColors} />
       </div>
       <div class="board-half">
         <h4>
