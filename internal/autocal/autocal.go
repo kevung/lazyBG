@@ -235,14 +235,16 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 }
 
 // barFractions finds the bar's left/right position as fractions of the board
-// width, from the central valley in the per-column point-triangle density of a
-// rectified board image. Returns a centred default when no clear valley exists.
+// width from a rectified board image. It locates the bar centre as the lowest
+// point-triangle-density column in the central band, then walks outward to the
+// half-maximum crossings — the onset of the flanking point columns — which pins
+// the bar edges far more precisely than a flat threshold. Returns a centred
+// default when no clear valley exists.
 func barFractions(rect *image.RGBA, cb calibrate.CanonicalBoard, colors Colors, tol float64) (leftFrac, rightFrac float64) {
 	w, h := cb.Size()
 	mask := ColorMask(rect, []color.RGBA{colors.PointA, colors.PointB}, tol)
 	y0, y1 := cb.MarginY, h-cb.MarginY
 	dens := make([]float64, w)
-	var sum float64
 	for x := 0; x < w; x++ {
 		c := 0
 		for y := y0; y < y1; y++ {
@@ -251,30 +253,52 @@ func barFractions(rect *image.RGBA, cb calibrate.CanonicalBoard, colors Colors, 
 			}
 		}
 		dens[x] = float64(c)
-		sum += float64(c)
 	}
-	thr := 0.3 * sum / float64(w) // 30% of the mean column density
-	lo, hi := int(float64(w)*0.35), int(float64(w)*0.65)
-	bestStart, bestLen, curStart, curLen := -1, 0, -1, 0
-	for x := lo; x < hi; x++ {
-		if dens[x] < thr {
-			if curStart < 0 {
-				curStart = x
-				curLen = 0
+	// Smooth (moving average) to steady the edge crossings.
+	const r = 3
+	sm := make([]float64, w)
+	for x := 0; x < w; x++ {
+		var s float64
+		var n int
+		for k := -r; k <= r; k++ {
+			if x+k >= 0 && x+k < w {
+				s += dens[x+k]
+				n++
 			}
-			curLen++
-			if curLen > bestLen {
-				bestLen = curLen
-				bestStart = curStart
-			}
-		} else {
-			curStart, curLen = -1, 0
+		}
+		sm[x] = s / float64(n)
+	}
+	maxD := 0.0
+	for _, d := range sm {
+		if d > maxD {
+			maxD = d
 		}
 	}
-	if bestStart < 0 || bestLen < 2 {
-		return 0.47, 0.53 // no clear valley → centred default
+	if maxD == 0 {
+		return 0.47, 0.53
 	}
-	return float64(bestStart) / float64(w), float64(bestStart+bestLen) / float64(w)
+	// Bar centre: the lowest-density column in the central band.
+	lo, hi := int(float64(w)*0.42), int(float64(w)*0.58)
+	mid, minD := lo, sm[lo]
+	for x := lo; x <= hi; x++ {
+		if sm[x] < minD {
+			minD, mid = sm[x], x
+		}
+	}
+	// Walk out to where density reaches half the peak — the flanking columns.
+	thr := 0.5 * maxD
+	left, right := mid, mid
+	for left > 0 && sm[left] < thr {
+		left--
+	}
+	for right < w-1 && sm[right] < thr {
+		right++
+	}
+	bw := right - left
+	if bw < int(0.01*float64(w)) || bw > int(0.22*float64(w)) {
+		return 0.47, 0.53 // implausible width → centred default
+	}
+	return float64(left) / float64(w), float64(right) / float64(w)
 }
 
 // clampQuad projects a quad's corners into the frame.
