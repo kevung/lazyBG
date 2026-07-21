@@ -253,6 +253,9 @@
   let frameCanvas // ROI-cropped frame with the Perception Overlay (#36)
   let cube = { value: 1, owner: 0, centered: true } // drawn on the board (#33)
   let orientation = 0 // board orientation prior, mirrors the render (ADR-0006)
+  // Declared checker colours [P1, P2] so the reconstructed board matches the
+  // video for the at-a-glance comparison (#43). Defaults mirror SetupPanel.
+  let checkerColors = ['#e7e0d5', '#31221c']
 
   // Perception Overlay (#36, domain-model §3): calibration grid + detections
   // drawn on the ROI-cropped frame, recomputed only on a stabilised frame.
@@ -276,6 +279,7 @@
     try {
       const s = await api().GetSetup?.()
       calCorners = s?.corners ?? []
+      if (s?.priors?.checkerA) checkerColors = [s.priors.checkerA, s.priors.checkerB]
       overlayCache.clear()
     } catch { /* non-fatal */ }
   }
@@ -684,7 +688,7 @@
             <button class="linklike" on:click={backToLive}>back to live</button>
           {/if}
         </h4>
-        <Board board={boardState} {cube} {score} {orientation} />
+        <Board board={boardState} {cube} {score} {orientation} {checkerColors} />
       </div>
       <div class="board-half">
         <h4>
