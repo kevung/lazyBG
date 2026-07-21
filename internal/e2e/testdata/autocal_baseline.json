@@ -27,12 +27,12 @@
     {
       "id": "2025-05_hsbtMarseille_or-r1_HanotinDenis",
       "scoreManual": 23,
-      "scoreAuto": 14,
+      "scoreAuto": 16,
       "cornerDistPx": [
-        44.186229378773795,
-        16.38825852610768,
-        27.508342650223966,
-        26.80497839100749
+        44.23566693416844,
+        5.546181192235636,
+        12.885827850195579,
+        30.50912858566018
       ]
     },
     {
@@ -41,10 +41,10 @@
       "scoreManual": 21,
       "scoreAuto": 14,
       "cornerDistPx": [
-        58.28744454578746,
-        31.29684649742801,
-        23.09301692980297,
-        57.99124557396975
+        46.23224645746617,
+        24.757729405636656,
+        13.253988430230626,
+        47.72021209653661
       ]
     },
     {
@@ -73,9 +73,15 @@
     },
     {
       "id": "2025-10_cdfAngers_r1_EricBenichou",
-      "err": "detect: no plausible board found in the frame",
       "openingTickMs": 29999,
-      "scoreManual": 16
+      "scoreManual": 16,
+      "scoreAuto": 9,
+      "cornerDistPx": [
+        113.09145781190348,
+        155.45383521615216,
+        107.110863269607,
+        233.3104921195832
+      ]
     },
     {
       "id": "2025-10_cdfAngers_r2_JacquesRavier",
@@ -138,20 +144,26 @@
     },
     {
       "id": "2025-11_hsbtParis_r1_PhilippeLevasseur",
-      "err": "detect: no plausible board found in the frame",
       "openingTickMs": 6833,
-      "scoreManual": 19
+      "scoreManual": 19,
+      "scoreAuto": 13,
+      "cornerDistPx": [
+        13.273436681703025,
+        26.689645993679893,
+        42.21384468990196,
+        17.22131856656285
+      ]
     },
     {
       "id": "2025-11_hsbtParis_r2_StephaneCheneviere",
       "openingTickMs": 9000,
       "scoreManual": 21,
-      "scoreAuto": 11,
+      "scoreAuto": 14,
       "cornerDistPx": [
-        15.422586385770707,
-        29.909887661753235,
-        16.189584919125984,
-        17.54507500486336
+        15.932805707351246,
+        29.947728128350562,
+        18.152737003264445,
+        12.080847092547017
       ]
     },
     {
@@ -203,21 +215,27 @@
     },
     {
       "id": "2026-05_hsbtMarseille_main-r1_JeanLucLelievre",
-      "err": "detect: no plausible board found in the frame",
+      "err": "detect: no plausible board found in the frame (5 colour hypotheses tried)",
       "openingTickMs": 1122500,
       "scoreManual": 12
     },
     {
       "id": "2026-05_hsbtMarseille_main-r4_MichelHileyan",
-      "err": "detect: no plausible board found in the frame",
+      "err": "detect: no plausible board found in the frame (5 colour hypotheses tried)",
       "openingTickMs": 237000,
       "scoreManual": 21
     },
     {
       "id": "2026-05_hsbtMarseille_main-r5_TristanRemille",
-      "err": "detect: no plausible board found in the frame",
       "openingTickMs": 12000,
-      "scoreManual": 19
+      "scoreManual": 19,
+      "scoreAuto": 10,
+      "cornerDistPx": [
+        186.22811629826472,
+        162.01985835075902,
+        415.51390361815817,
+        135.31023058143094
+      ]
     },
     {
       "id": "hsbtMars2025-main-r1",
@@ -225,10 +243,10 @@
       "scoreManual": 21,
       "scoreAuto": 13,
       "cornerDistPx": [
-        61.181601189793604,
-        26.960866377446777,
-        12.641117962044838,
-        31.87709103237131
+        61.181601189791685,
+        26.960866377446962,
+        12.641117962045444,
+        31.877091032372775
       ]
     }
   ]
