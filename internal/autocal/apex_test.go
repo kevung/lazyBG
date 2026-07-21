@@ -165,3 +165,35 @@ func nearestDist(apexes []Apex, p geom.Pt) float64 {
 	}
 	return best
 }
+
+func TestMergeApexes_AveragesCloseAndKeepsDisjoint(t *testing.T) {
+	setA := []Apex{
+		{Pt: geom.P(100, 50), Down: true, Rows: 40},
+		{Pt: geom.P(140, 50), Down: true, Rows: 30},
+	}
+	setB := []Apex{
+		{Pt: geom.P(101, 51), Down: true, Rows: 50}, // same triangle as A[0], jittered
+		{Pt: geom.P(180, 52), Down: true, Rows: 20}, // visible only at instant B
+	}
+	merged := MergeApexes([][]Apex{setA, setB}, 8)
+	if len(merged) != 3 {
+		t.Fatalf("got %d merged apexes, want 3: %+v", len(merged), merged)
+	}
+	// Rows-weighted average of (100,50)@40 and (101,51)@50.
+	if d := nearestDist(merged, geom.P(100.556, 50.556)); d > 0.01 {
+		t.Errorf("duplicate pair not averaged (nearest %f)", d)
+	}
+	if d := nearestDist(merged, geom.P(180, 52)); d > 0.01 {
+		t.Errorf("instant-B-only apex lost")
+	}
+}
+
+func TestMergeApexes_NeverMergesAcrossOrientation(t *testing.T) {
+	merged := MergeApexes([][]Apex{
+		{{Pt: geom.P(100, 50), Down: true}},
+		{{Pt: geom.P(101, 51), Down: false}},
+	}, 8)
+	if len(merged) != 2 {
+		t.Fatalf("opposite-orientation apexes must not merge, got %d", len(merged))
+	}
+}

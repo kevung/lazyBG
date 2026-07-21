@@ -66,7 +66,12 @@ func DefaultOptions() Options {
 
 // Result is a validated automatic calibration.
 type Result struct {
-	Corners      [4]geom.Pt
+	Corners [4]geom.Pt
+	// BarEdges and Lens come from the multi-instant correspondence fit
+	// (ADR-0008 §7); BarEdges is nil when the fit did not run and the
+	// mask-quad fallback produced the corners.
+	BarEdges     []geom.Pt
+	Lens         calibrate.Lens
 	SpanBeginMs  int
 	OpeningScore int // per-point score (of 24) at SpanBeginMs
 }
@@ -141,17 +146,38 @@ func Calibrate(video string, o Options) (Result, error) {
 		if err != nil {
 			continue
 		}
+		// Multi-instant correspondence fit (ADR-0008 §7): apexes aggregated
+		// over spaced instants — the checkers move between them, so the
+		// union covers triangles any single instant loses. The fit is
+		// scored with its FULL calibration (8 handles + lens); the legacy
+		// oracle path (RefineCorners on the mask quad, corners-only model)
+		// runs as well, and the better opening read wins — the oracle stays
+		// the final judge either way.
+		cand := Result{OpeningScore: -1}
+		if fit, ok := fitAtInstants(video, []int{tick, tick + 90000, tick + 180000}, o, corners, srcW, srcH); ok {
+			if cal, okCal := calibrate.NewFromHandles(fit.Corners, fit.BarEdges[:], o.Canonical, fit.Lens); okCal {
+				if fTick, _, err := findOpeningCal(video, cal, o, 0); err == nil {
+					fc, fb := fit.Corners, fit.BarEdges
+					if frame, err := capture.FrameAt(video, fTick); err == nil {
+						fc, fb = RefineHandles(frame, fc, fb, fit.Lens, o)
+					}
+					if cal2, ok2 := calibrate.NewFromHandles(fc, fb[:], o.Canonical, fit.Lens); ok2 {
+						if fTick2, fScore, err := findOpeningCal(video, cal2, o, 0); err == nil {
+							cand = Result{Corners: fc, BarEdges: fb[:], Lens: fit.Lens, SpanBeginMs: fTick2, OpeningScore: fScore}
+						}
+					}
+				}
+			}
+		}
 		frame, err := capture.FrameAt(video, tick)
-		if err != nil {
-			continue
+		if err == nil {
+			legacy := RefineCorners(frame, corners, o)
+			if lTick, lScore, err := FindOpening(video, legacy, o, 0); err == nil && lScore > cand.OpeningScore {
+				cand = Result{Corners: legacy, SpanBeginMs: lTick, OpeningScore: lScore}
+			}
 		}
-		corners = RefineCorners(frame, corners, o)
-		tick, score, err := FindOpening(video, corners, o, 0)
-		if err != nil {
-			continue
-		}
-		if score > best.OpeningScore {
-			best = Result{Corners: corners, SpanBeginMs: tick, OpeningScore: score}
+		if cand.OpeningScore > best.OpeningScore {
+			best = cand
 		}
 		if best.OpeningScore >= o.MinOpening+2 {
 			break // already a confident calibration; skip the other candidate
@@ -472,6 +498,98 @@ func openingScore(frame image.Image, corners [4]geom.Pt, o Options) float64 {
 	obs := reader.Read(cal.Rectify(frame), o.Canonical)
 	start := bg.StandardStart()
 	return float64(eval.ScoreBoard(obs, start).Correct) + boarddiff.WholeBoardMatch(start, obs)
+}
+
+// openingScoreCal is openingScore on a FULL calibration (8 handles + lens):
+// the fit's bar edges and lens are part of what it estimated, and scoring
+// them through the corners-only v1 model would throw them away (the manual
+// reference corners were hand-tuned UNDER that v1 model, so the comparison
+// would punish the fit for being right).
+func openingScoreCal(frame image.Image, cal calibrate.BoardCalibration, o Options) float64 {
+	reader := boardstate.CircleReader{Profile: o.Profile, Params: checker.Params{PeakFrac: o.PeakFrac}}
+	obs := reader.Read(cal.Rectify(frame), o.Canonical)
+	start := bg.StandardStart()
+	return float64(eval.ScoreBoard(obs, start).Correct) + boarddiff.WholeBoardMatch(start, obs)
+}
+
+// findOpeningCal is FindOpening with a full calibration.
+func findOpeningCal(video string, cal calibrate.BoardCalibration, o Options, scanBeginMs int) (int, int, error) {
+	bestTick, bestScore := -1, -1.0
+	for tick := scanBeginMs; tick < o.ScanEndMs; tick += 1000 {
+		frame, err := capture.FrameAt(video, tick)
+		if err != nil {
+			continue
+		}
+		s := openingScoreCal(frame, cal, o)
+		if s > bestScore {
+			bestTick, bestScore = tick, s
+		}
+		if bestScore >= float64(o.MinOpening)+2 {
+			break
+		}
+	}
+	if bestTick < 0 {
+		return 0, 0, fmt.Errorf("autocal: no readable frame in the scan window of %s", video)
+	}
+	return bestTick, int(bestScore), nil
+}
+
+// RefineHandles hill-climbs the FULL eight handles — corners AND bar edges —
+// to maximize the full-model opening read (openingScoreCal). It is the
+// oracle polish for the correspondence fit: the fit pins columns and outer
+// lines from image structure, but the x extrapolation to the outer corners
+// and the bar width rest on canonical proportions that vary per board; the
+// opening oracle observes exactly those. RefineCorners cannot help here — it
+// moves corners only, under the v1 corners-only model.
+func RefineHandles(frame image.Image, corners, barEdges [4]geom.Pt, lens calibrate.Lens, o Options) ([4]geom.Pt, [4]geom.Pt) {
+	score := func(c, b [4]geom.Pt) float64 {
+		cal, ok := calibrate.NewFromHandles(c, b[:], o.Canonical, lens)
+		if !ok {
+			return -1
+		}
+		return openingScoreCal(frame, cal, o)
+	}
+	type move struct {
+		corners []int // corner indices displaced together
+		bars    []int // bar-edge indices displaced together
+		xOnly   bool
+	}
+	moves := []move{
+		{corners: []int{0}}, {corners: []int{1}}, {corners: []int{2}}, {corners: []int{3}},
+		{corners: []int{0, 3}}, {corners: []int{1, 2}}, // left / right edge
+		{corners: []int{0, 1}}, {corners: []int{2, 3}}, // top / bottom edge
+		{corners: []int{0, 1, 2, 3}, bars: []int{0, 1, 2, 3}}, // whole board
+		{bars: []int{0, 3}, xOnly: true},                      // bar left edge
+		{bars: []int{1, 2}, xOnly: true},                      // bar right edge
+		{bars: []int{0, 1, 2, 3}, xOnly: true},                // whole bar
+	}
+	best := score(corners, barEdges)
+	for _, step := range []float64{16, 8, 4, 2} {
+		improved := true
+		for improved {
+			improved = false
+			for _, m := range moves {
+				dirs := [][2]float64{{step, 0}, {-step, 0}, {0, step}, {0, -step}}
+				if m.xOnly {
+					dirs = dirs[:2]
+				}
+				for _, d := range dirs {
+					c, b := corners, barEdges
+					for _, i := range m.corners {
+						c[i] = geom.P(c[i].X+d[0], c[i].Y+d[1])
+					}
+					for _, i := range m.bars {
+						b[i] = geom.P(b[i].X+d[0], b[i].Y+d[1])
+					}
+					if s := score(c, b); s > best {
+						best, corners, barEdges = s, c, b
+						improved = true
+					}
+				}
+			}
+		}
+	}
+	return corners, barEdges
 }
 
 // FindOpening scans [scanBeginMs, o.ScanEndMs] at 1 fps for the earliest
@@ -916,4 +1034,88 @@ func CalibrateAssisted(video string, initial [4]geom.Pt, o Options) (Result, err
 // automatic and manual calibrations at the same anchor frame.
 func OpeningScore(frame image.Image, corners [4]geom.Pt, o Options) float64 {
 	return openingScore(frame, corners, o)
+}
+
+// fitAtInstants runs the correspondence fit on apexes aggregated from
+// several instants of the capture (ADR-0008 §7). Instants that cannot be
+// decoded or yield too few apexes are simply skipped. seedCorners are
+// source-space; the result is scaled back to source pixels.
+func fitAtInstants(video string, ticks []int, o Options, seedCorners [4]geom.Pt, srcW, srcH int) (FitResult, bool) {
+	detW := o.DetectW
+	detH := srcH * detW / srcW
+	sx := float64(srcW) / float64(detW)
+	colors := o.Colors
+	var sets [][]Apex
+	var firstMed *image.RGBA
+	for _, t := range ticks {
+		med, err := MedianFrame(video, t, t+1500, 5, detW, detH)
+		if err != nil {
+			continue
+		}
+		if colors == (Colors{}) {
+			c, ok := AutoColors(med)
+			if !ok {
+				continue
+			}
+			colors = c
+		}
+		mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
+		mask = TriangleComponents(mask, med, colors.Felt, o.ColorTol, detW, detH)
+		aps := ApexComponents(mask, detW, detH)
+		if len(aps) >= 2*fitMinMatchesHalf {
+			sets = append(sets, aps)
+			if firstMed == nil {
+				firstMed = med
+			}
+		}
+	}
+	if len(sets) == 0 {
+		return FitResult{}, false
+	}
+
+	var det [4]geom.Pt
+	for i := range seedCorners {
+		det[i] = geom.P(seedCorners[i].X/sx, seedCorners[i].Y/sx)
+	}
+	pitch := math.Hypot(det[1].X-det[0].X, det[1].Y-det[0].Y) / 13
+	merged := MergeApexes(sets, 0.3*pitch)
+
+	leftFrac, rightFrac := 0.47, 0.53
+	if cal, ok := calibrate.New(det, o.Canonical); ok && firstMed != nil {
+		leftFrac, rightFrac = barFractions(cal.Rectify(firstMed), o.Canonical, colors, o.ColorTol)
+	}
+	tl, tr, br, bl := det[0], det[1], det[2], det[3]
+	lerp := func(a, b geom.Pt, t float64) geom.Pt {
+		return geom.P(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
+	}
+	seedB := [4]geom.Pt{lerp(tl, tr, leftFrac), lerp(tl, tr, rightFrac), lerp(bl, br, rightFrac), lerp(bl, br, leftFrac)}
+
+	// Cascade: fit the FIRST instant alone (the settled opening — the
+	// cleanest mask, where the seed-free bootstrap can index), then use its
+	// result as the seed for an ICP pass over the merged union. Mid-game
+	// instants carry spurious components (dice, cube) that break the
+	// bootstrap's row alignment, but the seeded matching filters them by
+	// radius and orientation. If the union fit fails, the single-instant
+	// fit stands.
+	res0, ok0 := FitApexes(sets[0], detW, detH, det, seedB, o.Canonical)
+	if ok0 {
+		det, seedB = res0.Corners, res0.BarEdges
+	}
+	res, ok := FitApexes(merged, detW, detH, det, seedB, o.Canonical)
+	if !ok {
+		res, ok = res0, ok0
+	}
+	if !ok {
+		return FitResult{}, false
+	}
+	for i := range res.Corners {
+		res.Corners[i] = geom.P(res.Corners[i].X*sx, res.Corners[i].Y*sx)
+		res.BarEdges[i] = geom.P(res.BarEdges[i].X*sx, res.BarEdges[i].Y*sx)
+	}
+	if res.Lens.Norm > 0 {
+		res.Lens.CenterX *= sx
+		res.Lens.CenterY *= sx
+		res.Lens.Norm *= sx
+	}
+	return res, true
 }
