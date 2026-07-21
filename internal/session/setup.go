@@ -20,6 +20,9 @@ type Setup struct {
 	// BarEdges are the 4 bar-edge handles (barTL,barTR,barBR,barBL). Present ⇒
 	// two-homography calibration (ADR-0007); absent ⇒ v1 (migrated).
 	BarEdges [][2]float64 `json:"barEdges,omitempty"`
+	// Lens is the capture camera's radial distortion (nil = pinhole). Filled
+	// by auto-detection; the GUI can only reset it to nil (ADR-0008 §9).
+	Lens *corpus.Lens `json:"lens,omitempty"`
 	// VideoURL is the capture's canonical source (e.g. the YouTube URL) —
 	// the portability half of the video reference (session-format-spec §1).
 	VideoURL string `json:"videoUrl"`
@@ -45,6 +48,7 @@ func (s *Service) SaveSetup(setup Setup) error {
 		s.doc.Parts[s.activePartIdx()].Priors = setup.Priors
 		s.doc.Parts[s.activePartIdx()].Calibration.Corners = setup.Corners
 		s.doc.Parts[s.activePartIdx()].Calibration.BarEdges = setup.BarEdges
+		s.doc.Parts[s.activePartIdx()].Calibration.Lens = setup.Lens
 		if len(setup.BarEdges) == 4 {
 			s.doc.Parts[s.activePartIdx()].Calibration.Version = 2 // two-homography (ADR-0007)
 		} else {
@@ -68,6 +72,7 @@ func (s *Service) GetSetup() Setup {
 	if s.doc != nil && len(s.doc.Parts) > 0 {
 		out.Corners = s.doc.Parts[s.activePartIdx()].Calibration.Corners
 		out.BarEdges = s.doc.Parts[s.activePartIdx()].Calibration.BarEdges
+		out.Lens = s.doc.Parts[s.activePartIdx()].Calibration.Lens
 		out.VideoURL = s.doc.Parts[s.activePartIdx()].URL
 	}
 	// Fill the cube-rule pointers to their resolved values so the setup form

@@ -3,7 +3,7 @@
   // this runs once per Part (and again only for corrections), so no keyboard
   // optimization. The 4 corners are clicked on the current video frame.
   import { createEventDispatcher, onMount } from 'svelte'
-  import { gridOnFrame } from './lib/calibration.js'
+  import { gridOnFrame, lensActive, DEFAULT_CANONICAL } from './lib/calibration.js'
   import {
     orientationName, parseOrientation, flipHorizontal, flipVertical,
   } from './lib/boardGeometry.js'
@@ -43,6 +43,10 @@
   let dragging = null // handle id ('c0'..'c3','btl','btr','bbr','bbl') or null
   let detecting = false // auto corner-detection running (#47)
   let detectMsg = ''
+  // lens is the estimated radial distortion (corpus.Lens shape, null = pinhole).
+  // Set by auto-detection only; dragging handles never touches it, and the one
+  // manual control is the reset button (ADR-0008 §9 — no coefficient sliders).
+  let lens = null
   let videoUrl = ''
   let canvas
   let error = ''
@@ -63,6 +67,7 @@
       const res = await fn(tick)
       if (res?.Corners?.length === 4) {
         corners = res.Corners.map((c) => [...c])
+        lens = res.Lens ?? null // a fresh detection replaces the whole estimate
         if (res.BarEdges?.length === 4) {
           const [TL, TR, BR, BL] = corners
           barFrac = {
@@ -131,6 +136,7 @@
         checkerB = initial.priors.checkerB || checkerB
       }
       videoUrl = initial.videoUrl || ''
+      lens = initial.lens ?? null
     }
     seedCalibration()
     drawFrame()
@@ -169,7 +175,7 @@
     ctx.drawImage(videoEl, 0, 0)
     // Live dual half-grid: if the 24 cells / bar don't sit on the real triangles,
     // drag the handles until they do (#46).
-    const grid = gridOnFrame(corners, barEdges())
+    const grid = gridOnFrame(corners, barEdges(), DEFAULT_CANONICAL, lens)
     if (grid) {
       ctx.lineWidth = Math.max(1, canvas.width / 600)
       ctx.strokeStyle = '#38bdf8cc'
@@ -249,6 +255,7 @@
     dispatch('save', {
       players,
       videoUrl,
+      lens,
       priors: {
         clock,
         matchLength: Number(matchLength),
@@ -342,6 +349,15 @@
         {#if detectMsg}{detectMsg}{:else}Drag the green corners and the orange bar handles until the grid matches the board.{/if}
       </span>
     </div>
+    {#if lensActive(lens)}
+      <div class="cal-actions lens-info">
+        <span class="hint">
+          Estimated lens distortion: k1={(lens.k1 ?? 0).toFixed(3)}{(lens.k2 ?? 0) !== 0 ? `, k2=${lens.k2.toFixed(3)}` : ''}
+          — the grid curves accordingly. Dragging handles never changes it.
+        </span>
+        <button type="button" on:click={() => { lens = null; drawFrame() }}>Reset to 0</button>
+      </div>
+    {/if}
 
     <h3>Orientation</h3>
     <div class="orient">

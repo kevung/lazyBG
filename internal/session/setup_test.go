@@ -158,3 +158,33 @@ func TestSetup_MidSessionCorrectionKeepsTurns(t *testing.T) {
 		t.Fatal("corrected corners not applied")
 	}
 }
+
+// The detected lens round-trips through SaveSetup / persistence / GetSetup,
+// and a nil lens (the GUI's "Reset to 0") clears it (ADR-0008 §9).
+func TestSetup_LensRoundTripAndReset(t *testing.T) {
+	s, lbgPath := newFileSession(t)
+	setup := Setup{
+		Priors:  corpus.Priors{MatchLength: 5, CheckerA: "#ffffff", CheckerB: "#222222"},
+		Corners: [][2]float64{{1, 2}, {3, 4}, {5, 6}, {7, 8}},
+		Lens:    &corpus.Lens{K1: -0.12, K2: 0.03, CenterX: 640, CenterY: 360, Norm: 640},
+	}
+	if err := s.SaveSetup(setup); err != nil {
+		t.Fatal(err)
+	}
+	s2, _, err := Open(lbgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := s2.GetSetup()
+	if got.Lens == nil || got.Lens.K1 != -0.12 || got.Lens.K2 != 0.03 {
+		t.Fatalf("lens did not round-trip: %+v", got.Lens)
+	}
+
+	setup.Lens = nil // the reset button
+	if err := s2.SaveSetup(setup); err != nil {
+		t.Fatal(err)
+	}
+	if l := s2.GetSetup().Lens; l != nil {
+		t.Fatalf("reset lens must persist as nil, got %+v", l)
+	}
+}

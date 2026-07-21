@@ -124,12 +124,56 @@ export function projectCanonical(cal, [x, y]) {
   return projectPoint(x < cal.splitX ? cal.left : cal.right, [x, y])
 }
 
+// lensActive mirrors calibrate.Lens.active(): the zero value is the identity.
+export function lensActive(lens) {
+  return !!lens && lens.norm > 0 && ((lens.k1 || 0) !== 0 || (lens.k2 || 0) !== 0)
+}
+
+// distortPoint maps an ideal (pinhole) point to the recorded point — mirrors
+// calibrate.Lens.distort (Brown-Conrady k1·r² + k2·r⁴, radius normalised by
+// lens.norm around lens.centerX/centerY). Identity when the lens is inactive.
+export function distortPoint(lens, [x, y]) {
+  if (!lensActive(lens)) return [x, y]
+  const dx = x - lens.centerX
+  const dy = y - lens.centerY
+  const r2 = (dx * dx + dy * dy) / (lens.norm * lens.norm)
+  const f = 1 + (lens.k1 || 0) * r2 + (lens.k2 || 0) * r2 * r2
+  return [lens.centerX + dx * f, lens.centerY + dy * f]
+}
+
+// projectCanonicalLens projects a canonical point onto the RECORDED frame:
+// homography first, then the lens — how every overlay dot must be placed when
+// a lens is set, or the drawing silently lies on distorted captures.
+export function projectCanonicalLens(cal, lens, p) {
+  return distortPoint(lens, projectCanonical(cal, p))
+}
+
+// sampleLine subdivides a canonical polyline so that, once projected and
+// distorted, straight canonical segments render as honest curves. maxStep is
+// in canonical units.
+function sampleLine(line, maxStep) {
+  const out = [line[0]]
+  for (let i = 1; i < line.length; i++) {
+    const [x0, y0] = line[i - 1]
+    const [x1, y1] = line[i]
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / maxStep))
+    for (let k = 1; k <= n; k++) out.push([x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n])
+  }
+  return out
+}
+
 // gridOnFrame projects the calibration grid onto the frame from the eight
-// handles, or null if degenerate. Every vertex goes through its half's homography.
-export function gridOnFrame(corners, barEdges, cb = DEFAULT_CANONICAL) {
+// handles, or null if degenerate. Every vertex goes through its half's
+// homography; with an active lens each segment is sampled and distorted so
+// the drawn grid curves exactly like the recorded board (ADR-0008 §9).
+export function gridOnFrame(corners, barEdges, cb = DEFAULT_CANONICAL, lens = null) {
   const cal = buildCalibration(corners, barEdges, cb)
   if (!cal) return null
-  return canonicalGridLines(cb).map((line) => line.map((p) => projectCanonical(cal, p)))
+  const lines = canonicalGridLines(cb)
+  if (!lensActive(lens)) {
+    return lines.map((line) => line.map((p) => projectCanonical(cal, p)))
+  }
+  return lines.map((line) => sampleLine(line, 20).map((p) => projectCanonicalLens(cal, lens, p)))
 }
 
 // canonicalPointCenters returns the canonical-space centre [x,y] of each point's
