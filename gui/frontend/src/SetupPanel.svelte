@@ -221,15 +221,20 @@
     </p>
 
     <div class="grid">
-      <label>Player 1 <input bind:value={players[0]} /></label>
-      <label>Player 2 <input bind:value={players[1]} /></label>
+      <label>Player 1 &amp; checker colour
+        <span class="name-color">
+          <input bind:value={players[0]} />
+          <input type="color" bind:value={checkerA} title="Player 1 checker colour" />
+        </span>
+      </label>
+      <label>Player 2 &amp; checker colour
+        <span class="name-color">
+          <input bind:value={players[1]} />
+          <input type="color" bind:value={checkerB} title="Player 2 checker colour" />
+        </span>
+      </label>
       <label>Match length <input type="number" min="1" bind:value={matchLength} /></label>
       <label class="row"><input type="checkbox" bind:checked={clock} /> Chess clock visible</label>
-      <label class="row">
-        Checker colors
-        <input type="color" bind:value={checkerA} title="Player 1" />
-        <input type="color" bind:value={checkerB} title="Player 2" />
-      </label>
       <label class="wide">Video URL (source, e.g. YouTube — keeps shared sessions portable)
         <input bind:value={videoUrl} placeholder="https://…" />
       </label>
@@ -340,7 +345,9 @@
     border-radius: 4px;
     padding: 0.3rem 0.45rem;
   }
-  input[type='color'] { padding: 0; width: 2.2rem; height: 1.6rem; }
+  input[type='color'] { padding: 0; width: 2.2rem; height: 1.6rem; flex: none; }
+  .name-color { display: flex; gap: 0.4rem; align-items: center; }
+  .name-color input:not([type='color']) { flex: 1; min-width: 0; }
   .cal-guide {
     display: flex;
     gap: 0.75rem;
