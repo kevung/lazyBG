@@ -9,7 +9,7 @@
   import VideoControls from './VideoControls.svelte'
   import { skip } from './lib/video.js'
   import {
-    gridOnFrame, homographyFromCorners, canonicalPointCenters, roiBBox, projectPoint,
+    gridOnFrame, buildCalibration, projectCanonical, canonicalPointCenters, roiBBox,
   } from './lib/calibration.js'
 
   const api = () => window.go?.main?.App
@@ -260,6 +260,7 @@
   // Perception Overlay (#36, domain-model §3): calibration grid + detections
   // drawn on the ROI-cropped frame, recomputed only on a stabilised frame.
   let calCorners = [] // calibrated source corners (TL,TR,BR,BL)
+  let calBarEdges = [] // bar-edge handles (barTL,barTR,barBR,barBL), if any (ADR-0007)
   let overlayLayers = { grid: true, occupancy: true, discs: false, pips: false }
   const overlayCache = new Map() // tickMs -> Overlay view (per-tick cache)
   let overlayTimer = null
@@ -279,6 +280,7 @@
     try {
       const s = await api().GetSetup?.()
       calCorners = s?.corners ?? []
+      calBarEdges = s?.barEdges ?? []
       if (s?.priors?.checkerA) checkerColors = [s.priors.checkerA, s.priors.checkerB]
       overlayCache.clear()
     } catch { /* non-fatal */ }
@@ -307,7 +309,7 @@
   function drawOverlayFrame() {
     if (!videoEl || !frameCanvas || !videoEl.videoWidth) return
     const ctx = frameCanvas.getContext('2d')
-    const roi = roiBBox(calCorners)
+    const roi = roiBBox([...calCorners, ...calBarEdges])
     if (!roi) {
       // Uncalibrated: fall back to the plain full frame.
       frameCanvas.width = videoEl.videoWidth
@@ -323,7 +325,7 @@
     const tx = (p) => [p[0] - roi.x, p[1] - roi.y] // source px -> canvas px
 
     if (overlayLayers.grid) {
-      const lines = gridOnFrame(calCorners)
+      const lines = gridOnFrame(calCorners, calBarEdges)
       if (lines) {
         ctx.lineWidth = Math.max(1, w / 500)
         ctx.strokeStyle = '#38bdf8cc'
@@ -337,9 +339,9 @@
 
     const ov = overlayCache.get(currentTickMs())
     if (!ov || !ov.OK) return
-    const H = homographyFromCorners(calCorners)
-    if (!H) return
-    const proj = (cx, cy) => tx(projectPoint(H, [cx, cy]))
+    const cal = buildCalibration(calCorners, calBarEdges)
+    if (!cal) return
+    const proj = (cx, cy) => tx(projectCanonical(cal, [cx, cy]))
     const rad = Math.max(4, w / 45)
 
     if (overlayLayers.occupancy && ov.Points) {

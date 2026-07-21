@@ -1,12 +1,12 @@
 // Board-calibration geometry for the setup screen and the perception overlay
-// (ADR-0006, issues #38 and #36). Pure functions, unit-tested with node:test.
+// (ADR-0007, issues #36/#44/#45). Pure functions, unit-tested with node:test.
 //
-// The Go side (internal/calibrate) maps the four clicked source corners
-// (TL, TR, BR, BL) onto the canonical rectified board's outer rectangle
-// (0,0)-(w,h). To draw where the reader actually looks, we invert that: build
-// the canonical grid, then project every canonical point back onto the source
-// frame through the SAME homography. A visibly-misaligned grid means the corners
-// were clicked on the wooden frame instead of the playing surface.
+// Calibration is TWO homographies split by the bar: the left and right half-
+// boards each map their six point columns from the outer playing edge to the bar
+// edge. Given the eight source handles (4 corners + 4 bar edges) we can project
+// any canonical point onto the frame (grid drawing, overlay de-projection). When
+// bar edges are absent we migrate — a single full-quad homography, reproducing
+// the legacy v1 grid — so old sessions still draw. Mirrors internal/calibrate.
 
 // DEFAULT_CANONICAL mirrors calibrate.DefaultCanonical() (internal/calibrate).
 export const DEFAULT_CANONICAL = {
@@ -26,32 +26,52 @@ export function canonicalSize(cb = DEFAULT_CANONICAL) {
   return { w, h }
 }
 
+const colX = (cb, c) => cb.marginX + c * cb.pointW + (c >= 6 ? cb.barGap : 0)
+
+// landmarks returns the eight canonical calibration points in the order
+// [TL, TR, BR, BL, barTL, barTR, barBR, barBL] — mirrors calibrate.landmarks().
+export function landmarks(cb = DEFAULT_CANONICAL) {
+  const { h } = canonicalSize(cb)
+  const my = cb.marginY
+  const by = h - cb.marginY
+  const lx = cb.marginX
+  const rx = colX(cb, 11) + cb.pointW // outer right playing edge (before the off tray)
+  const blx = cb.marginX + 6 * cb.pointW // bar left edge
+  const brx = colX(cb, 6) // bar right edge
+  return [
+    [lx, my], [rx, my], [rx, by], [lx, by], // TL,TR,BR,BL
+    [blx, my], [brx, my], [brx, by], [blx, by], // bar edges
+  ]
+}
+
+// splitX is the canonical x dividing the two halves (bar centre).
+function splitX(cb) {
+  const lm = landmarks(cb)
+  return (lm[4][0] + lm[5][0]) / 2
+}
+
 function rectLoop(x, y, w, h) {
   return [[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]
 }
 
-// canonicalGrid returns the closed polylines (in canonical coordinates) that
-// depict where the reader expects the board: the outer border, the 24 point
-// cells, the central bar gutter, and the bearoff tray.
-export function canonicalGrid(cb = DEFAULT_CANONICAL) {
-  const { w, h } = canonicalSize(cb)
-  const colX = (c) => cb.marginX + c * cb.pointW + (c >= 6 ? cb.barGap : 0)
-  const lines = [rectLoop(0, 0, w, h)]
+// canonicalGridLines returns the closed polylines (canonical coords) drawn on the
+// frame: the playing border, the 24 point cells, and the central bar.
+export function canonicalGridLines(cb = DEFAULT_CANONICAL) {
+  const lm = landmarks(cb)
+  const { h } = canonicalSize(cb)
+  const lines = [[lm[0], lm[1], lm[2], lm[3], lm[0]]] // playing border
   for (let c = 0; c < 12; c++) {
-    lines.push(rectLoop(colX(c), cb.marginY, cb.pointW, cb.quadH)) // top row cell
-    lines.push(rectLoop(colX(c), h - cb.marginY - cb.quadH, cb.pointW, cb.quadH)) // bottom row cell
+    lines.push(rectLoop(colX(cb, c), cb.marginY, cb.pointW, cb.quadH)) // top cell
+    lines.push(rectLoop(colX(cb, c), h - cb.marginY - cb.quadH, cb.pointW, cb.quadH)) // bottom cell
   }
-  const barX = cb.marginX + 6 * cb.pointW
-  lines.push(rectLoop(barX, cb.marginY, cb.barGap, h - 2 * cb.marginY)) // bar
-  lines.push(rectLoop(w - cb.marginX - cb.offW, cb.marginY, cb.offW, h - 2 * cb.marginY)) // off tray
-  return { w, h, lines }
+  lines.push(rectLoop(lm[4][0], cb.marginY, lm[5][0] - lm[4][0], h - 2 * cb.marginY)) // bar
+  return lines
 }
 
 // solveHomography returns the 3×3 matrix (row-major, 9 numbers, h[8]=1) mapping
 // the four domain points to the four range points, in the given order. Points
 // are [x,y]. Returns null if the system is degenerate (collinear corners).
 export function solveHomography(domain, range) {
-  // Each correspondence contributes two rows of an 8×8 system in h0..h7.
   const A = []
   const b = []
   for (let i = 0; i < 4; i++) {
@@ -73,58 +93,69 @@ export function projectPoint(H, [x, y]) {
   return [(H[0] * x + H[1] * y + H[2]) / d, (H[3] * x + H[4] * y + H[5]) / d]
 }
 
-// projectLines maps every point of every polyline through H.
-export function projectLines(H, lines) {
-  return lines.map((line) => line.map((p) => projectPoint(H, p)))
-}
-
-// gridOnFrame is the convenience path used by the UI: given the four clicked
-// source corners (TL, TR, BR, BL), return the canonical grid projected onto the
-// source frame, or null if the corners are degenerate.
-export function gridOnFrame(corners, cb = DEFAULT_CANONICAL) {
+// buildCalibration returns { left, right, splitX } — two canonical→source
+// homographies split at the bar — from the four corners (TL,TR,BR,BL) and four
+// bar edges (barTL,barTR,barBR,barBL). With no valid bar edges it migrates: a
+// single full-quad homography used for both halves (legacy v1). Null if degenerate.
+export function buildCalibration(corners, barEdges, cb = DEFAULT_CANONICAL) {
   if (!corners || corners.length !== 4) return null
-  const { w, h, lines } = canonicalGrid(cb)
-  const domain = [[0, 0], [w, 0], [w, h], [0, h]] // canonical TL,TR,BR,BL
-  const H = solveHomography(domain, corners)
-  if (!H) return null
-  return projectLines(H, lines)
-}
-
-// homographyFromCorners returns the homography mapping canonical coordinates to
-// the source frame, given the four clicked corners (TL,TR,BR,BL), or null if the
-// corners are degenerate. The Perception Overlay (#36) uses it to de-project the
-// backend's canonical-space detections onto the frame.
-export function homographyFromCorners(corners, cb = DEFAULT_CANONICAL) {
-  if (!corners || corners.length !== 4) return null
+  const lm = landmarks(cb)
+  const sx = splitX(cb)
+  if (barEdges && barEdges.length === 4) {
+    const leftCanon = [lm[0], lm[4], lm[7], lm[3]]
+    const leftSrc = [corners[0], barEdges[0], barEdges[3], corners[3]]
+    const rightCanon = [lm[5], lm[1], lm[2], lm[6]]
+    const rightSrc = [barEdges[1], corners[1], corners[2], barEdges[2]]
+    const left = solveHomography(leftCanon, leftSrc)
+    const right = solveHomography(rightCanon, rightSrc)
+    if (!left || !right) return null
+    return { left, right, splitX: sx }
+  }
+  // Migrate: single homography from the full canonical rect to the corners.
   const { w, h } = canonicalSize(cb)
-  return solveHomography([[0, 0], [w, 0], [w, h], [0, h]], corners)
+  const H = solveHomography([[0, 0], [w, 0], [w, h], [0, h]], corners)
+  if (!H) return null
+  return { left: H, right: H, splitX: sx }
+}
+
+// projectCanonical projects a canonical point onto the frame via the half whose
+// homography owns it (left of the bar centre → left, else right).
+export function projectCanonical(cal, [x, y]) {
+  return projectPoint(x < cal.splitX ? cal.left : cal.right, [x, y])
+}
+
+// gridOnFrame projects the calibration grid onto the frame from the eight
+// handles, or null if degenerate. Every vertex goes through its half's homography.
+export function gridOnFrame(corners, barEdges, cb = DEFAULT_CANONICAL) {
+  const cal = buildCalibration(corners, barEdges, cb)
+  if (!cal) return null
+  return canonicalGridLines(cb).map((line) => line.map((p) => projectCanonical(cal, p)))
 }
 
 // canonicalPointCenters returns the canonical-space centre [x,y] of each point's
 // stack region, indexed 1..24 (index 0 unused) — matches calibrate.PointRegion.
 export function canonicalPointCenters(cb = DEFAULT_CANONICAL) {
   const { h } = canonicalSize(cb)
-  const colX = (c) => cb.marginX + c * cb.pointW + (c >= 6 ? cb.barGap : 0)
   const out = new Array(25)
   for (let p = 1; p <= 24; p++) {
     if (p >= 13) {
       const c = p - 13
-      out[p] = [colX(c) + cb.pointW / 2, cb.marginY + cb.quadH / 2]
+      out[p] = [colX(cb, c) + cb.pointW / 2, cb.marginY + cb.quadH / 2]
     } else {
       const c = 12 - p
-      out[p] = [colX(c) + cb.pointW / 2, h - cb.marginY - cb.quadH / 2]
+      out[p] = [colX(cb, c) + cb.pointW / 2, h - cb.marginY - cb.quadH / 2]
     }
   }
   return out
 }
 
-// roiBBox returns the axis-aligned bounding box {x,y,w,h} of the clicked corners,
-// expanded by marginFrac of its size — the crop region for the overlay frame.
-// Returns null when corners are missing.
-export function roiBBox(corners, marginFrac = 0.04) {
-  if (!corners || corners.length !== 4) return null
-  let minX = corners[0][0], maxX = minX, minY = corners[0][1], maxY = minY
-  for (const [x, y] of corners) {
+// roiBBox returns the axis-aligned bounding box {x,y,w,h} of the given source
+// points (corners, optionally plus bar edges), expanded by marginFrac. Returns
+// null when no points are given.
+export function roiBBox(points, marginFrac = 0.04) {
+  if (!points || points.length === 0) return null
+  let minX = points[0][0], maxX = minX, minY = points[0][1], maxY = minY
+  for (const [x, y] of points) {
     minX = Math.min(minX, x); maxX = Math.max(maxX, x)
     minY = Math.min(minY, y); maxY = Math.max(maxY, y)
   }
