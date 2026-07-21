@@ -179,14 +179,10 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		return corners, barEdges, fmt.Errorf("decode at %dms: %w", tickMs, err)
 	}
 	srcW, srcH := probe.Bounds().Dx(), probe.Bounds().Dy()
-	// Detect at higher resolution than the video-scan default: the corners come
-	// from the triangle-mask bounding box, so a coarse detection upscaled to
-	// source blurs them. One frame is cheap, so go up to 1280px wide (≈2× finer
-	// corners on HD footage) without upscaling smaller sources.
-	detW := srcW
-	if detW > 1280 {
-		detW = 1280
-	}
+	// Detect at the tuned default resolution: the mask/component thresholds and
+	// the bar-valley detection are calibrated for it — raising it perturbed the
+	// quad and regressed the bar. Corner precision is tuned separately.
+	detW := o.DetectW
 	detH := srcH * detW / srcW
 	// A short median suppresses transient hands/dice without scanning the video.
 	med, err := MedianFrame(video, tickMs, tickMs+1500, 5, detW, detH)
