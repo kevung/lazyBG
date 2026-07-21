@@ -7,6 +7,7 @@ package session
 
 import (
 	"fmt"
+	"log"
 
 	"lazybg/internal/autocal"
 	"lazybg/internal/geom"
@@ -38,9 +39,13 @@ func (s *Service) DetectCorners() (DetectedCorners, error) {
 	res, err := autocal.Calibrate(video, autocal.DefaultOptions())
 	if res.Corners == ([4]geom.Pt{}) { // zero quad ⇒ hard failure
 		if err != nil {
-			return DetectedCorners{}, err
+			// Surface autocal's real reason (e.g. "could not derive board
+			// colors", "no candidate quad produced a readable opening") so the
+			// GUI can show it instead of a generic "failed".
+			log.Printf("DetectCorners: %v", err)
+			return DetectedCorners{}, fmt.Errorf("auto-calibration: %w", err)
 		}
-		return DetectedCorners{}, fmt.Errorf("no board detected")
+		return DetectedCorners{}, fmt.Errorf("auto-calibration found no board in the video")
 	}
 	out := make([][2]float64, 4)
 	for i, p := range res.Corners {
