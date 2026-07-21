@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   canonicalSize, landmarks, canonicalGridLines, solveHomography, projectPoint,
   buildCalibration, projectCanonical, gridOnFrame, canonicalPointCenters, roiBBox,
+  DEFAULT_CANONICAL, distortPoint, projectCanonicalLens,
 } from './calibration.js'
 
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`)
@@ -87,4 +88,36 @@ test('canonicalGridLines returns closed loops', () => {
   for (const line of canonicalGridLines()) {
     assert.deepEqual(line[0], line[line.length - 1])
   }
+})
+
+test('distortPoint: inactive lens is the identity, barrel pushes outward', () => {
+  assert.deepEqual(distortPoint(null, [10, 20]), [10, 20])
+  assert.deepEqual(distortPoint({ k1: 0, k2: 0, centerX: 0, centerY: 0, norm: 100 }, [10, 20]), [10, 20])
+  const lens = { k1: -0.2, k2: 0, centerX: 100, centerY: 100, norm: 100 }
+  const [x, y] = distortPoint(lens, [200, 100]) // 1 normalised radius to the right
+  assert.ok(x < 200, 'barrel pulls periphery toward the centre')
+  assert.equal(y, 100)
+})
+
+test('gridOnFrame: active lens curves the drawn grid', () => {
+  const corners = [[100, 100], [500, 100], [500, 400], [100, 400]]
+  const straight = gridOnFrame(corners, null)
+  const lens = { k1: -0.15, k2: 0, centerX: 300, centerY: 250, norm: 300 }
+  const curved = gridOnFrame(corners, null, DEFAULT_CANONICAL, lens)
+  assert.ok(straight && curved)
+  // The curved border has more vertices (sampled) and is not collinear: the
+  // midpoint of its top border deviates from the straight chord.
+  assert.ok(curved[0].length > straight[0].length)
+  const top = curved[0]
+  const first = top[0]
+  const mid = top[Math.floor(top.length / 8)] // a point along the top edge
+  assert.ok(Math.abs(mid[1] - first[1]) > 0.5, 'top border must bow under barrel distortion')
+})
+
+test('projectCanonicalLens: homography then lens', () => {
+  const corners = [[100, 100], [500, 100], [500, 400], [100, 400]]
+  const cal = buildCalibration(corners, null)
+  const lens = { k1: -0.1, k2: 0.02, centerX: 300, centerY: 250, norm: 300 }
+  const p = projectCanonical(cal, [430, 40])
+  assert.deepEqual(projectCanonicalLens(cal, lens, [430, 40]), distortPoint(lens, p))
 })

@@ -9,7 +9,8 @@
   import VideoControls from './VideoControls.svelte'
   import { skip } from './lib/video.js'
   import {
-    gridOnFrame, buildCalibration, projectCanonical, canonicalPointCenters, roiBBox,
+    gridOnFrame, buildCalibration, projectCanonicalLens, canonicalPointCenters, roiBBox,
+    DEFAULT_CANONICAL,
   } from './lib/calibration.js'
 
   const api = () => window.go?.main?.App
@@ -310,6 +311,7 @@
   // drawn on the ROI-cropped frame, recomputed only on a stabilised frame.
   let calCorners = [] // calibrated source corners (TL,TR,BR,BL)
   let calBarEdges = [] // bar-edge handles (barTL,barTR,barBR,barBL), if any (ADR-0007)
+  let calLens = null // estimated radial distortion (corpus.Lens shape, null = pinhole)
   let overlayLayers = { grid: true, occupancy: true, discs: false, pips: false }
   const overlayCache = new Map() // tickMs -> Overlay view (per-tick cache)
   let overlayTimer = null
@@ -330,6 +332,7 @@
       const s = await api().GetSetup?.()
       calCorners = s?.corners ?? []
       calBarEdges = s?.barEdges ?? []
+      calLens = s?.lens ?? null
       if (s?.priors?.checkerA) checkerColors = [s.priors.checkerA, s.priors.checkerB]
       overlayCache.clear()
     } catch { /* non-fatal */ }
@@ -374,7 +377,7 @@
     const tx = (p) => [p[0] - roi.x, p[1] - roi.y] // source px -> canvas px
 
     if (overlayLayers.grid) {
-      const lines = gridOnFrame(calCorners, calBarEdges)
+      const lines = gridOnFrame(calCorners, calBarEdges, DEFAULT_CANONICAL, calLens)
       if (lines) {
         ctx.lineWidth = Math.max(1, w / 500)
         ctx.strokeStyle = '#38bdf8cc'
@@ -390,7 +393,7 @@
     if (!ov || !ov.OK) return
     const cal = buildCalibration(calCorners, calBarEdges)
     if (!cal) return
-    const proj = (cx, cy) => tx(projectCanonical(cal, [cx, cy]))
+    const proj = (cx, cy) => tx(projectCanonicalLens(cal, calLens, [cx, cy]))
     const rad = Math.max(4, w / 45)
 
     if (overlayLayers.occupancy && ov.Points) {
