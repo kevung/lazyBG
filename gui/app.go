@@ -304,11 +304,11 @@ func (a *App) Overlay(tickMs int) session.OverlayView {
 	return a.service().Overlay(tickMs)
 }
 
-// DetectCorners runs the automatic calibrator over the session video and returns
-// a best-effort seed for the four corner handles (issue #47). It may be slow (a
-// temporal scan); the frontend shows progress and the user can drag regardless.
-func (a *App) DetectCorners() (session.DetectedCorners, error) {
-	return a.service().DetectCorners()
+// DetectCorners detects the eight calibration handles on the frame at tickMs and
+// returns a best-effort seed (issue #47). It reads a single frame, so it returns
+// quickly; the frontend fills the handles and the user refines by dragging.
+func (a *App) DetectCorners(tickMs int) (session.DetectedHandles, error) {
+	return a.service().DetectCorners(tickMs)
 }
 
 // ExportDialog asks where to save the .mat and writes both projections

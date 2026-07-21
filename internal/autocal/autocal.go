@@ -166,6 +166,117 @@ func Calibrate(video string, o Options) (Result, error) {
 	return best, nil
 }
 
+// DetectHandles detects ALL eight calibration handles — the four playing-surface
+// corners (TL,TR,BR,BL) AND the four bar-edge points (barTL,barTR,barBR,barBL) —
+// from a SHORT temporal median around tickMs. It is a fast, single-shot
+// alternative to Calibrate for interactive use (issue #47): no video-wide opening
+// scan and no opening verification, so it returns in a moment and works on any
+// frame that shows the board. The result is a best-effort SEED the user refines
+// by dragging, not a trusted calibration. All points are source-frame pixels.
+func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, err error) {
+	probe, err := capture.FrameAt(video, tickMs)
+	if err != nil {
+		return corners, barEdges, fmt.Errorf("decode at %dms: %w", tickMs, err)
+	}
+	srcW, srcH := probe.Bounds().Dx(), probe.Bounds().Dy()
+	detW := o.DetectW
+	detH := srcH * detW / srcW
+	// A short median suppresses transient hands/dice without scanning the video.
+	med, err := MedianFrame(video, tickMs, tickMs+1500, 5, detW, detH)
+	if err != nil {
+		return corners, barEdges, fmt.Errorf("sample near %dms: %w", tickMs, err)
+	}
+	colors := o.Colors
+	if colors == (Colors{}) {
+		var ok bool
+		if colors, ok = AutoColors(med); !ok {
+			return corners, barEdges, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
+		}
+	}
+	mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
+	mask = TriangleComponents(mask, med, colors.Felt, o.ColorTol, detW, detH)
+	var quad [4]geom.Pt
+	got := false
+	if q, ok := RowQuad(mask, detW, detH); ok {
+		quad, got = q, true
+	} else if q, ok := QuadFromMask(mask, detW, detH); ok {
+		quad, got = q, true
+	}
+	if !got {
+		return corners, barEdges, fmt.Errorf("no plausible board found in the frame")
+	}
+	if !quadInBounds(quad, detW, detH) {
+		quad = clampQuad(quad, detW, detH)
+	}
+
+	// Locate the bar as the central low-triangle-density valley in the quad's
+	// own rectified frame; fall back to a centred default when it isn't clear.
+	leftFrac, rightFrac := 0.47, 0.53
+	if cal, ok := calibrate.New(quad, o.Canonical); ok {
+		leftFrac, rightFrac = barFractions(cal.Rectify(med), o.Canonical, colors, o.ColorTol)
+	}
+
+	sx := float64(srcW) / float64(detW)
+	for i, p := range quad {
+		corners[i] = geom.P(p.X*sx, p.Y*sx)
+	}
+	// The triangle mask sits inside the playing surface by the margins; nudge
+	// the corners outward toward the real triangle tips.
+	corners = expandQuad(corners, 0.045, 0.04)
+
+	// Bar edges ride the (expanded) top/bottom edges at the detected fractions,
+	// matching the GUI's fraction model.
+	tl, tr, br, bl := corners[0], corners[1], corners[2], corners[3]
+	lerp := func(a, b geom.Pt, t float64) geom.Pt {
+		return geom.P(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
+	}
+	barEdges = [4]geom.Pt{lerp(tl, tr, leftFrac), lerp(tl, tr, rightFrac), lerp(bl, br, rightFrac), lerp(bl, br, leftFrac)}
+	return corners, barEdges, nil
+}
+
+// barFractions finds the bar's left/right position as fractions of the board
+// width, from the central valley in the per-column point-triangle density of a
+// rectified board image. Returns a centred default when no clear valley exists.
+func barFractions(rect *image.RGBA, cb calibrate.CanonicalBoard, colors Colors, tol float64) (leftFrac, rightFrac float64) {
+	w, h := cb.Size()
+	mask := ColorMask(rect, []color.RGBA{colors.PointA, colors.PointB}, tol)
+	y0, y1 := cb.MarginY, h-cb.MarginY
+	dens := make([]float64, w)
+	var sum float64
+	for x := 0; x < w; x++ {
+		c := 0
+		for y := y0; y < y1; y++ {
+			if mask[y*w+x] {
+				c++
+			}
+		}
+		dens[x] = float64(c)
+		sum += float64(c)
+	}
+	thr := 0.3 * sum / float64(w) // 30% of the mean column density
+	lo, hi := int(float64(w)*0.35), int(float64(w)*0.65)
+	bestStart, bestLen, curStart, curLen := -1, 0, -1, 0
+	for x := lo; x < hi; x++ {
+		if dens[x] < thr {
+			if curStart < 0 {
+				curStart = x
+				curLen = 0
+			}
+			curLen++
+			if curLen > bestLen {
+				bestLen = curLen
+				bestStart = curStart
+			}
+		} else {
+			curStart, curLen = -1, 0
+		}
+	}
+	if bestStart < 0 || bestLen < 2 {
+		return 0.47, 0.53 // no clear valley → centred default
+	}
+	return float64(bestStart) / float64(w), float64(bestStart+bestLen) / float64(w)
+}
+
 // clampQuad projects a quad's corners into the frame.
 func clampQuad(q [4]geom.Pt, w, h int) [4]geom.Pt {
 	for i, p := range q {
