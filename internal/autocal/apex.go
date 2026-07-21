@@ -230,3 +230,53 @@ func sign(v float64) float64 {
 	}
 	return 1
 }
+
+// MergeApexes fuses apex sets detected at different instants of the same
+// fixed-camera capture: apexes within minDist and with the same orientation
+// are the same physical triangle tip seen twice — their positions are
+// averaged (weighted by supporting rows) — while apexes seen at only some
+// instants (checkers occlude different points as the game moves) survive as
+// they are. The union covers more slots than any single instant (ADR-0008
+// §7).
+func MergeApexes(sets [][]Apex, minDist float64) []Apex {
+	type acc struct {
+		sx, sy, w float64
+		a         Apex
+	}
+	var out []acc
+	for _, set := range sets {
+		for _, a := range set {
+			wgt := float64(a.Rows)
+			if wgt <= 0 {
+				wgt = 1
+			}
+			best, bd := -1, minDist
+			for i, o := range out {
+				if o.a.Down != a.Down {
+					continue
+				}
+				if d := math.Hypot(o.sx/o.w-a.Pt.X, o.sy/o.w-a.Pt.Y); d < bd {
+					best, bd = i, d
+				}
+			}
+			if best < 0 {
+				out = append(out, acc{sx: a.Pt.X * wgt, sy: a.Pt.Y * wgt, w: wgt, a: a})
+				continue
+			}
+			o := &out[best]
+			o.sx += a.Pt.X * wgt
+			o.sy += a.Pt.Y * wgt
+			o.w += wgt
+			if a.Rows > o.a.Rows {
+				o.a = a // keep the best-supported observation's edges/base
+			}
+		}
+	}
+	merged := make([]Apex, len(out))
+	for i, o := range out {
+		a := o.a
+		a.Pt = geom.P(o.sx/o.w, o.sy/o.w)
+		merged[i] = a
+	}
+	return merged
+}

@@ -50,7 +50,13 @@ const fitMinMatchesHalf = 5
 // does not track the apexes tightly; failure is detectable, so the fallback
 // is clean.
 func FitHandles(mask []bool, w, h int, corners, barEdges [4]geom.Pt, cb calibrate.CanonicalBoard) (FitResult, bool) {
-	apexes := ApexComponents(mask, w, h)
+	return FitApexes(ApexComponents(mask, w, h), w, h, corners, barEdges, cb)
+}
+
+// FitApexes is FitHandles on an already-extracted apex set — the entry point
+// for multi-instant aggregation (ADR-0008 §7), where apexes detected at
+// several spaced instants are merged before one fit.
+func FitApexes(apexes []Apex, w, h int, corners, barEdges [4]geom.Pt, cb calibrate.CanonicalBoard) (FitResult, bool) {
 	if len(apexes) < 2*fitMinMatchesHalf {
 		return FitResult{}, false
 	}
