@@ -18,6 +18,16 @@ type Apex struct {
 	Down  bool    // triangle points toward larger y (a top-row point)
 	Rows  int     // boundary rows that supported the edge fits
 	Resid float64 // rms residual of the lateral-edge fits, px
+	// EdgeL / EdgeR are the fitted lateral edges as x = a + b·y (mask
+	// space), left/right boundary respectively. The correspondence fit uses
+	// them as point-on-line constraints: apexes alone sit on two parallel
+	// rows, a degenerate configuration the edge lines break (ADR-0008 §4).
+	EdgeL, EdgeR [2]float64
+	// BaseY is the base-end extreme row. When the base is intact (not eaten
+	// by stacked checkers) it lies on the board's outer edge, and the edge
+	// lines evaluated at BaseY are the triangle's base corners — the
+	// correspondences that anchor the board's transverse extent.
+	BaseY float64
 }
 
 // minApexRows is the fewest boundary rows a component may offer and still be
@@ -130,6 +140,9 @@ func fitApex(minX, maxX map[int]int) (Apex, bool) {
 		Down:  down,
 		Rows:  min(left.n, right.n),
 		Resid: math.Max(left.resid, right.resid),
+		EdgeL: [2]float64{left.a, left.b},
+		EdgeR: [2]float64{right.a, right.b},
+		BaseY: yBase,
 	}, true
 }
 

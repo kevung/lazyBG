@@ -310,3 +310,28 @@ func (cb CanonicalBoard) PointApex(p int) geom.Pt {
 	}
 	return geom.P(x, float64(r.Min.Y))
 }
+
+// ToSource maps a canonical point to the recorded source pixel — the inverse
+// of ToCanonical: the half is chosen by the canonical x against the bar
+// centre, and lens distortion is re-applied after the homography. This is how
+// the correspondence fit (ADR-0008) predicts where each canonical landmark
+// should appear in the frame.
+func (c BoardCalibration) ToSource(p geom.Pt) geom.Pt {
+	pair := c.left
+	if p.X >= c.splitX {
+		pair = c.right
+	}
+	return c.lens.distort(pair.c2i.Apply(p))
+}
+
+// Landmarks exposes the eight canonical calibration points in handle order
+// [TL, TR, BR, BL, barTL, barTR, barBR, barBL] — what a fitted half
+// homography is projected through to recover source-space handles.
+func (cb CanonicalBoard) Landmarks() [8]geom.Pt { return cb.landmarks() }
+
+// BarCenterX returns the canonical x of the bar's centre — the split line
+// between the two half-board homographies.
+func (cb CanonicalBoard) BarCenterX() float64 {
+	r := cb.BarRegion()
+	return float64(r.Min.X+r.Max.X) / 2
+}
