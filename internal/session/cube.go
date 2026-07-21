@@ -23,13 +23,47 @@ type cubeState struct {
 func (s *Service) CubeActions() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// No cube in play (a Session Prior) → no cube decisions at all.
+	if !s.priors.CubeOn() {
+		return nil
+	}
 	if s.cube.pending {
 		return []string{"take", "drop"}
+	}
+	// No doubling in the Crawford game (issue #24).
+	if s.crawfordGameLocked() {
+		return nil
 	}
 	if !s.cube.owned || s.cube.owner == s.onRoll {
 		return []string{"double"}
 	}
 	return nil
+}
+
+// crawfordGameLocked reports whether the current game is the Crawford game: the
+// first game entered with a player one point from the match. It is detected
+// statelessly from the games' StartScores — the current game sits at
+// max==length-1 while the previous game did not (the leader just reached it);
+// any later game at match point is post-Crawford, where doubling resumes.
+func (s *Service) crawfordGameLocked() bool {
+	if !s.priors.CrawfordOn() || s.match.Length <= 0 {
+		return false
+	}
+	n := len(s.match.Games)
+	if n == 0 {
+		return false
+	}
+	atMatchPoint := func(sc [2]int) bool {
+		return sc[0] == s.match.Length-1 || sc[1] == s.match.Length-1
+	}
+	cur := s.match.Games[n-1]
+	if !atMatchPoint(cur.StartScore) {
+		return false
+	}
+	if n == 1 {
+		return true // reached match point before the first recorded game
+	}
+	return !atMatchPoint(s.match.Games[n-2].StartScore)
 }
 
 // CubeValue returns the current cube value (1 = centered, never doubled).

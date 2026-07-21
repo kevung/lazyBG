@@ -34,6 +34,7 @@ func (s *Service) SaveSetup(setup Setup) error {
 		s.match.Players = setup.Players
 	}
 	s.match.Length = setup.Priors.MatchLength
+	s.priors = setup.Priors
 	if s.doc != nil {
 		if len(s.doc.Parts) == 0 {
 			return fmt.Errorf("no video part to attach the setup to")
@@ -54,12 +55,15 @@ func (s *Service) SaveSetup(setup Setup) error {
 func (s *Service) GetSetup() Setup {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := Setup{Players: s.match.Players}
+	out := Setup{Players: s.match.Players, Priors: s.priors}
 	if s.doc != nil && len(s.doc.Parts) > 0 {
-		out.Priors = s.doc.Parts[0].Priors
 		out.Corners = s.doc.Parts[0].Calibration.Corners
 		out.VideoURL = s.doc.Parts[0].URL
 	}
+	// Fill the cube-rule pointers to their resolved values so the setup form
+	// shows concrete defaults (cube+Crawford on, Jacoby+Beaver off) for a fresh
+	// session (issue #24).
+	out.Priors = out.Priors.WithCubeDefaults()
 	return out
 }
 

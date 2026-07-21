@@ -176,6 +176,9 @@ func Open(lbgPath string) (*Service, string, error) {
 		s.match.Players = doc.Players
 	}
 	s.match.Length = doc.Length
+	if len(doc.Parts) > 0 {
+		s.priors = doc.Parts[0].Priors
+	}
 
 	resultOf := make(map[int]LBGResult, len(doc.Results))
 	for _, r := range doc.Results {

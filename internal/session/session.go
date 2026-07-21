@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"lazybg/internal/bg"
+	"lazybg/internal/corpus"
 	"lazybg/internal/engine"
 	"lazybg/internal/perceive"
 )
@@ -82,6 +83,12 @@ type Service struct {
 
 	// cube is the live doubling-cube state (issue #18).
 	cube cubeState
+
+	// priors are the Session Priors that govern rules (cube in play, Crawford,
+	// Jacoby, Beaver — issue #24). Kept on the Service so the cube menu can
+	// consult them even for an in-memory session with no .lbg doc; synced from
+	// the setup form (SaveSetup) and from the doc on Open.
+	priors corpus.Priors
 
 	// Persistence (nil/empty for pure in-memory sessions): the .lbg document
 	// this session autosaves to after every confirmed decision.

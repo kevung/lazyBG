@@ -137,3 +137,24 @@ func TestLoad_Masks(t *testing.T) {
 		t.Fatalf("masks not parsed: %+v", ms)
 	}
 }
+
+func TestPriors_CubeRuleDefaults(t *testing.T) {
+	// Unset (nil) priors take the standard match-play defaults: the cube and
+	// Crawford are on; Jacoby and Beaver (money-game rules) are off.
+	var p Priors
+	if !p.CrawfordOn() || !p.CubeOn() {
+		t.Errorf("unset: Crawford=%v Cube=%v, want both true", p.CrawfordOn(), p.CubeOn())
+	}
+	if p.JacobyOn() || p.BeaverOn() {
+		t.Errorf("unset: Jacoby=%v Beaver=%v, want both false", p.JacobyOn(), p.BeaverOn())
+	}
+	// Explicit values win over the defaults.
+	no, yes := false, true
+	p = Priors{Crawford: &no, CubeInPlay: &no, Jacoby: &yes, Beaver: &yes}
+	if p.CrawfordOn() || p.CubeOn() {
+		t.Errorf("explicit off: Crawford=%v Cube=%v, want both false", p.CrawfordOn(), p.CubeOn())
+	}
+	if !p.JacobyOn() || !p.BeaverOn() {
+		t.Errorf("explicit on: Jacoby=%v Beaver=%v, want both true", p.JacobyOn(), p.BeaverOn())
+	}
+}
