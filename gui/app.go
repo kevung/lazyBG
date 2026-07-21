@@ -323,6 +323,18 @@ func (a *App) DeleteTurn(seq int) error {
 	return a.service().DeleteTurn(seq)
 }
 
+// InsertTurn inserts a skipped checker turn before seq (empty notation =
+// Cannot Move); downstream turns re-validate via the cascade (issue #25).
+func (a *App) InsertTurn(seq, player, d1, d2 int, notation string, tickMs int) error {
+	return a.service().InsertTurn(seq, player, d1, d2, notation, tickMs)
+}
+
+// InsertCube inserts a cube ply (double/take/drop) before seq; cube state and
+// boundary detection re-derive (issue #25).
+func (a *App) InsertCube(seq int, action string, tickMs int) error {
+	return a.service().InsertCube(seq, action, tickMs)
+}
+
 // PendingGameEnd returns the detected (unconfirmed) game end, or nil.
 func (a *App) PendingGameEnd() *session.GameEndProposal {
 	return a.service().PendingGameEnd()
