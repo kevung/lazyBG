@@ -176,14 +176,20 @@
     try {
       if (selectedSeq >= 0 && editRoll) {
         // Edit-mode escape hatch (ADR-0001): free-entry correction of a past
-        // turn — ReplaceTurn is physics-checked only, never legality-gated.
-        await api().ReplaceTurn(selectedSeq, editRoll[0], editRoll[1], overrideText.trim())
+        // turn — physics-checked only, never legality-gated. In insert mode the
+        // same free entry inserts a skipped turn instead (issue #25).
+        if (insertMode) {
+          await api().InsertTurn(selectedSeq, insertPlayer(), editRoll[0], editRoll[1], overrideText.trim(), editTickMs())
+        } else {
+          await api().ReplaceTurn(selectedSeq, editRoll[0], editRoll[1], overrideText.trim())
+        }
         moves = await api().Moves()
         overrideOpen = false
         overrideText = ''
         candidates = []
         firstDigit = null
         editRoll = null
+        insertMode = false
         refreshReview()
         refreshBoard()
         onRoll = await api().OnRoll()
@@ -414,17 +420,43 @@
   async function confirmEdit(notation) {
     error = ''
     try {
-      await api().ReplaceTurn(selectedSeq, editRoll[0], editRoll[1], notation)
+      if (insertMode) {
+        // Insert a skipped turn BEFORE the selected one; downstream cascades.
+        await api().InsertTurn(selectedSeq, insertPlayer(), editRoll[0], editRoll[1], notation, editTickMs())
+      } else {
+        await api().ReplaceTurn(selectedSeq, editRoll[0], editRoll[1], notation)
+      }
       moves = await api().Moves()
       candidates = []
       firstDigit = null
       editRoll = null
+      insertMode = false
       refreshReview() // a cascade may have flagged downstream turns
       refreshBoard()
       onRoll = await api().OnRoll()
     } catch (e) {
       error = String(e)
     }
+  }
+
+  // Insert mode: typing dice on a selected turn inserts a skipped turn before
+  // it (rather than editing it) — issue #25. The inserted turn takes the
+  // selected slot; the player defaults to the alternation at that point.
+  let insertMode = false
+  function startInsert() {
+    if (selectedSeq < 0) return
+    insertMode = true
+    candidates = []
+    firstDigit = null
+    editRoll = null
+    overrideOpen = false
+  }
+  function insertPlayer() {
+    return selectedSeq > 0 ? 1 - moves[selectedSeq - 1].player : 0
+  }
+  function editTickMs() {
+    const m = moves[selectedSeq]
+    return m ? m.tickMs : nowTickMs()
   }
 
   async function deleteSelected() {
@@ -443,6 +475,7 @@
 
   function backToLive() {
     selectedSeq = -1
+    insertMode = false
     refreshBoard()
   }
 
@@ -570,6 +603,13 @@
     }
     if ((e.key === 'Delete' || e.key === 'x') && selectedSeq >= 0 && !candidates.length) {
       deleteSelected()
+      e.preventDefault()
+      return
+    }
+    // 'i' on a selected turn: insert a skipped turn before it (issue #25).
+    // Then type the dice and pick the move (or confirm empty = Cannot Move).
+    if (e.key === 'i' && selectedSeq >= 0 && !candidates.length) {
+      startInsert()
       e.preventDefault()
       return
     }
@@ -775,10 +815,15 @@
       </ol>
     {/if}
 
-    {#if selectedSeq >= 0}
+    {#if selectedSeq >= 0 && insertMode}
+      <p class="editing">
+        Inserting a turn before turn {selectedSeq + 1} — type the dice, pick the
+        move (or confirm empty = Cannot Move). Esc cancels.
+      </p>
+    {:else if selectedSeq >= 0}
       <p class="editing">
         Editing turn {selectedSeq + 1} — type new dice, pick, Space applies.
-        Delete/x removes the turn. Esc returns to live.
+        Delete/x removes the turn, i inserts a turn before it. Esc returns to live.
       </p>
     {/if}
 

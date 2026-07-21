@@ -123,6 +123,110 @@ func (s *Service) DeleteTurn(seq int) error {
 	return s.recomputeAndFlagLocked(gi, seq)
 }
 
+// InsertTurn inserts a skipped checker turn before seq (empty notation =
+// Cannot Move). Like ReplaceTurn it requires the move to be physically
+// applicable on the board before it (ADR-0001), then cascades: downstream
+// turns re-validate against the recomputed board (issue #25, functional-spec
+// §3). beforeSeq == the current turn count appends at the very end.
+func (s *Service) InsertTurn(beforeSeq, player, d1, d2 int, notation string, tickMs int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if d1 < 1 || d1 > 6 || d2 < 1 || d2 > 6 {
+		return fmt.Errorf("dice out of range: %d-%d", d1, d2)
+	}
+	if player != int(bg.P1) && player != int(bg.P2) {
+		return fmt.Errorf("player must be 0 (P1) or 1 (P2), got %d", player)
+	}
+	gi, pi, err := s.insertPointLocked(beforeSeq)
+	if err != nil {
+		return err
+	}
+	ply := bg.Ply{
+		Player:     bg.Player(player),
+		Dice:       bg.Dice{d1, d2},
+		Notation:   notation,
+		CannotMove: notation == "",
+		Tick:       tickMs,
+	}
+	if notation != "" {
+		board, err := s.boardBeforeLocked(gi, pi)
+		if err != nil {
+			return err
+		}
+		if _, err := derive.ApplyNotation(board, ply.Player, notation); err != nil {
+			return fmt.Errorf("cannot apply %q: %w", notation, err)
+		}
+	}
+	s.spliceInLocked(gi, pi, beforeSeq, ply, LBGTurn{
+		Game: s.match.Games[gi].Number, Player: player,
+		Dice: [2]int{d1, d2}, Notation: notation, CannotMove: notation == "",
+		Part: 0, TickMs: tickMs, ChosenIndex: -1, Cues: []string{"human-insert"},
+	})
+	return s.recomputeAndFlagLocked(gi, beforeSeq)
+}
+
+// InsertCube inserts a cube ply (double/take/drop) before seq; the cube state
+// re-derives on replay and game-boundary detection follows (issue #25).
+func (s *Service) InsertCube(beforeSeq int, action string, tickMs int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ca := cubeActionOf(action)
+	if ca == bg.NoCube {
+		return fmt.Errorf("unknown cube action %q (double/take/drop)", action)
+	}
+	gi, pi, err := s.insertPointLocked(beforeSeq)
+	if err != nil {
+		return err
+	}
+	// The player is whoever was on roll at that point: the opponent of the
+	// preceding ply, or P1 at a game's start.
+	player := bg.P1
+	if pi > 0 {
+		player = otherPlayer(s.match.Games[gi].Plies[pi-1].Player)
+	}
+	s.spliceInLocked(gi, pi, beforeSeq, bg.Ply{Player: player, Cube: ca, Tick: tickMs},
+		LBGTurn{Game: s.match.Games[gi].Number, Player: int(player),
+			Cube: action, Part: 0, TickMs: tickMs, ChosenIndex: -1, Cues: []string{"human-insert"}})
+	return s.recomputeAndFlagLocked(gi, beforeSeq)
+}
+
+// insertPointLocked resolves beforeSeq to (game index, ply index) for an
+// insertion, accepting the one-past-the-end position (append).
+func (s *Service) insertPointLocked(beforeSeq int) (int, int, error) {
+	total := 0
+	for _, g := range s.match.Games {
+		total += len(g.Plies)
+	}
+	if beforeSeq < 0 || beforeSeq > total {
+		return 0, 0, fmt.Errorf("insert seq %d out of range (have %d turns)", beforeSeq, total)
+	}
+	if beforeSeq == total {
+		gi := len(s.match.Games) - 1
+		return gi, len(s.match.Games[gi].Plies), nil
+	}
+	return s.locate(beforeSeq)
+}
+
+// spliceInLocked inserts ply at ply-index pi of game gi and the mirror LBGTurn
+// at flat seq beforeSeq, shifting review references at or past it.
+func (s *Service) spliceInLocked(gi, pi, beforeSeq int, ply bg.Ply, turn LBGTurn) {
+	g := &s.match.Games[gi]
+	g.Plies = append(g.Plies, bg.Ply{})
+	copy(g.Plies[pi+1:], g.Plies[pi:])
+	g.Plies[pi] = ply
+
+	if s.doc != nil && beforeSeq <= len(s.doc.Turns) {
+		s.doc.Turns = append(s.doc.Turns, LBGTurn{})
+		copy(s.doc.Turns[beforeSeq+1:], s.doc.Turns[beforeSeq:])
+		s.doc.Turns[beforeSeq] = turn
+	}
+	for i := range s.reviews {
+		if s.reviews[i].TurnSeq >= beforeSeq {
+			s.reviews[i].TurnSeq++
+		}
+	}
+}
+
 // locate maps a flat seq to (game index, ply index).
 func (s *Service) locate(seq int) (int, int, error) {
 	if seq < 0 {
