@@ -42,8 +42,18 @@ func Load(path string) (*Net, error) {
 	if err != nil {
 		return nil, err
 	}
+	net, err := LoadBytes(raw)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return net, nil
+}
+
+// LoadBytes parses an LZPN1 weight blob (the same format Load reads from
+// disk) — the entry point when the model ships inside the binary via embed.FS.
+func LoadBytes(raw []byte) (*Net, error) {
 	if len(raw) < 9 || string(raw[:5]) != "LZPN1" {
-		return nil, fmt.Errorf("dienet %s: not an LZPN1 weight file", path)
+		return nil, fmt.Errorf("dienet: not an LZPN1 weight file")
 	}
 	off := 5
 	u32 := func() int {
@@ -56,7 +66,7 @@ func Load(path string) (*Net, error) {
 	shapes := map[string][]int{}
 	for t := 0; t < count; t++ {
 		if off+4 > len(raw) {
-			return nil, fmt.Errorf("dienet %s: truncated", path)
+			return nil, fmt.Errorf("dienet: truncated")
 		}
 		nameLen := u32()
 		name := string(raw[off : off+nameLen])
@@ -69,7 +79,7 @@ func Load(path string) (*Net, error) {
 			n *= dims[i]
 		}
 		if off+4*n > len(raw) {
-			return nil, fmt.Errorf("dienet %s: tensor %s truncated", path, name)
+			return nil, fmt.Errorf("dienet: tensor %s truncated", name)
 		}
 		data := make([]float32, n)
 		for i := range data {
@@ -85,18 +95,18 @@ func Load(path string) (*Net, error) {
 		w, ok := tensors[fmt.Sprintf("conv%d.w", k)]
 		b, ok2 := tensors[fmt.Sprintf("conv%d.b", k)]
 		if !ok || !ok2 {
-			return nil, fmt.Errorf("dienet %s: missing conv%d", path, k)
+			return nil, fmt.Errorf("dienet: missing conv%d", k)
 		}
 		s := shapes[fmt.Sprintf("conv%d.w", k)]
 		if len(s) != 4 || s[0] != net.convC[k+1] || s[1] != net.convC[k] || s[2] != 3 || s[3] != 3 {
-			return nil, fmt.Errorf("dienet %s: conv%d shape %v", path, k, s)
+			return nil, fmt.Errorf("dienet: conv%d shape %v", k, s)
 		}
 		net.convW[k], net.convB[k] = w, b
 	}
 	net.fc0W, net.fc0B = tensors["fc0.w"], tensors["fc0.b"]
 	net.fc1W, net.fc1B = tensors["fc1.w"], tensors["fc1.b"]
 	if net.fc0W == nil || net.fc1W == nil || len(net.fc1B) != NClasses {
-		return nil, fmt.Errorf("dienet %s: missing or misshaped fc layers", path)
+		return nil, fmt.Errorf("dienet: missing or misshaped fc layers")
 	}
 	return net, nil
 }
