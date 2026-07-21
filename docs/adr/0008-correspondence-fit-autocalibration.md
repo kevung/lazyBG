@@ -98,3 +98,45 @@ the concern is real for oblique/wide-angle rigs.
   8 handles + canonical + lens.
 - The lens half of #11 is only *provisionally* validated until a real wide-angle capture joins
   the corpus — tracked as a corpus task, not a code stage.
+
+## Implementation notes (2026-07-22, stages 1–6 delivered)
+
+What the bench forced us to learn, recorded so the next reader does not
+re-derive it:
+
+- **Apexes alone are degenerate.** The 24 tips lie on two parallel rows; a
+  point-only homography fit leaves a one-parameter vertical-stretch family
+  (±70px corner error). Fixed with **line↔line correspondences**
+  (`geom.HomographyFitFeatures`, `l_canon ∝ Hᵀ·l_img`): the two outer edges
+  pin the transverse extent.
+- **Never trust triangle width.** Constraining canonical base corners (or
+  lateral-edge endpoints at full column width) drags the scale — real points
+  are narrower than their column (~17% shrink measured on the pilot). The
+  admitted primitives are width-free: apex points + outer edge lines.
+- **Outer edges need envelope logic, not LSQ.** Checker stacks truncate
+  bases strictly centreward; colour bleed leaks outward. The edge is found
+  as the outermost well-supported line through the base points (dense pair
+  RANSAC); both plain LSQ and one-sided trimming fail on real masks.
+- **One geometry parameter is estimated per capture:** the apex line's
+  canonical y (effective triangle length), re-estimated each round with
+  top/bottom symmetry imposed. With DefaultCanonical's fixed proportions the
+  apexes fight the edge lines (14px residual on the pilot).
+- **Seed-free bootstrap.** When the mask quad goes wild (RowQuad's principal
+  axis), apexes are indexed without a seed: rows from apex orientation,
+  absolute columns by scoring all (leftmost, rightmost)-slot alignment
+  hypotheses — the bar gap anchors them — cross-checked between rows.
+- **Lens admission is residual-driven** (not curvature-solving as §5
+  sketched): golden-section on k1 then k1+k2, refitting on undistorted
+  features per candidate; admission needs −12% relative AND −0.15px absolute
+  gain, so pinhole captures come out exactly 0/0.
+- **Calibrate scores the fit with the full model** (8 handles + lens) and
+  polishes with `RefineHandles` — the oracle hill-climb over all eight
+  handles (bar x/width included), which observes exactly the outer-x and bar
+  proportions the image structure cannot pin. The corners-only oracle path
+  remains as a competitor; the better opening read wins.
+- **Measured:** bench mean auto opening score 5.86 → 7.32/24 (22 captures,
+  none regressed; four captures reach near-manual corners at 30–61px);
+  pilot `Calibrate` 16/24 → 20/24 (the e2e test passes again). Known
+  remaining failure modes: `AutoColors` picks wrong clusters on the three
+  2026-05 Marseille captures (empty triangle mask), and heavily stacked
+  mid-game frames on some cdf/vbc cells.
