@@ -889,3 +889,11 @@ func CalibrateAssisted(video string, initial [4]geom.Pt, o Options) (Result, err
 	}
 	return res, nil
 }
+
+// OpeningScore scores a frame's read against the standard start with the
+// given corners: the integer per-point score plus a fractional whole-board
+// tie-break (see openingScore). Exported for the corpus bench, which scores
+// automatic and manual calibrations at the same anchor frame.
+func OpeningScore(frame image.Image, corners [4]geom.Pt, o Options) float64 {
+	return openingScore(frame, corners, o)
+}
