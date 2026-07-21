@@ -297,3 +297,16 @@ func rgba(c color.Color) color.RGBA {
 	r, g, b, a := c.RGBA()
 	return color.RGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), uint8(a >> 8)}
 }
+
+// PointApex returns point p's triangle-tip position in canonical space: the
+// column centre at the inner end of the point's quadrant. These are the
+// predicted slots the correspondence fit (ADR-0008) matches detected apexes
+// against. p must be in 1..24.
+func (cb CanonicalBoard) PointApex(p int) geom.Pt {
+	r, dir := cb.PointRegion(p)
+	x := float64(r.Min.X) + float64(cb.PointW)/2
+	if dir == StackDown {
+		return geom.P(x, float64(r.Max.Y))
+	}
+	return geom.P(x, float64(r.Min.Y))
+}
