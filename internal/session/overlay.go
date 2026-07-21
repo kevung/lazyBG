@@ -36,6 +36,7 @@ type OverlayView struct {
 	Pips           []OverlayDot          // detected dice-pip centres
 	CanonW, CanonH int                   // canonical board size
 	Corners        [][2]float64          // calibrated source corners (TL,TR,BR,BL)
+	BarEdges       [][2]float64          // bar-edge handles (barTL,barTR,barBR,barBL), if any
 }
 
 // Overlay reads the board at tickMs and returns its detections for the GUI
@@ -48,6 +49,7 @@ func (s *Service) Overlay(tickMs int) OverlayView {
 		return out
 	}
 	out.Corners = s.doc.Parts[0].Calibration.Corners
+	out.BarEdges = s.doc.Parts[0].Calibration.BarEdges
 	cal, cb, ok := buildCalibration(s.doc.Parts[0].Calibration)
 	out.CanonW, out.CanonH = cb.Size()
 	if !ok || s.grab == nil {

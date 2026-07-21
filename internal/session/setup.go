@@ -15,8 +15,11 @@ import (
 type Setup struct {
 	Players [2]string     `json:"players"`
 	Priors  corpus.Priors `json:"priors"`
-	// Corners are the 4 board corners in frame coordinates (TL,TR,BR,BL).
+	// Corners are the 4 playing-surface corners in frame coordinates (TL,TR,BR,BL).
 	Corners [][2]float64 `json:"corners"`
+	// BarEdges are the 4 bar-edge handles (barTL,barTR,barBR,barBL). Present ⇒
+	// two-homography calibration (ADR-0007); absent ⇒ v1 (migrated).
+	BarEdges [][2]float64 `json:"barEdges,omitempty"`
 	// VideoURL is the capture's canonical source (e.g. the YouTube URL) —
 	// the portability half of the video reference (session-format-spec §1).
 	VideoURL string `json:"videoUrl"`
@@ -40,6 +43,12 @@ func (s *Service) SaveSetup(setup Setup) error {
 		}
 		s.doc.Parts[0].Priors = setup.Priors
 		s.doc.Parts[0].Calibration.Corners = setup.Corners
+		s.doc.Parts[0].Calibration.BarEdges = setup.BarEdges
+		if len(setup.BarEdges) == 4 {
+			s.doc.Parts[0].Calibration.Version = 2 // two-homography (ADR-0007)
+		} else {
+			s.doc.Parts[0].Calibration.Version = 0
+		}
 		if setup.VideoURL != "" {
 			s.doc.Parts[0].URL = setup.VideoURL
 		}
@@ -58,6 +67,7 @@ func (s *Service) GetSetup() Setup {
 	if s.doc != nil && len(s.doc.Parts) > 0 {
 		out.Priors = s.doc.Parts[0].Priors
 		out.Corners = s.doc.Parts[0].Calibration.Corners
+		out.BarEdges = s.doc.Parts[0].Calibration.BarEdges
 		out.VideoURL = s.doc.Parts[0].URL
 	}
 	return out

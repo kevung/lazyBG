@@ -87,15 +87,43 @@ func (cb CanonicalBoard) OffRegion() image.Rectangle {
 	return image.Rect(w-cb.MarginX-cb.OffW, cb.MarginY, w-cb.MarginX, h-cb.MarginY)
 }
 
-// BoardCalibration maps between a source frame and the canonical board.
+// landmarks returns the eight canonical calibration points in the order
+// [TL, TR, BR, BL, barTL, barTR, barBR, barBL]: the four playing-surface corners
+// (outer triangle tips) and the four bar-edge points — the canonical counterparts
+// of the eight source handles (ADR-0007).
+func (cb CanonicalBoard) landmarks() [8]geom.Pt {
+	_, h := cb.Size()
+	my, by := float64(cb.MarginY), float64(h-cb.MarginY)
+	lx := float64(cb.MarginX)                 // outer left playing edge
+	rx := float64(cb.columnX(11) + cb.PointW) // outer right playing edge (before the off tray)
+	blx := float64(cb.MarginX + 6*cb.PointW)  // bar left edge (end of column 5)
+	brx := float64(cb.columnX(6))             // bar right edge (start of column 6)
+	return [8]geom.Pt{
+		geom.P(lx, my), geom.P(rx, my), geom.P(rx, by), geom.P(lx, by), // TL,TR,BR,BL
+		geom.P(blx, my), geom.P(brx, my), geom.P(brx, by), geom.P(blx, by), // bar edges
+	}
+}
+
+// homographyPair is one half-board's canonical↔ideal-source homography.
+type homographyPair struct {
+	c2i geom.Mat3 // canonical pixel → undistorted (ideal) source pixel
+	i2c geom.Mat3 // ideal source pixel → canonical pixel
+}
+
+// BoardCalibration maps between a source frame and the canonical board via TWO
+// homographies split by the bar (ADR-0007): the left and right half-boards are
+// rectified independently, so the bar width/skew is explicit and each half fits
+// its own plane (tolerating the hinge fold). A migrated four-corner calibration
+// collapses both halves to the same map — identical to the old single homography.
 // Masks are optional canonical-space dead zones applied by RectifyMasked.
 type BoardCalibration struct {
-	Board       CanonicalBoard
-	Masks       []image.Rectangle // canonical-space dead zones (RectifyMasked)
-	canon2ideal geom.Mat3 // canonical pixel → undistorted (ideal) source pixel
-	ideal2canon geom.Mat3 // ideal source pixel → canonical pixel
-	lens        Lens      // radial distortion between ideal and recorded source
-	ok          bool
+	Board  CanonicalBoard
+	Masks  []image.Rectangle // canonical-space dead zones (RectifyMasked)
+	left   homographyPair    // canonical x < splitX
+	right  homographyPair    // canonical x >= splitX
+	splitX float64           // canonical x dividing the two halves (bar centre)
+	lens   Lens              // radial distortion between ideal and recorded source
+	ok     bool
 }
 
 // RectifyMasked is Rectify followed by painting the calibration's declared
@@ -107,31 +135,94 @@ func (c BoardCalibration) RectifyMasked(src image.Image) *image.RGBA {
 }
 
 // New builds a calibration from four source-image corners of the board, given in
-// order top-left, top-right, bottom-right, bottom-left. Returns ok=false if the
-// corners are degenerate. No lens distortion is applied.
+// order top-left, top-right, bottom-right, bottom-left. The bar is placed at the
+// canonical default fraction (the legacy single-homography behaviour, reproduced
+// exactly); prefer NewSplit with explicit bar edges. No lens distortion.
 func New(srcCorners [4]geom.Pt, cb CanonicalBoard) (BoardCalibration, bool) {
 	return NewWithLens(srcCorners, cb, Lens{})
 }
 
-// NewWithLens is New with radial lens distortion. The clicked corners are on the
-// recorded (distorted) frame; they are undistorted to ideal space before the
-// homography, and Rectify re-distorts when sampling the real source. An inactive
-// lens (zero value) makes this identical to New.
+// NewWithLens is New with radial lens distortion. It migrates the four corners to
+// the eight-point model by synthesising the bar edges from the canonical default
+// (via the single full-quad homography), so both half-homographies collapse to
+// that map — behaviour identical to the pre-ADR-0007 single homography.
 func NewWithLens(srcCorners [4]geom.Pt, cb CanonicalBoard, lens Lens) (BoardCalibration, bool) {
 	w, h := cb.Size()
-	ideal := srcCorners
+	ideal4 := srcCorners
 	if lens.active() {
-		for i := range ideal {
-			ideal[i] = lens.undistort(srcCorners[i])
+		for i := range ideal4 {
+			ideal4[i] = lens.undistort(srcCorners[i])
 		}
 	}
-	canon := [4]geom.Pt{geom.P(0, 0), geom.P(float64(w), 0), geom.P(float64(w), float64(h)), geom.P(0, float64(h))}
-	c2i, ok1 := geom.Homography(canon, ideal)
-	i2c, ok2 := geom.Homography(ideal, canon)
-	if !ok1 || !ok2 {
+	fullCanon := [4]geom.Pt{geom.P(0, 0), geom.P(float64(w), 0), geom.P(float64(w), float64(h)), geom.P(0, float64(h))}
+	hc2i, ok := geom.Homography(fullCanon, ideal4) // canonical → ideal source
+	if !ok {
 		return BoardCalibration{}, false
 	}
-	return BoardCalibration{Board: cb, canon2ideal: c2i, ideal2canon: i2c, lens: lens, ok: true}, true
+	var ideal8 [8]geom.Pt
+	for i, lm := range cb.landmarks() {
+		ideal8[i] = hc2i.Apply(lm)
+	}
+	return buildSplit(ideal8, cb, lens)
+}
+
+// NewSplit builds a two-homography calibration from the eight source handles, in
+// order [TL, TR, BR, BL, barTL, barTR, barBR, barBL]. No lens distortion.
+func NewSplit(pts [8]geom.Pt, cb CanonicalBoard) (BoardCalibration, bool) {
+	return NewSplitWithLens(pts, cb, Lens{})
+}
+
+// NewSplitWithLens is NewSplit with radial lens distortion: the recorded handles
+// are undistorted to ideal space before fitting the two homographies.
+func NewSplitWithLens(pts [8]geom.Pt, cb CanonicalBoard, lens Lens) (BoardCalibration, bool) {
+	ideal := pts
+	if lens.active() {
+		for i := range ideal {
+			ideal[i] = lens.undistort(pts[i])
+		}
+	}
+	return buildSplit(ideal, cb, lens)
+}
+
+// NewFromHandles builds a calibration from four corners (TL,TR,BR,BL) plus an
+// optional four bar edges (barTL,barTR,barBR,barBL). With bar edges it is the
+// two-homography model (ADR-0007); without (nil or wrong length) it migrates the
+// four corners, reproducing the legacy single-homography behaviour. This is the
+// single entry point the session/transcribe build sites use.
+func NewFromHandles(corners [4]geom.Pt, barEdges []geom.Pt, cb CanonicalBoard, lens Lens) (BoardCalibration, bool) {
+	if len(barEdges) == 4 {
+		return NewSplitWithLens([8]geom.Pt{
+			corners[0], corners[1], corners[2], corners[3],
+			barEdges[0], barEdges[1], barEdges[2], barEdges[3],
+		}, cb, lens)
+	}
+	return NewWithLens(corners, cb, lens)
+}
+
+// buildSplit fits the left/right half homographies from eight IDEAL (already
+// undistorted) source points against the canonical landmarks.
+func buildSplit(ideal [8]geom.Pt, cb CanonicalBoard, lens Lens) (BoardCalibration, bool) {
+	lm := cb.landmarks()
+	// Left half quad (TL, barTL, barBL, BL); right half quad (barTR, TR, BR, barBR).
+	leftCanon := [4]geom.Pt{lm[0], lm[4], lm[7], lm[3]}
+	leftIdeal := [4]geom.Pt{ideal[0], ideal[4], ideal[7], ideal[3]}
+	rightCanon := [4]geom.Pt{lm[5], lm[1], lm[2], lm[6]}
+	rightIdeal := [4]geom.Pt{ideal[5], ideal[1], ideal[2], ideal[6]}
+	lc2i, ok1 := geom.Homography(leftCanon, leftIdeal)
+	li2c, ok2 := geom.Homography(leftIdeal, leftCanon)
+	rc2i, ok3 := geom.Homography(rightCanon, rightIdeal)
+	ri2c, ok4 := geom.Homography(rightIdeal, rightCanon)
+	if !ok1 || !ok2 || !ok3 || !ok4 {
+		return BoardCalibration{}, false
+	}
+	return BoardCalibration{
+		Board:  cb,
+		left:   homographyPair{lc2i, li2c},
+		right:  homographyPair{rc2i, ri2c},
+		splitX: (lm[4].X + lm[5].X) / 2, // bar centre
+		lens:   lens,
+		ok:     true,
+	}, true
 }
 
 // PointRegion delegates to the canonical board.
@@ -140,13 +231,20 @@ func (c BoardCalibration) PointRegion(p int) (image.Rectangle, StackDir) {
 }
 
 // ToCanonical maps a source-frame point into canonical board coordinates,
-// undistorting first when a lens is set.
+// undistorting first when a lens is set, and choosing the half whose homography
+// places it on the correct side of the bar.
 func (c BoardCalibration) ToCanonical(p geom.Pt) geom.Pt {
-	return c.ideal2canon.Apply(c.lens.undistort(p))
+	ideal := c.lens.undistort(p)
+	if lc := c.left.i2c.Apply(ideal); lc.X <= c.splitX {
+		return lc
+	}
+	return c.right.i2c.Apply(ideal)
 }
 
 // Rectify warps src into the canonical top-down board image via inverse mapping
-// and bilinear sampling. Pixels that fall outside src become transparent black.
+// and bilinear sampling, using the left homography for canonical pixels left of
+// the bar centre and the right homography otherwise. Pixels outside src become
+// transparent black.
 func (c BoardCalibration) Rectify(src image.Image) *image.RGBA {
 	w, h := c.Board.Size()
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -156,7 +254,11 @@ func (c BoardCalibration) Rectify(src image.Image) *image.RGBA {
 	b := src.Bounds()
 	for v := 0; v < h; v++ {
 		for u := 0; u < w; u++ {
-			ideal := c.canon2ideal.Apply(geom.Pt{X: float64(u), Y: float64(v)})
+			pair := c.left
+			if float64(u) >= c.splitX {
+				pair = c.right
+			}
+			ideal := pair.c2i.Apply(geom.Pt{X: float64(u), Y: float64(v)})
 			sp := c.lens.distort(ideal)
 			dst.SetRGBA(u, v, bilinear(src, b, sp.X, sp.Y))
 		}

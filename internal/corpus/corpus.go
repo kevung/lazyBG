@@ -61,8 +61,16 @@ type Priors struct {
 // capture so rectification preserves the source's aspect (circles stay
 // circular for the shape-first reader); absent means the library default.
 type Calibration struct {
-	Inherit   bool         `json:"inherit,omitempty"`
-	Corners   [][2]float64 `json:"corners,omitempty"`
+	Inherit bool `json:"inherit,omitempty"`
+	// Version is the calibration schema version. 0/absent = v1 (four corners,
+	// single homography, bar at the canonical default). 2 = the two-homography
+	// bar-split model with BarEdges present (ADR-0007).
+	Version int          `json:"version,omitempty"`
+	Corners [][2]float64 `json:"corners,omitempty"`
+	// BarEdges are the four bar-edge handles (order barTL,barTR,barBR,barBL) in
+	// frame coordinates. Present ⇒ two-homography calibration; absent ⇒ v1
+	// (migrated by placing the bar at the canonical default, reproducing v1).
+	BarEdges  [][2]float64 `json:"barEdges,omitempty"`
 	Canonical *Canonical   `json:"canonical,omitempty"`
 	// Lens optionally declares the capture camera's radial distortion;
 	// absent means a pinhole camera (plain homography).
