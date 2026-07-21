@@ -1,8 +1,8 @@
-// Automatic calibration seed (issue #47, ADR-0007): a best-effort corner
-// detector that PRE-FILLS the calibration handles so the user adjusts rather
-// than places from scratch. It is never the final word — the manual draggable
-// handles remain the reliable path, and a failed or low-confidence detection
-// simply leaves the current handles untouched (the GUI says "drag manually").
+// Automatic calibration seed (issue #47, ADR-0007): a best-effort detector that
+// PRE-FILLS all eight calibration handles so the user adjusts rather than places
+// from scratch. It is never the final word — the manual draggable handles remain
+// the reliable path, and a failed detection leaves the current handles untouched
+// (the GUI shows the reason and says "drag manually").
 package session
 
 import (
@@ -10,46 +10,37 @@ import (
 	"log"
 
 	"lazybg/internal/autocal"
-	"lazybg/internal/geom"
 )
 
-// DetectedCorners is a best-effort auto-calibration seed: four playing-surface
-// corners (TL,TR,BR,BL) in source-frame pixels, plus the opening-read score the
-// detector achieved (of 24) as a rough confidence.
-type DetectedCorners struct {
-	Corners [][2]float64
-	Score   int
+// DetectedHandles is a best-effort auto-calibration seed: the four playing-surface
+// corners (TL,TR,BR,BL) and the four bar-edge points (barTL,barTR,barBR,barBL),
+// all in source-frame pixels.
+type DetectedHandles struct {
+	Corners  [][2]float64
+	BarEdges [][2]float64
 }
 
-// DetectCorners scans the session's video with the automatic calibrator and
-// returns the four detected corners to seed the handles. It returns an error
-// (and no corners) only on a hard failure — no video, or the detector found no
-// plausible board. A low-confidence result is still returned: it is a seed, and
-// the user refines it by dragging (issue #47).
-func (s *Service) DetectCorners() (DetectedCorners, error) {
+// DetectCorners detects the eight calibration handles on the frame at tickMs and
+// returns them to seed the GUI. It works on the SINGLE current frame (a short
+// median), so it returns quickly and does not require the opening position —
+// unlike a full auto-calibration. On failure it returns the reason (surfaced by
+// the GUI) and leaves the handles untouched; the user always has manual drag.
+func (s *Service) DetectCorners(tickMs int) (DetectedHandles, error) {
 	s.mu.Lock()
 	video := s.videoFileLocked()
 	s.mu.Unlock()
 	if video == "" {
-		return DetectedCorners{}, fmt.Errorf("no video to detect from")
+		return DetectedHandles{}, fmt.Errorf("no video to detect from")
 	}
-	// autocal.Calibrate returns its best quad even when it distrusts the read
-	// (a "below MinOpening" error still carries usable corners); only a truly
-	// empty result means no board was found.
-	res, err := autocal.Calibrate(video, autocal.DefaultOptions())
-	if res.Corners == ([4]geom.Pt{}) { // zero quad ⇒ hard failure
-		if err != nil {
-			// Surface autocal's real reason (e.g. "could not derive board
-			// colors", "no candidate quad produced a readable opening") so the
-			// GUI can show it instead of a generic "failed".
-			log.Printf("DetectCorners: %v", err)
-			return DetectedCorners{}, fmt.Errorf("auto-calibration: %w", err)
-		}
-		return DetectedCorners{}, fmt.Errorf("auto-calibration found no board in the video")
+	corners, barEdges, err := autocal.DetectHandles(video, tickMs, autocal.DefaultOptions())
+	if err != nil {
+		log.Printf("DetectCorners @%dms: %v", tickMs, err)
+		return DetectedHandles{}, err
 	}
-	out := make([][2]float64, 4)
-	for i, p := range res.Corners {
-		out[i] = [2]float64{p.X, p.Y}
+	out := DetectedHandles{Corners: make([][2]float64, 4), BarEdges: make([][2]float64, 4)}
+	for i := 0; i < 4; i++ {
+		out.Corners[i] = [2]float64{corners[i].X, corners[i].Y}
+		out.BarEdges[i] = [2]float64{barEdges[i].X, barEdges[i].Y}
 	}
-	return DetectedCorners{Corners: out, Score: res.OpeningScore}, nil
+	return out, nil
 }

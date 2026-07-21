@@ -47,9 +47,9 @@
   let canvas
   let error = ''
 
-  // detectCorners seeds the four corner handles from the automatic calibrator
-  // (issue #47) — a best-effort starting point the user then refines by
-  // dragging; the bar handles keep their current fractions. Non-blocking.
+  // detectCorners seeds all eight handles (corners + bar edges) from a single-
+  // frame detection on the CURRENT frame (issue #47) — a best-effort start the
+  // user refines by dragging. Fast (no video scan); non-blocking.
   async function detectCorners() {
     const fn = window.go?.main?.App?.DetectCorners
     if (!fn) {
@@ -57,20 +57,29 @@
       return
     }
     detecting = true
-    detectMsg = 'Detecting the board… (this scans the video and can take a while)'
+    detectMsg = 'Detecting the board…'
     try {
-      const res = await fn()
+      const tick = Math.round((videoEl?.currentTime ?? 0) * 1000)
+      const res = await fn(tick)
       if (res?.Corners?.length === 4) {
         corners = res.Corners.map((c) => [...c])
-        detectMsg = `Detected (opening read ${res.Score}/24). Fine-tune the handles.`
+        if (res.BarEdges?.length === 4) {
+          const [TL, TR, BR, BL] = corners
+          barFrac = {
+            tl: fracAlong(res.BarEdges[0], TL, TR),
+            tr: fracAlong(res.BarEdges[1], TL, TR),
+            br: fracAlong(res.BarEdges[2], BL, BR),
+            bl: fracAlong(res.BarEdges[3], BL, BR),
+          }
+        }
+        detectMsg = 'Detected — fine-tune the handles until the grid matches the board.'
         drawFrame()
       } else {
         detectMsg = 'No board detected — place the handles by dragging.'
       }
     } catch (e) {
-      // Surface the real reason (autocal needs the opening position + readable
-      // board colours; it can legitimately fail on some footage) so it can be
-      // acted on rather than hidden behind a generic message.
+      // Surface the real reason (auto-detect needs readable board colours on the
+      // current frame; it can legitimately fail) instead of a generic message.
       detectMsg = 'Auto-detect failed: ' + (e?.message || String(e)) + ' — place the handles by dragging.'
     }
     detecting = false
