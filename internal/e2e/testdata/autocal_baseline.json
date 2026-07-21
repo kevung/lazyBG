@@ -1,0 +1,235 @@
+{
+  "results": [
+    {
+      "id": "2025-05_hsbtMarseille_main-r1_PavicevicNina",
+      "openingTickMs": 2000,
+      "scoreManual": 23,
+      "scoreAuto": 6,
+      "cornerDistPx": [
+        206.73362463897737,
+        237.24437456228202,
+        206.23411370423977,
+        260.5818915355062
+      ]
+    },
+    {
+      "id": "2025-05_hsbtMarseille_main-r2_MauduitEric",
+      "openingTickMs": 7000,
+      "scoreManual": 18,
+      "scoreAuto": 3,
+      "cornerDistPx": [
+        326.754230285363,
+        251.33385976090236,
+        375.26246619346796,
+        280.1284045120183
+      ]
+    },
+    {
+      "id": "2025-05_hsbtMarseille_or-r1_HanotinDenis",
+      "scoreManual": 23,
+      "scoreAuto": 6,
+      "cornerDistPx": [
+        234.7511873345168,
+        295.31599689704063,
+        219.12899863795235,
+        253.6755453690263
+      ]
+    },
+    {
+      "id": "2025-05_hsbtMarseille_or-r2_BaudryThierry",
+      "openingTickMs": 1000,
+      "scoreManual": 21,
+      "scoreAuto": 5,
+      "cornerDistPx": [
+        215.39300060728172,
+        276.4354742319687,
+        220.0844940827872,
+        225.92303435580436
+      ]
+    },
+    {
+      "id": "2025-05_hsbtMarseille_or-r3_GalleGuillaume",
+      "openingTickMs": 22833,
+      "scoreManual": 18,
+      "scoreAuto": 8,
+      "cornerDistPx": [
+        197.57281023379682,
+        307.6650033536823,
+        175.3135676430268,
+        242.16188005352754
+      ]
+    },
+    {
+      "id": "2025-09_vbc15_r1_SarahPartouche",
+      "openingTickMs": 3614833,
+      "scoreManual": 15,
+      "scoreAuto": 13,
+      "cornerDistPx": [
+        137.89503350074233,
+        225.14645374830158,
+        234.77435392196725,
+        219.70405652080467
+      ]
+    },
+    {
+      "id": "2025-10_cdfAngers_r1_EricBenichou",
+      "err": "detect: no plausible board found in the frame",
+      "openingTickMs": 29999,
+      "scoreManual": 16
+    },
+    {
+      "id": "2025-10_cdfAngers_r2_JacquesRavier",
+      "openingTickMs": 790999,
+      "scoreManual": 14,
+      "scoreAuto": 10,
+      "cornerDistPx": [
+        821.7243370369018,
+        1104.7960469107225,
+        1001.3764484021299,
+        911.0433889221371
+      ]
+    },
+    {
+      "id": "2025-10_cdfAngers_r4_GillesDeshayes",
+      "openingTickMs": 958500,
+      "scoreManual": 13,
+      "scoreAuto": 10,
+      "cornerDistPx": [
+        690.2306984628538,
+        763.9465000292972,
+        746.3694345190543,
+        778.9406768638488
+      ]
+    },
+    {
+      "id": "2025-10_vbc_r1_JamesMcNaughtan",
+      "scoreManual": 16,
+      "scoreAuto": 13,
+      "cornerDistPx": [
+        200.52523851209926,
+        285.24936422999707,
+        117.49088352893968,
+        116.76629331952874
+      ]
+    },
+    {
+      "id": "2025-10_vbc_r2_DanielRozenberg",
+      "openingTickMs": 646166,
+      "scoreManual": 14,
+      "scoreAuto": 6,
+      "cornerDistPx": [
+        379.3361845382009,
+        94.95002948920023,
+        167.75330726993133,
+        136.33594720395644
+      ]
+    },
+    {
+      "id": "2025-11_hsbtParis_r1_ChristopherFilosa",
+      "openingTickMs": 372166,
+      "scoreManual": 12,
+      "scoreAuto": 5,
+      "cornerDistPx": [
+        260.36776583657024,
+        185.37563708871443,
+        204.1032143126373,
+        249.24977380739315
+      ]
+    },
+    {
+      "id": "2025-11_hsbtParis_r1_PhilippeLevasseur",
+      "err": "detect: no plausible board found in the frame",
+      "openingTickMs": 6833,
+      "scoreManual": 19
+    },
+    {
+      "id": "2025-11_hsbtParis_r2_StephaneCheneviere",
+      "openingTickMs": 9000,
+      "scoreManual": 21,
+      "scoreAuto": 8,
+      "cornerDistPx": [
+        113.46717754913205,
+        85.77369437324165,
+        153.38832574190212,
+        212.76727965261637
+      ]
+    },
+    {
+      "id": "2025-11_hsbtParis_r3_FredericPicot",
+      "openingTickMs": 50666,
+      "scoreManual": 21,
+      "scoreAuto": 6,
+      "cornerDistPx": [
+        206.90276034690586,
+        131.68787523270802,
+        73.58149789903095,
+        111.70810326157158
+      ]
+    },
+    {
+      "id": "2025-11_hsbtParis_r3_MarieAnneJeannel",
+      "openingTickMs": 5000,
+      "scoreManual": 21,
+      "scoreAuto": 10,
+      "cornerDistPx": [
+        145.1012193236555,
+        165.50736508754665,
+        61.95405632348067,
+        144.11842774258358
+      ]
+    },
+    {
+      "id": "2025-11_hsbtParis_r4_NicolasJully",
+      "scoreManual": 20,
+      "scoreAuto": 8,
+      "cornerDistPx": [
+        319.301708382052,
+        336.65426112348075,
+        221.15870984494092,
+        385.85784439084983
+      ]
+    },
+    {
+      "id": "2025-11_hsbtParis_r5_NicolasPaoli",
+      "openingTickMs": 12166,
+      "scoreManual": 21,
+      "scoreAuto": 9,
+      "cornerDistPx": [
+        117.3319749823175,
+        108.83894592206482,
+        146.64161035645458,
+        203.65845497116428
+      ]
+    },
+    {
+      "id": "2026-05_hsbtMarseille_main-r1_JeanLucLelievre",
+      "err": "detect: no plausible board found in the frame",
+      "openingTickMs": 1122500,
+      "scoreManual": 12
+    },
+    {
+      "id": "2026-05_hsbtMarseille_main-r4_MichelHileyan",
+      "err": "detect: no plausible board found in the frame",
+      "openingTickMs": 237000,
+      "scoreManual": 21
+    },
+    {
+      "id": "2026-05_hsbtMarseille_main-r5_TristanRemille",
+      "err": "detect: no plausible board found in the frame",
+      "openingTickMs": 12000,
+      "scoreManual": 19
+    },
+    {
+      "id": "hsbtMars2025-main-r1",
+      "openingTickMs": 6000,
+      "scoreManual": 21,
+      "scoreAuto": 3,
+      "cornerDistPx": [
+        340.84328098594415,
+        385.2179468296167,
+        316.4815454912651,
+        346.90472650763553
+      ]
+    }
+  ]
+}
