@@ -36,3 +36,35 @@ func TestLens_InactiveAndCentre(t *testing.T) {
 		t.Errorf("distortion centre moved: %v", c)
 	}
 }
+
+func TestLensK2_RoundTrip(t *testing.T) {
+	l := Lens{K1: -0.18, K2: 0.06, CenterX: 320, CenterY: 180, Norm: 320}
+	for _, p := range []geom.Pt{{X: 10, Y: 20}, {X: 320, Y: 180}, {X: 600, Y: 40}, {X: 40, Y: 340}, {X: 630, Y: 350}} {
+		d := l.distort(p)
+		u := l.undistort(d)
+		if math.Hypot(u.X-p.X, u.Y-p.Y) > 1e-6 {
+			t.Errorf("round trip failed at %v: distort→%v→undistort→%v", p, d, u)
+		}
+	}
+}
+
+func TestLensK2_AloneIsActive(t *testing.T) {
+	l := Lens{K2: 0.1, CenterX: 320, CenterY: 180, Norm: 320}
+	p := geom.Pt{X: 600, Y: 40}
+	if d := l.distort(p); d == p {
+		t.Fatal("a pure-k2 lens must distort")
+	}
+	if !l.active() {
+		t.Fatal("k2 alone must activate the lens")
+	}
+}
+
+func TestLensK2_ZeroKeepsK1Behaviour(t *testing.T) {
+	a := Lens{K1: -0.2, CenterX: 320, CenterY: 180, Norm: 320}
+	b := Lens{K1: -0.2, K2: 0, CenterX: 320, CenterY: 180, Norm: 320}
+	p := geom.Pt{X: 100, Y: 300}
+	da, db := a.distort(p), b.distort(p)
+	if math.Hypot(da.X-db.X, da.Y-db.Y) > 1e-12 {
+		t.Fatal("k2=0 must reproduce the k1-only lens exactly")
+	}
+}

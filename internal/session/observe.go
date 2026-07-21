@@ -120,7 +120,7 @@ func buildCalibration(c corpus.Calibration) (calibrate.BoardCalibration, calibra
 	}
 	lens := calibrate.Lens{}
 	if l := c.Lens; l != nil {
-		lens = calibrate.Lens{K1: l.K1, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
+		lens = calibrate.Lens{K1: l.K1, K2: l.K2, CenterX: l.CenterX, CenterY: l.CenterY, Norm: l.Norm}
 	}
 	cal, ok := calibrate.NewFromHandles(corners, barEdgePts(c.BarEdges), cb, lens)
 	if !ok {

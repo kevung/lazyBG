@@ -12,8 +12,12 @@ import (
 type FitResult struct {
 	Corners  [4]geom.Pt
 	BarEdges [4]geom.Pt
-	Matches  int     // apex↔slot correspondences the final fit used
-	Resid    float64 // rms reprojection of the matched apexes, px
+	// Lens is the admitted radial distortion (mask-space centre/norm;
+	// coefficients are dimensionless). Zero value = pinhole: the nested
+	// admission (ADR-0008 §5) only fills it when it pays its way.
+	Lens    calibrate.Lens
+	Matches int     // apex↔slot correspondences the final fit used
+	Resid   float64 // rms reprojection of the matched apexes, px
 }
 
 // fitMinMatchesHalf is the fewest correspondences a half-board homography
@@ -85,6 +89,8 @@ func FitHandles(mask []bool, w, h int, corners, barEdges [4]geom.Pt, cb calibrat
 	leftLM, rightLM := [4]int{0, 3, 4, 7}, [4]int{1, 2, 5, 6}
 
 	res := FitResult{Corners: corners, BarEdges: barEdges}
+	var lastL, lastImgL, lastR, lastImgR []geom.Pt
+	var lastBases []baseCand
 	for round, radiusFrac := range []float64{0.45, 0.42, 0.35, 0.30} {
 		predicted := make([]geom.Pt, 24)
 		for p := 1; p <= 24; p++ {
@@ -127,51 +133,23 @@ func FitHandles(mask []bool, w, h int, corners, barEdges [4]geom.Pt, cb calibrat
 				imgR = append(imgR, pts[det])
 			}
 		}
-		topLine, okTop := rowEdgeLine(bases, true)
-		botLine, okBot := rowEdgeLine(bases, false)
 		if len(canonL) < fitMinMatchesHalf || len(canonR) < fitMinMatchesHalf {
 			return FitResult{}, false
 		}
-		if !okTop && !okBot {
-			return FitResult{}, false // nothing pins the transverse extent
-		}
-		var lines []geom.LineMatch
-		if okTop {
-			lines = append(lines, geom.LineMatch{Src: canonTop, Dst: topLine, W: 4})
-		}
-		if okBot {
-			lines = append(lines, geom.LineMatch{Src: canonBot, Dst: botLine, W: 4})
-		}
-		hL, okL := geom.HomographyFitFeatures(canonL, imgL, nil, lines)
-		hR, okR := geom.HomographyFitFeatures(canonR, imgR, nil, lines)
-		if !okL || !okR {
+		ff := fitWithLens(canonL, imgL, canonR, imgR, bases, calibrate.Lens{}, canonTop, canonBot)
+		if !ff.ok {
 			return FitResult{}, false
 		}
-
-		for _, li := range leftLM {
-			p := hL.Apply(lm[li])
-			if li < 4 {
-				res.Corners[li] = p
-			} else {
-				res.BarEdges[li-4] = p
-			}
-		}
-		for _, ri := range rightLM {
-			p := hR.Apply(lm[ri])
-			if ri < 4 {
-				res.Corners[ri] = p
-			} else {
-				res.BarEdges[ri-4] = p
-			}
-		}
+		projectHandles(&res, ff, calibrate.Lens{}, lm, leftLM, rightLM)
 		res.Matches = count
-		res.Resid = rmsReproj(hL, canonL, imgL, hR, canonR, imgR)
+		res.Resid = ff.resid
+		lastL, lastImgL, lastR, lastImgR, lastBases = canonL, imgL, canonR, imgR, bases
 
 		// Re-estimate the apex line from this round's homographies: project
 		// the matched apexes back to canonical and take the symmetric
 		// median. (The bar-edge x stays canonical: columns are pitch-true.)
-		if invL, okIL := hL.Inverse(); okIL {
-			if invR, okIR := hR.Inverse(); okIR {
+		if invL, okIL := ff.hL.Inverse(); okIL {
+			if invR, okIR := ff.hR.Inverse(); okIR {
 				var ds []float64
 				for slot, det := range matches {
 					p := slot + 1
@@ -204,6 +182,50 @@ func FitHandles(mask []bool, w, h int, corners, barEdges [4]geom.Pt, cb calibrat
 		pitch = pitchOf(res.Corners)
 	}
 
+	// Nested lens admission (ADR-0008 §5): pinhole → k1 → k1+k2, each extra
+	// coefficient kept only if it cuts the correspondence residual by a
+	// significant margin, else exactly 0 — Lens's zero-is-identity contract.
+	const admitFrac = 0.88
+	const admitGainPx = 0.15 // a coefficient must also buy real pixels, not
+	// shave noise off an already-converged residual
+	admits := func(rNew, rOld float64) bool {
+		return rNew < admitFrac*rOld && rOld-rNew > admitGainPx
+	}
+	mkLens := func(k1, k2 float64) calibrate.Lens {
+		if k1 == 0 && k2 == 0 {
+			return calibrate.Lens{}
+		}
+		return calibrate.Lens{K1: k1, K2: k2, CenterX: float64(w) / 2, CenterY: float64(h) / 2, Norm: float64(w) / 2}
+	}
+	residOf := func(l calibrate.Lens) float64 {
+		ff := fitWithLens(lastL, lastImgL, lastR, lastImgR, lastBases, l, canonTop, canonBot)
+		if !ff.ok {
+			return math.Inf(1)
+		}
+		return ff.resid
+	}
+	lens := calibrate.Lens{}
+	r0 := res.Resid
+	k1, r1 := golden1D(func(k float64) float64 { return residOf(mkLens(k, 0)) }, -0.35, 0.35)
+	if admits(r1, r0) {
+		lens = mkLens(k1, 0)
+		k2, r2 := golden1D(func(k float64) float64 { return residOf(mkLens(k1, k)) }, -0.25, 0.25)
+		if admits(r2, r1) {
+			if k1b, r2b := golden1D(func(k float64) float64 { return residOf(mkLens(k, k2)) }, -0.35, 0.35); r2b < r2 {
+				k1, r2 = k1b, r2b
+			}
+			lens = mkLens(k1, k2)
+		}
+	}
+	if lens.K1 != 0 || lens.K2 != 0 {
+		ff := fitWithLens(lastL, lastImgL, lastR, lastImgR, lastBases, lens, canonTop, canonBot)
+		if ff.ok && ff.resid < res.Resid {
+			projectHandles(&res, ff, lens, lm, leftLM, rightLM)
+			res.Resid = ff.resid
+			res.Lens = lens
+		}
+	}
+
 	// The fit must actually track the apexes: a residual beyond a fraction
 	// of the pitch means the correspondences were wrong (a column
 	// misassignment shows up as ~a full pitch). Honest residuals on real
@@ -213,6 +235,97 @@ func FitHandles(mask []bool, w, h int, corners, barEdges [4]geom.Pt, cb calibrat
 		return FitResult{}, false
 	}
 	return res, true
+}
+
+// halfFit is one lens candidate's two fitted half homographies (in IDEAL,
+// undistorted space) and the apex reprojection rms.
+type halfFit struct {
+	hL, hR geom.Mat3
+	resid  float64
+	ok     bool
+}
+
+// fitWithLens undistorts the observed features with the candidate lens,
+// recomputes the outer-edge consensus lines (they curve under distortion, so
+// they must be refit on undistorted points), and fits both half homographies.
+func fitWithLens(canonL, imgL, canonR, imgR []geom.Pt, bases []baseCand, lens calibrate.Lens, canonTop, canonBot [3]float64) halfFit {
+	und := func(ps []geom.Pt) []geom.Pt {
+		out := make([]geom.Pt, len(ps))
+		for i, p := range ps {
+			out[i] = lens.Undistort(p)
+		}
+		return out
+	}
+	uL, uR := und(imgL), und(imgR)
+	ubases := make([]baseCand, len(bases))
+	for i, b := range bases {
+		b.bl = lens.Undistort(b.bl)
+		b.br = lens.Undistort(b.br)
+		ubases[i] = b
+	}
+	topLine, okTop := rowEdgeLine(ubases, true)
+	botLine, okBot := rowEdgeLine(ubases, false)
+	if !okTop && !okBot {
+		return halfFit{}
+	}
+	var lines []geom.LineMatch
+	if okTop {
+		lines = append(lines, geom.LineMatch{Src: canonTop, Dst: topLine, W: 4})
+	}
+	if okBot {
+		lines = append(lines, geom.LineMatch{Src: canonBot, Dst: botLine, W: 4})
+	}
+	hL, okL := geom.HomographyFitFeatures(canonL, uL, nil, lines)
+	hR, okR := geom.HomographyFitFeatures(canonR, uR, nil, lines)
+	if !okL || !okR {
+		return halfFit{}
+	}
+	return halfFit{hL: hL, hR: hR, resid: rmsReproj(hL, canonL, uL, hR, canonR, uR), ok: true}
+}
+
+// projectHandles maps the canonical landmarks through a half fit back to
+// RECORDED space (distorting when a lens is set) and writes them into res.
+func projectHandles(res *FitResult, ff halfFit, lens calibrate.Lens, lm [8]geom.Pt, leftLM, rightLM [4]int) {
+	for _, li := range leftLM {
+		p := lens.Distort(ff.hL.Apply(lm[li]))
+		if li < 4 {
+			res.Corners[li] = p
+		} else {
+			res.BarEdges[li-4] = p
+		}
+	}
+	for _, ri := range rightLM {
+		p := lens.Distort(ff.hR.Apply(lm[ri]))
+		if ri < 4 {
+			res.Corners[ri] = p
+		} else {
+			res.BarEdges[ri-4] = p
+		}
+	}
+}
+
+// golden1D minimizes f over [a,b] by golden-section search (f assumed
+// unimodal over the bracket, true of the smooth lens-residual curves).
+func golden1D(f func(float64) float64, a, b float64) (float64, float64) {
+	const phi = 0.6180339887498949
+	x1 := b - phi*(b-a)
+	x2 := a + phi*(b-a)
+	f1, f2 := f(x1), f(x2)
+	for i := 0; i < 40; i++ {
+		if f1 < f2 {
+			b, x2, f2 = x2, x1, f1
+			x1 = b - phi*(b-a)
+			f1 = f(x1)
+		} else {
+			a, x1, f1 = x1, x2, f2
+			x2 = a + phi*(b-a)
+			f2 = f(x2)
+		}
+	}
+	if f1 < f2 {
+		return x1, f1
+	}
+	return x2, f2
 }
 
 // baseCand is one matched triangle's base-corner observation, a candidate

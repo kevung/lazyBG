@@ -187,3 +187,71 @@ func TestBootstrapMatches_AbsoluteColumnsViaBarGap(t *testing.T) {
 		}
 	}
 }
+
+// renderDistortedApexMask renders the 24 triangles through the truth
+// calibration and then records them through a known lens — pixel p is on iff
+// its undistorted position falls inside an ideal-space triangle.
+func renderDistortedApexMask(t *testing.T, w, h int, cal calibrate.BoardCalibration, cb calibrate.CanonicalBoard, lens calibrate.Lens) []bool {
+	t.Helper()
+	ideal := renderApexMask(t, w, h, cal, cb, nil)
+	mask := make([]bool, w*h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			u := lens.Undistort(geom.P(float64(x)+0.5, float64(y)+0.5))
+			ux, uy := int(u.X), int(u.Y)
+			if ux >= 0 && ux < w && uy >= 0 && uy < h && ideal[uy*w+ux] {
+				mask[y*w+x] = true
+			}
+		}
+	}
+	return mask
+}
+
+func TestFitHandles_ZeroDistortionStaysExactlyZero(t *testing.T) {
+	w, h := 640, 360
+	cb := calibrate.DefaultCanonical()
+	tc, tb := truthHandles()
+	cal, _ := calibrate.NewSplit([8]geom.Pt{tc[0], tc[1], tc[2], tc[3], tb[0], tb[1], tb[2], tb[3]}, cb)
+	mask := renderApexMask(t, w, h, cal, cb, nil)
+	res, ok := FitHandles(mask, w, h, tc, tb, cb)
+	if !ok {
+		t.Fatal("fit failed")
+	}
+	if res.Lens.K1 != 0 || res.Lens.K2 != 0 {
+		t.Fatalf("undistorted board must be admitted at exactly 0/0, got k1=%v k2=%v", res.Lens.K1, res.Lens.K2)
+	}
+}
+
+func TestFitHandles_RecoversSyntheticBarrel(t *testing.T) {
+	w, h := 640, 360
+	cb := calibrate.DefaultCanonical()
+	tc, tb := truthHandles()
+	cal, _ := calibrate.NewSplit([8]geom.Pt{tc[0], tc[1], tc[2], tc[3], tb[0], tb[1], tb[2], tb[3]}, cb)
+	truth := calibrate.Lens{K1: -0.14, CenterX: float64(w) / 2, CenterY: float64(h) / 2, Norm: float64(w) / 2}
+	mask := renderDistortedApexMask(t, w, h, cal, cb, truth)
+
+	// Seed: the distorted positions of the truth handles (what a mask quad
+	// would roughly see).
+	seedC, seedB := tc, tb
+	for i := range seedC {
+		seedC[i] = truth.Distort(seedC[i])
+		seedB[i] = truth.Distort(seedB[i])
+	}
+	res, ok := FitHandles(mask, w, h, seedC, seedB, cb)
+	if !ok {
+		t.Fatalf("fit failed (matches=%d resid=%.2f)", res.Matches, res.Resid)
+	}
+	if res.Lens.K1 == 0 {
+		t.Fatal("barrel distortion present but k1 not admitted")
+	}
+	if math.Abs(res.Lens.K1-truth.K1) > 0.05 {
+		t.Errorf("k1 = %.3f, want %.3f ± 0.05", res.Lens.K1, truth.K1)
+	}
+	// Handles are RECORDED-space: compare against the distorted truth.
+	for i := range tc {
+		want := truth.Distort(tc[i])
+		if d := math.Hypot(res.Corners[i].X-want.X, res.Corners[i].Y-want.Y); d > 3.0 {
+			t.Errorf("corner %d off by %.2fpx under barrel (%v vs %v)", i, d, res.Corners[i], want)
+		}
+	}
+}
