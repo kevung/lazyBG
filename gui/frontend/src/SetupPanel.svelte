@@ -51,10 +51,15 @@
   // (issue #47) — a best-effort starting point the user then refines by
   // dragging; the bar handles keep their current fractions. Non-blocking.
   async function detectCorners() {
+    const fn = window.go?.main?.App?.DetectCorners
+    if (!fn) {
+      detectMsg = 'Auto-detect unavailable in this build — place the handles by dragging.'
+      return
+    }
     detecting = true
-    detectMsg = 'Detecting the board…'
+    detectMsg = 'Detecting the board… (this scans the video and can take a while)'
     try {
-      const res = await window.go?.main?.App?.DetectCorners?.()
+      const res = await fn()
       if (res?.Corners?.length === 4) {
         corners = res.Corners.map((c) => [...c])
         detectMsg = `Detected (opening read ${res.Score}/24). Fine-tune the handles.`
@@ -62,8 +67,11 @@
       } else {
         detectMsg = 'No board detected — place the handles by dragging.'
       }
-    } catch {
-      detectMsg = 'Detection failed — place the handles by dragging.'
+    } catch (e) {
+      // Surface the real reason (autocal needs the opening position + readable
+      // board colours; it can legitimately fail on some footage) so it can be
+      // acted on rather than hidden behind a generic message.
+      detectMsg = 'Auto-detect failed: ' + (e?.message || String(e)) + ' — place the handles by dragging.'
     }
     detecting = false
   }
