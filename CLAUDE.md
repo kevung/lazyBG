@@ -45,6 +45,12 @@ and are rebuilding everything else on clean foundations.
   `transcribe.RunOptions.ModelPath` swaps it in (model embedded from `data/models/`). It already
   beats the classical baseline on blind transcription (3 vs 0 matched plies over the pilot's
   first minutes) but needs **more corpus manifests** (diversity) to lift auto-fill coverage.
+- **The learned dice-value cue ships by default**: `internal/perceive/dienet` (pure Go,
+  torch-parity-tested) runs the DieNet7 classifier trained on 1325 hand-labeled die-box crops
+  (65% per-die, 99.6% junk rejection on held-out recordings) over diceevent boxes, feeding the
+  DiceValue fusion cue. The CLI's `-dice-model` defaults to the embedded `data/models/dievalue.bin`
+  (`none` disables; a path swaps weights). Measured on the pilot: more exact plies (7 vs 4 over
+  15 min), fewer confident errors at low gates, zero auto-fill errors introduced.
 - The review UI is **yet to be built.** Its first milestone is now scoped as a **manual
   transcription tool**: usable standalone, with zero automatic assistance, to produce a `.mat`
   from a video entirely by hand — built on the *same* Transcription / Turn Segment / Review Item
@@ -54,8 +60,8 @@ and are rebuilding everything else on clean foundations.
   same screen, same data model, decreasing proportion of turns left for the human. This dual-purpose
   UX is being specified now (functional spec → UX spec → ADRs → implementation tickets; see
   `docs/functional-spec.md` / `docs/ux-spec.md` once written, and `docs/adr/`). Other next
-  milestones: more per-capture manifests → retrain, dice-value cue on real footage, cube
-  perception, clock-hit commit cue.
+  milestones: more per-capture manifests → retrain, more hand labels for the dice reader
+  (its 65% per-die still climbs with data), cube perception, clock-hit commit cue.
 
 Do not reintroduce legacy code wholesale. Reference `legacy_v0` for ideas, port deliberately.
 

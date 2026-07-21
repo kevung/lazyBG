@@ -45,6 +45,11 @@ type RunOptions struct {
 	// attaches them to events as the DiceValue fusion cue.
 	DiceModelPath string
 
+	// DiceNet, when non-nil, is a pre-loaded die-value classifier and takes
+	// precedence over DiceModelPath — the seam for callers that carry the
+	// model in-process (the CLI's embedded default, a future GUI session).
+	DiceNet *dienet.Net
+
 	// LimitMs stops each Part this long after its span begins (0 = full
 	// span) — the knob that keeps integration tests short.
 	LimitMs int
@@ -158,8 +163,8 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 			return nil, nil, err
 		}
 	}
-	var dieNet *dienet.Net
-	if o.DiceModelPath != "" {
+	dieNet := o.DiceNet
+	if dieNet == nil && o.DiceModelPath != "" {
 		var err error
 		dieNet, err = dienet.Load(o.DiceModelPath)
 		if err != nil {

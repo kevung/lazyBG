@@ -44,6 +44,7 @@ import (
 	"lazybg/internal/perceive"
 	"lazybg/internal/perceive/boarddiff"
 	"lazybg/internal/perceive/diceevent"
+	"lazybg/internal/perceive/dienet"
 	"lazybg/internal/profile"
 	"lazybg/internal/transcribe"
 )
@@ -98,7 +99,22 @@ func runPipeline(manifest string, limitMs int, model, diceModel string) (transcr
 	o := transcribe.DefaultRunOptions()
 	o.LimitMs = limitMs
 	o.ModelPath = model
-	o.DiceModelPath = diceModel
+	switch diceModel {
+	case "none":
+		// dice-value cue disabled
+	case "embedded":
+		raw, err := lazybg.DataFS.ReadFile("data/models/dievalue.bin")
+		if err != nil {
+			log.Fatalf("embedded dice model: %v", err)
+		}
+		net, err := dienet.LoadBytes(raw)
+		if err != nil {
+			log.Fatalf("embedded dice model: %v", err)
+		}
+		o.DiceNet = net
+	default:
+		o.DiceModelPath = diceModel
+	}
 	o.Log = os.Stderr
 	out, err := transcribe.Recording(".", m, o)
 	if err != nil {
@@ -115,7 +131,7 @@ func runTranscribe(args []string) {
 	outPath := fs.String("out", "", ".mat output path (default stdout)")
 	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
 	model := fs.String("model", "", "read boards with this learned point-reader weight file")
-	diceModel := fs.String("dice-model", "", "read die values with this learned weight file (DiceValue fusion cue)")
+	diceModel := fs.String("dice-model", "embedded", "die-value cue weights: \"embedded\" (shipped model), \"none\" (off), or a weight-file path")
 	fs.Parse(args)
 	if *manifest == "" {
 		fs.Usage()
@@ -137,7 +153,7 @@ func runEval(args []string) {
 	manifest := fs.String("manifest", "", "Recording manifest JSON (required)")
 	limitMs := fs.Int("limit-ms", 0, "stop each part this many ms after its span begins (0 = full span)")
 	model := fs.String("model", "", "read boards with this learned point-reader weight file")
-	diceModel := fs.String("dice-model", "", "read die values with this learned weight file (DiceValue fusion cue)")
+	diceModel := fs.String("dice-model", "embedded", "die-value cue weights: \"embedded\" (shipped model), \"none\" (off), or a weight-file path")
 	fs.Parse(args)
 	if *manifest == "" {
 		fs.Usage()
