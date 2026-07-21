@@ -134,7 +134,7 @@ func (s *Service) applyPlyLocked(ply bg.Ply, nextBoard bg.Board, chosenIndex, ti
 			Dice:        [2]int{ply.Dice[0], ply.Dice[1]},
 			Notation:    ply.Notation,
 			CannotMove:  ply.CannotMove,
-			Part:        0,
+			Part:        s.activePart,
 			TickMs:      tickMs,
 			Candidates:  cands,
 			ChosenIndex: chosenIndex,

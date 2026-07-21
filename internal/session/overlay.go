@@ -48,9 +48,9 @@ func (s *Service) Overlay(tickMs int) OverlayView {
 	if s.doc == nil || len(s.doc.Parts) == 0 {
 		return out
 	}
-	out.Corners = s.doc.Parts[0].Calibration.Corners
-	out.BarEdges = s.doc.Parts[0].Calibration.BarEdges
-	cal, cb, ok := buildCalibration(s.doc.Parts[0].Calibration)
+	out.Corners = s.doc.Parts[s.activePartIdx()].Calibration.Corners
+	out.BarEdges = s.doc.Parts[s.activePartIdx()].Calibration.BarEdges
+	cal, cb, ok := buildCalibration(s.doc.Parts[s.activePartIdx()].Calibration)
 	out.CanonW, out.CanonH = cb.Size()
 	if !ok || s.grab == nil {
 		return out

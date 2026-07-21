@@ -42,16 +42,16 @@ func (s *Service) SaveSetup(setup Setup) error {
 		if len(s.doc.Parts) == 0 {
 			return fmt.Errorf("no video part to attach the setup to")
 		}
-		s.doc.Parts[0].Priors = setup.Priors
-		s.doc.Parts[0].Calibration.Corners = setup.Corners
-		s.doc.Parts[0].Calibration.BarEdges = setup.BarEdges
+		s.doc.Parts[s.activePartIdx()].Priors = setup.Priors
+		s.doc.Parts[s.activePartIdx()].Calibration.Corners = setup.Corners
+		s.doc.Parts[s.activePartIdx()].Calibration.BarEdges = setup.BarEdges
 		if len(setup.BarEdges) == 4 {
-			s.doc.Parts[0].Calibration.Version = 2 // two-homography (ADR-0007)
+			s.doc.Parts[s.activePartIdx()].Calibration.Version = 2 // two-homography (ADR-0007)
 		} else {
-			s.doc.Parts[0].Calibration.Version = 0
+			s.doc.Parts[s.activePartIdx()].Calibration.Version = 0
 		}
 		if setup.VideoURL != "" {
-			s.doc.Parts[0].URL = setup.VideoURL
+			s.doc.Parts[s.activePartIdx()].URL = setup.VideoURL
 		}
 		if err := s.save(); err != nil {
 			return fmt.Errorf("autosave: %w", err)
@@ -66,9 +66,9 @@ func (s *Service) GetSetup() Setup {
 	defer s.mu.Unlock()
 	out := Setup{Players: s.match.Players, Priors: s.priors}
 	if s.doc != nil && len(s.doc.Parts) > 0 {
-		out.Corners = s.doc.Parts[0].Calibration.Corners
-		out.BarEdges = s.doc.Parts[0].Calibration.BarEdges
-		out.VideoURL = s.doc.Parts[0].URL
+		out.Corners = s.doc.Parts[s.activePartIdx()].Calibration.Corners
+		out.BarEdges = s.doc.Parts[s.activePartIdx()].Calibration.BarEdges
+		out.VideoURL = s.doc.Parts[s.activePartIdx()].URL
 	}
 	// Fill the cube-rule pointers to their resolved values so the setup form
 	// shows concrete defaults (cube+Crawford on, Jacoby+Beaver off) for a fresh
@@ -86,7 +86,7 @@ func (s *Service) Orientation() bg.Orientation {
 	if s.doc == nil || len(s.doc.Parts) == 0 {
 		return bg.P1HomeBottomRight
 	}
-	o, _ := bg.ParseOrientation(s.doc.Parts[0].Priors.Orientation)
+	o, _ := bg.ParseOrientation(s.doc.Parts[s.activePartIdx()].Priors.Orientation)
 	return o
 }
 
@@ -95,5 +95,5 @@ func (s *Service) Orientation() bg.Orientation {
 func (s *Service) SetupDone() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.doc != nil && len(s.doc.Parts) > 0 && len(s.doc.Parts[0].Calibration.Corners) == 4
+	return s.doc != nil && len(s.doc.Parts) > 0 && len(s.doc.Parts[s.activePartIdx()].Calibration.Corners) == 4
 }

@@ -157,7 +157,7 @@ func (s *Service) EnterCube(action string, tickMs int) (PlyView, error) {
 			Player:      int(ply.Player),
 			Cube:        action,
 			CubeValue:   ply.CubeValue,
-			Part:        0,
+			Part:        s.activePart,
 			TickMs:      tickMs,
 			ChosenIndex: -1,
 		})

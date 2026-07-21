@@ -176,8 +176,12 @@ func Open(lbgPath string) (*Service, string, error) {
 		s.match.Players = doc.Players
 	}
 	s.match.Length = doc.Length
+	s.activePart = doc.LastPart
+	if s.activePart < 0 || s.activePart >= len(doc.Parts) {
+		s.activePart = 0
+	}
 	if len(doc.Parts) > 0 {
-		s.priors = doc.Parts[0].Priors
+		s.priors = doc.Parts[s.activePart].Priors
 	}
 
 	resultOf := make(map[int]LBGResult, len(doc.Results))
@@ -263,6 +267,7 @@ func (s *Service) save() error {
 	s.doc.Players = s.match.Players
 	s.doc.Length = s.match.Length
 	s.doc.Review = s.reviews
+	s.doc.LastPart = s.activePart
 	data, err := json.MarshalIndent(s.doc, "", "  ")
 	if err != nil {
 		return err
@@ -296,14 +301,14 @@ func (s *Service) LastVideoPos() int {
 	return s.doc.LastTickMs
 }
 
-// VideoPath returns the session's (first Part's) local video path.
+// VideoPath returns the active Part's local video path (issue #26).
 func (s *Service) VideoPath() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.doc == nil || len(s.doc.Parts) == 0 {
 		return ""
 	}
-	return s.doc.Parts[0].File
+	return s.doc.Parts[s.activePartIdx()].File
 }
 
 func strippedName(path string) string {

@@ -90,6 +90,11 @@ type Service struct {
 	// the setup form (SaveSetup) and from the doc on Open.
 	priors corpus.Priors
 
+	// activePart is the Part (video file) currently being transcribed —
+	// recorded on each new turn, driving the video path and calibration, and
+	// persisted as doc.LastPart so resume restores it (issue #26).
+	activePart int
+
 	// Persistence (nil/empty for pure in-memory sessions): the .lbg document
 	// this session autosaves to after every confirmed decision.
 	lbgPath string

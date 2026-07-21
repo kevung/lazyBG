@@ -62,7 +62,7 @@ func (s *Service) ComputeCandidateTicks() (int, error) {
 		s.mu.Unlock()
 		return 0, nil
 	}
-	part := s.doc.Parts[0]
+	part := s.doc.Parts[s.activePartIdx()]
 	if len(part.Calibration.Corners) != 4 || part.File == "" {
 		s.mu.Unlock()
 		return 0, nil
