@@ -41,9 +41,32 @@
   let corners = [] // [[x,y]] TL,TR,BR,BL in video-pixel coords
   let barFrac = { tl: 0.47, tr: 0.53, bl: 0.47, br: 0.53 } // along TL-TR / BL-BR
   let dragging = null // handle id ('c0'..'c3','btl','btr','bbr','bbl') or null
+  let detecting = false // auto corner-detection running (#47)
+  let detectMsg = ''
   let videoUrl = ''
   let canvas
   let error = ''
+
+  // detectCorners seeds the four corner handles from the automatic calibrator
+  // (issue #47) — a best-effort starting point the user then refines by
+  // dragging; the bar handles keep their current fractions. Non-blocking.
+  async function detectCorners() {
+    detecting = true
+    detectMsg = 'Detecting the board…'
+    try {
+      const res = await window.go?.main?.App?.DetectCorners?.()
+      if (res?.Corners?.length === 4) {
+        corners = res.Corners.map((c) => [...c])
+        detectMsg = `Detected (opening read ${res.Score}/24). Fine-tune the handles.`
+        drawFrame()
+      } else {
+        detectMsg = 'No board detected — place the handles by dragging.'
+      }
+    } catch {
+      detectMsg = 'Detection failed — place the handles by dragging.'
+    }
+    detecting = false
+  }
 
   const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
 
@@ -294,7 +317,14 @@
     </div>
     <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
     <canvas bind:this={canvas} class="cal" on:mousedown={startDrag} role="img" aria-label="video frame for board calibration handles"></canvas>
-    <p class="hint">Drag the green corners and the orange bar handles until the grid matches the board.</p>
+    <div class="cal-actions">
+      <button type="button" class="detect" on:click={detectCorners} disabled={detecting}>
+        {detecting ? 'Detecting…' : 'Detect corners'}
+      </button>
+      <span class="hint">
+        {#if detectMsg}{detectMsg}{:else}Drag the green corners and the orange bar handles until the grid matches the board.{/if}
+      </span>
+    </div>
 
     <h3>Orientation</h3>
     <div class="orient">
@@ -381,6 +411,9 @@
   .guide-text strong { color: #38bdf8; font-weight: 600; }
   .cal { width: 100%; background: #000; border-radius: 4px; cursor: grab; }
   .cal:active { cursor: grabbing; }
+  .cal-actions { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.35rem; }
+  .detect { flex: none; padding: 0.3rem 0.8rem; cursor: pointer; border-radius: 4px; border: 1px solid #52525b; background: #27272a; color: #e4e4e7; }
+  .detect:disabled { opacity: 0.6; cursor: default; }
   .hint { color: #9ca3af; font-size: 0.8rem; }
   .orient {
     display: flex;
