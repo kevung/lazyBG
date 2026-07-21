@@ -17,6 +17,11 @@
   let players = ['Player 1', 'Player 2']
   let matchLength = 7
   let clock = true
+  // Doubling-cube rules (Session Priors, #24). Match-play defaults.
+  let cubeInPlay = true
+  let crawford = true
+  let jacoby = false
+  let beaver = false
   let orientation = 0 // bg.Orientation value (WYSIWYG mirror control, #37)
   let checkerA = '#e7e0d5'
   let checkerB = '#31221c'
@@ -76,6 +81,11 @@
       if (initial.priors) {
         matchLength = initial.priors.matchLength || 7
         clock = !!initial.priors.clock
+        // GetSetup resolves these to concrete booleans; default when absent.
+        cubeInPlay = initial.priors.cubeInPlay ?? true
+        crawford = initial.priors.crawford ?? true
+        jacoby = initial.priors.jacoby ?? false
+        beaver = initial.priors.beaver ?? false
         orientation = parseOrientation(initial.priors.orientation)
         checkerA = initial.priors.checkerA || checkerA
         checkerB = initial.priors.checkerB || checkerB
@@ -205,6 +215,10 @@
         orientation: orientationName(orientation),
         checkerA,
         checkerB,
+        cubeInPlay,
+        crawford,
+        jacoby,
+        beaver,
       },
       corners,
       barEdges: barEdges(),
@@ -235,6 +249,10 @@
       </label>
       <label>Match length <input type="number" min="1" bind:value={matchLength} /></label>
       <label class="row"><input type="checkbox" bind:checked={clock} /> Chess clock visible</label>
+      <label class="row"><input type="checkbox" bind:checked={cubeInPlay} /> Doubling cube in play</label>
+      <label class="row"><input type="checkbox" bind:checked={crawford} disabled={!cubeInPlay} /> Crawford rule</label>
+      <label class="row"><input type="checkbox" bind:checked={jacoby} disabled={!cubeInPlay} /> Jacoby rule</label>
+      <label class="row"><input type="checkbox" bind:checked={beaver} disabled={!cubeInPlay} /> Beavers allowed</label>
       <label class="wide">Video URL (source, e.g. YouTube — keeps shared sessions portable)
         <input bind:value={videoUrl} placeholder="https://…" />
       </label>

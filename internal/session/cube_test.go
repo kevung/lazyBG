@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"lazybg/internal/bg"
 )
 
 // The cube menu is the small fixed action set filtered by cube state
@@ -150,5 +152,44 @@ func TestCube_PersistsAndReplays(t *testing.T) {
 	moves := s2.Moves()
 	if len(moves) != 2 || moves[0].Cube != "double" || moves[1].Cube != "take" {
 		t.Fatalf("reopened cube moves = %+v", moves)
+	}
+}
+
+// Cube-in-play off (a Session Prior) removes the cube entirely: no actions
+// ever, even from a centered cube (issue #24, functional-spec §3).
+func TestCubeActions_AbsentWhenCubeNotInPlay(t *testing.T) {
+	s := New()
+	no := false
+	s.priors.CubeInPlay = &no
+	if got := s.CubeActions(); got != nil {
+		t.Fatalf("cube-off actions = %v, want none", got)
+	}
+}
+
+// In the Crawford game no doubling is allowed; the game after it (post-
+// Crawford) restores the cube (issue #24). The Crawford game is the first
+// game entered with a player one point from the match.
+func TestCubeActions_NoDoublingInCrawfordGame(t *testing.T) {
+	s := New()
+	s.match.Length = 5
+	// Game 2 is entered at 4-2: the leader just reached length-1 → Crawford.
+	s.match.Games = []bg.Game{
+		{Number: 1, StartScore: [2]int{0, 0}},
+		{Number: 2, StartScore: [2]int{4, 2}},
+	}
+	if got := s.CubeActions(); got != nil {
+		t.Fatalf("Crawford-game actions = %v, want none (no doubling)", got)
+	}
+	// Game 3 at 4-2 is post-Crawford: doubling is back.
+	s.match.Games = append(s.match.Games, bg.Game{Number: 3, StartScore: [2]int{4, 2}})
+	if got := s.CubeActions(); len(got) != 1 || got[0] != "double" {
+		t.Fatalf("post-Crawford actions = %v, want [double]", got)
+	}
+	// Crawford disabled as a prior → doubling allowed even at match point.
+	no := false
+	s.priors.Crawford = &no
+	s.match.Games = s.match.Games[:2] // back to the would-be Crawford game
+	if got := s.CubeActions(); len(got) != 1 || got[0] != "double" {
+		t.Fatalf("Crawford-off actions = %v, want [double]", got)
 	}
 }

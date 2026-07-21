@@ -53,6 +53,36 @@ type Priors struct {
 	// ClockROI is the chess clock's box in frame coordinates
 	// (x0,y0,x1,y1) — the clock-hit commit detector's search region.
 	ClockROI [4]int `json:"clockROI,omitempty"`
+
+	// Doubling-cube rules (Session Priors, functional-spec §3, issue #24).
+	// Three-valued: nil = unset → the standard match-play default (see the
+	// resolvers below), so an omitted field on an older manifest still reads
+	// as the sensible default rather than a bare false.
+	CubeInPlay *bool `json:"cubeInPlay,omitempty"` // default true
+	Crawford   *bool `json:"crawford,omitempty"`   // default true
+	Jacoby     *bool `json:"jacoby,omitempty"`     // default false (money-game)
+	Beaver     *bool `json:"beaver,omitempty"`     // default false (money-game)
+}
+
+// CubeOn reports whether the doubling cube is in play (default true).
+func (p Priors) CubeOn() bool { return p.CubeInPlay == nil || *p.CubeInPlay }
+
+// CrawfordOn reports whether the Crawford rule applies (default true).
+func (p Priors) CrawfordOn() bool { return p.Crawford == nil || *p.Crawford }
+
+// JacobyOn reports whether the Jacoby rule applies (default false).
+func (p Priors) JacobyOn() bool { return p.Jacoby != nil && *p.Jacoby }
+
+// BeaverOn reports whether beavers are allowed (default false).
+func (p Priors) BeaverOn() bool { return p.Beaver != nil && *p.Beaver }
+
+// WithCubeDefaults returns a copy with the four cube-rule pointers filled to
+// their resolved values, so a setup form shows concrete checkboxes (a fresh
+// session gets cube+Crawford on, Jacoby+Beaver off) that round-trip cleanly.
+func (p Priors) WithCubeDefaults() Priors {
+	cube, crawford, jacoby, beaver := p.CubeOn(), p.CrawfordOn(), p.JacobyOn(), p.BeaverOn()
+	p.CubeInPlay, p.Crawford, p.Jacoby, p.Beaver = &cube, &crawford, &jacoby, &beaver
+	return p
 }
 
 // Calibration is the four board corners in this Part's frame (order

@@ -96,6 +96,34 @@ func TestSetup_PersistsInLBGPart(t *testing.T) {
 	}
 }
 
+// The cube-rule priors round-trip through the .lbg and drive the live cube
+// menu after reopening (issue #24).
+func TestSetup_CubePriorsPersistAndGateCube(t *testing.T) {
+	s, lbgPath := newFileSession(t)
+	no := false
+	if err := s.SaveSetup(Setup{
+		Priors:  corpus.Priors{MatchLength: 7, CubeInPlay: &no},
+		Corners: [][2]float64{{1, 2}, {3, 4}, {5, 6}, {7, 8}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Cube off in the live session: no actions.
+	if got := s.CubeActions(); got != nil {
+		t.Fatalf("cube-off actions = %v, want none", got)
+	}
+	// Reopen: the prior survives and still gates the cube.
+	s2, _, err := Open(lbgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s2.GetSetup().Priors.CubeOn() {
+		t.Fatal("reopened session lost cube-off prior")
+	}
+	if got := s2.CubeActions(); got != nil {
+		t.Fatalf("reopened cube-off actions = %v, want none", got)
+	}
+}
+
 // Correcting setup mid-session never touches recorded turns
 // (functional-spec §3: plies carry no geometry).
 func TestSetup_MidSessionCorrectionKeepsTurns(t *testing.T) {
