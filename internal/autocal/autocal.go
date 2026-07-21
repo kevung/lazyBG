@@ -219,21 +219,31 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		leftFrac, rightFrac = barFractions(cal.Rectify(med), o.Canonical, colors, o.ColorTol)
 	}
 
-	sx := float64(srcW) / float64(detW)
-	for i, p := range quad {
-		corners[i] = geom.P(p.X*sx, p.Y*sx)
-	}
-	// The triangle mask sits inside the playing surface by the margins; nudge
-	// the corners outward toward the real triangle tips.
-	corners = expandQuad(corners, 0.045, 0.04)
-
-	// Bar edges ride the (expanded) top/bottom edges at the detected fractions,
-	// matching the GUI's fraction model.
-	tl, tr, br, bl := corners[0], corners[1], corners[2], corners[3]
+	// Seed handles in DETECTION space: the mask quad nudged outward toward
+	// the playing-surface corners (the triangle mask sits inside by the
+	// margins), bar edges riding the top/bottom edges at the detected
+	// fractions — the GUI's fraction model.
+	seedC := expandQuad(quad, 0.045, 0.04)
+	tl, tr, br, bl := seedC[0], seedC[1], seedC[2], seedC[3]
 	lerp := func(a, b geom.Pt, t float64) geom.Pt {
 		return geom.P(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 	}
-	barEdges = [4]geom.Pt{lerp(tl, tr, leftFrac), lerp(tl, tr, rightFrac), lerp(bl, br, rightFrac), lerp(bl, br, leftFrac)}
+	seedB := [4]geom.Pt{lerp(tl, tr, leftFrac), lerp(tl, tr, rightFrac), lerp(bl, br, rightFrac), lerp(bl, br, leftFrac)}
+
+	// Correspondence fit (ADR-0008): sharpen the seed against the detected
+	// triangle apexes and lateral edges. Failure is detectable (too few
+	// matches, loose residual), in which case the mask-extremes seed stands.
+	if fit, ok := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); ok {
+		seedC, seedB = fit.Corners, fit.BarEdges
+	}
+
+	sx := float64(srcW) / float64(detW)
+	for i := range seedC {
+		corners[i] = geom.P(seedC[i].X*sx, seedC[i].Y*sx)
+	}
+	for i := range seedB {
+		barEdges[i] = geom.P(seedB[i].X*sx, seedB[i].Y*sx)
+	}
 	return corners, barEdges, nil
 }
 
