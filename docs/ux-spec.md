@@ -83,19 +83,22 @@ than following it.
 
 ## 10. Setup screen & mid-session correction
 
-A standard form (mouse, ordinary fields) for Session Priors, then click the 4 board corners on the
+A standard form (mouse, ordinary fields) for Session Priors, then calibrate the board on the
 displayed frame — no keyboard optimization needed, this happens once per Part, not per turn. A
 persistent **"Calibration…"** menu item/shortcut is reachable at any time during the four-zone
 screen and re-opens this same form pre-filled with current values for correction
 (`functional-spec.md` §3) — no separate mid-session-specific UI.
 
-**Corner clicking is guided (two levers).** *Before* the clicks, a schematic reference diagram +
-one line states what to click: the **four corners of the playing surface** (outer tips of the
-corner triangles, **bar included** at the middle — one rectangle), *not* the outer wooden frame,
-in order TL, TR, BR, BL. *After* the 4th click, the derived **calibration grid is drawn back onto
-the frame** (Perception Overlay layer 1) so the user sees at a glance whether the 24 cells fall on
-the real triangles; if it overflows or shifts, they re-click. The grid is the real safety net; the
-diagram prevents the first mistake.
+**Calibration is eight draggable handles** (ADR-0007), not four clicks — because the board reader
+needs the bar located, not just the outer rectangle. A schematic + one line states what to place:
+the **four corners of the playing surface** (outer triangle tips, *not* the wooden frame) and the
+**four bar-edge points**. The four corners drag freely; the four bar points slide along the top and
+bottom playing edges (so the bar stays a clean strip and its width is explicit). Handles are
+pre-seeded (default corners, bar ~5% centred) so the user *adjusts* rather than places from scratch.
+A **live preview draws both half-board grids** (24 cells) back onto the frame as the user drags — if
+the cells don't sit on the real triangles, drag until they do. The live grid is the real safety net;
+the schematic prevents the first mistake. Automatic corner detection, when added, only *seeds* the
+handles — never the final word.
 
 **Orientation is declared WYSIWYG, by mirroring** (ADR-0006) — not a dropdown. The
 orientation-aware reconstructed board is shown beside the video frame with two **mirror buttons**
