@@ -51,8 +51,42 @@
         warning = res.warning ?? ''
         resumeTickMs = res.lastTickMs ?? 0
         refreshReview()
+        await refreshParts()
         backToLive()
       }
+    } catch (e) {
+      error = String(e)
+    }
+  }
+
+  // Multi-Part sessions (issue #26): a match can span several video files.
+  let parts = []
+  let activePart = 0
+  async function refreshParts() {
+    parts = (await api().Parts?.()) ?? []
+    activePart = (await api().ActivePart?.()) ?? 0
+  }
+  function applyPartSwitch(res) {
+    if (!res) return
+    videoUrl = res.videoUrl + '?t=' + Date.now()
+    triedProxy = false
+    parts = res.parts ?? parts
+    activePart = res.activePart ?? activePart
+    warning = res.warning ?? ''
+  }
+  async function addPart() {
+    error = ''
+    try {
+      applyPartSwitch(await api().AddPartDialog())
+    } catch (e) {
+      error = String(e)
+    }
+  }
+  async function switchPart(i) {
+    if (i === activePart) return
+    error = ''
+    try {
+      applyPartSwitch(await api().SetActivePart(i))
     } catch (e) {
       error = String(e)
     }
@@ -716,6 +750,18 @@
           on:error={onVideoError}
         ></video>
         <VideoControls bind:currentTime bind:paused bind:playbackRate {duration} />
+        <!-- Multi-Part switcher (issue #26): a match spanning several videos. -->
+        <div class="parts">
+          {#each parts as p}
+            <button
+              class="part"
+              class:active={p.index === activePart}
+              title={p.file}
+              on:click={() => switchPart(p.index)}
+            >Part {p.index + 1}</button>
+          {/each}
+          <button class="part add" on:click={addPart} title="Add the next video file of this match">＋ Add video part</button>
+        </div>
       {:else}
         <button class="open" on:click={openVideo}>Open match video…</button>
       {/if}
@@ -1113,6 +1159,29 @@
     margin-right: 0.6rem;
     color: #a5b4fc;
     font-variant-numeric: tabular-nums;
+  }
+  .parts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+  }
+  .part {
+    font-size: 0.78rem;
+    padding: 0.2rem 0.5rem;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    color: #d4d4d8;
+    cursor: pointer;
+  }
+  .part.active {
+    background: #0369a1;
+    border-color: #0ea5e9;
+    color: #fff;
+  }
+  .part.add {
+    border-style: dashed;
   }
   .editing {
     color: #f0abfc;

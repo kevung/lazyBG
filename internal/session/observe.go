@@ -58,7 +58,7 @@ func (s *Service) videoFileLocked() string {
 	if s.doc == nil || len(s.doc.Parts) == 0 {
 		return ""
 	}
-	return s.doc.Parts[0].File
+	return s.doc.Parts[s.activePartIdx()].File
 }
 
 // observeLocked reads the board near tickMs and returns the observation, or nil
@@ -71,7 +71,7 @@ func (s *Service) observeLocked(tickMs int) *perceive.ObservedBoard {
 	if s.doc == nil || len(s.doc.Parts) == 0 {
 		return nil
 	}
-	cal, cb, ok := buildCalibration(s.doc.Parts[0].Calibration)
+	cal, cb, ok := buildCalibration(s.doc.Parts[s.activePartIdx()].Calibration)
 	if !ok {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (s *Service) observeLocked(tickMs int) *perceive.ObservedBoard {
 	// Perception-in boundary: map the camera-view reading onto the canonical
 	// bg numbering per the Orientation prior (ADR-0006) so downstream fusion
 	// sees P1 home at points 1..6 regardless of camera setup.
-	o, _ := bg.ParseOrientation(s.doc.Parts[0].Priors.Orientation)
+	o, _ := bg.ParseOrientation(s.doc.Parts[s.activePartIdx()].Priors.Orientation)
 	ob = boarddiff.Reorient(ob, o)
 	return &ob
 }

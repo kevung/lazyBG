@@ -160,6 +160,62 @@ func (a *App) SetVideoPos(tickMs int) {
 	a.service().SetVideoPos(tickMs)
 }
 
+// PartSwitch is the video the frontend must (re)point the <video> at after a
+// Part change, plus the resulting part list (issue #26).
+type PartSwitch struct {
+	VideoURL   string             `json:"videoUrl"`
+	Parts      []session.PartView `json:"parts"`
+	ActivePart int                `json:"activePart"`
+	Warning    string             `json:"warning,omitempty"`
+}
+
+// Parts lists the session's video Parts (issue #26).
+func (a *App) Parts() []session.PartView { return a.service().Parts() }
+
+// ActivePart returns the index of the Part currently being transcribed.
+func (a *App) ActivePart() int { return a.service().ActivePart() }
+
+// AddPartDialog picks a later video file of a multi-video match, appends it as
+// an inheritable Part, makes it active, and re-points the media server at it.
+func (a *App) AddPartDialog() (*PartSwitch, error) {
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Add match video (next part)",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Videos", Pattern: "*.mp4;*.mkv;*.webm;*.avi;*.mov"},
+			{DisplayName: "All files", Pattern: "*"},
+		},
+	})
+	if err != nil || path == "" {
+		return nil, err
+	}
+	if _, err := a.service().AddPart(path, ""); err != nil {
+		return nil, err
+	}
+	return a.switchVideoTo(path), nil
+}
+
+// SetActivePart switches the Part new turns record against and re-points the
+// media server at that Part's video.
+func (a *App) SetActivePart(i int) (*PartSwitch, error) {
+	svc := a.service()
+	if err := svc.SetActivePart(i); err != nil {
+		return nil, err
+	}
+	return a.switchVideoTo(svc.VideoPath()), nil
+}
+
+// switchVideoTo re-points the app's media server + cached path at a Part's file.
+func (a *App) switchVideoTo(path string) *PartSwitch {
+	a.mu.Lock()
+	a.videoPath = path
+	a.mu.Unlock()
+	if a.media != nil {
+		a.media.SetPath(path)
+	}
+	svc := a.service()
+	return &PartSwitch{VideoURL: a.mediaURL(), Parts: svc.Parts(), ActivePart: svc.ActivePart()}
+}
+
 // PlayableResult is what the frontend needs after a proxy build: the media URL
 // to (re)point the <video> at, and a warning if the proxy's timeline diverged.
 type PlayableResult struct {

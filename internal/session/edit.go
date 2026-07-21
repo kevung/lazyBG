@@ -160,7 +160,7 @@ func (s *Service) InsertTurn(beforeSeq, player, d1, d2 int, notation string, tic
 	s.spliceInLocked(gi, pi, beforeSeq, ply, LBGTurn{
 		Game: s.match.Games[gi].Number, Player: player,
 		Dice: [2]int{d1, d2}, Notation: notation, CannotMove: notation == "",
-		Part: 0, TickMs: tickMs, ChosenIndex: -1, Cues: []string{"human-insert"},
+		Part: s.activePart, TickMs: tickMs, ChosenIndex: -1, Cues: []string{"human-insert"},
 	})
 	return s.recomputeAndFlagLocked(gi, beforeSeq)
 }
@@ -186,7 +186,7 @@ func (s *Service) InsertCube(beforeSeq int, action string, tickMs int) error {
 	}
 	s.spliceInLocked(gi, pi, beforeSeq, bg.Ply{Player: player, Cube: ca, Tick: tickMs},
 		LBGTurn{Game: s.match.Games[gi].Number, Player: int(player),
-			Cube: action, Part: 0, TickMs: tickMs, ChosenIndex: -1, Cues: []string{"human-insert"}})
+			Cube: action, Part: s.activePart, TickMs: tickMs, ChosenIndex: -1, Cues: []string{"human-insert"}})
 	return s.recomputeAndFlagLocked(gi, beforeSeq)
 }
 
