@@ -93,14 +93,40 @@ func Calibrate(video string, o Options) (Result, error) {
 		return Result{}, err
 	}
 
-	// 2. Colors: declared priors, or derived from the median frame itself.
+	// 2. Colors: declared priors, or ranked hypotheses derived from the
+	// median frame — each verified by the whole calibrate-and-read loop; the
+	// first hypothesis reaching a trusted opening wins (#56).
+	colorCands := []Colors{o.Colors}
 	if o.Colors == (Colors{}) {
-		var ok bool
-		o.Colors, ok = AutoColors(med)
-		if !ok {
+		colorCands = AutoColorCandidates(med, 4)
+		if len(colorCands) == 0 {
 			return Result{}, fmt.Errorf("autocal: could not derive board colors from %s", video)
 		}
 	}
+	best := Result{OpeningScore: -1}
+	for _, colors := range colorCands {
+		oc := o
+		oc.Colors = colors
+		res, err := calibrateColors(video, oc, med, srcW, srcH, detW, detH)
+		if err != nil {
+			continue
+		}
+		if res.OpeningScore >= o.MinOpening {
+			return res, nil
+		}
+		if res.OpeningScore > best.OpeningScore {
+			best = res
+		}
+	}
+	if best.OpeningScore < 0 {
+		return Result{}, fmt.Errorf("autocal: no color hypothesis produced a readable opening in %s (%d tried)", video, len(colorCands))
+	}
+	return best, fmt.Errorf("autocal: best opening read %d/24 below %d — calibration not trusted", best.OpeningScore, o.MinOpening)
+}
+
+// calibrateColors is Calibrate's quad-hypothesis loop for ONE color scheme
+// (o.Colors is set).
+func calibrateColors(video string, o Options, med *image.RGBA, srcW, srcH, detW, detH int) (Result, error) {
 
 	// 3. Initial quad from the point-color mask, outlier components dropped.
 	mask := ColorMask(med, []color.RGBA{o.Colors.PointA, o.Colors.PointB}, o.ColorTol)
@@ -186,9 +212,6 @@ func Calibrate(video string, o Options) (Result, error) {
 	if best.OpeningScore < 0 {
 		return Result{}, fmt.Errorf("autocal: no candidate quad produced a readable opening in %s", video)
 	}
-	if best.OpeningScore < o.MinOpening {
-		return best, fmt.Errorf("autocal: best opening read %d/24 below %d — calibration not trusted", best.OpeningScore, o.MinOpening)
-	}
 	return best, nil
 }
 
@@ -217,53 +240,39 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	if err != nil {
 		return corners, barEdges, lens, fmt.Errorf("sample near %dms: %w", tickMs, err)
 	}
-	colors := o.Colors
-	if colors == (Colors{}) {
-		var ok bool
-		if colors, ok = AutoColors(med); !ok {
+	// Color hypotheses: declared priors, or the ranked candidates derived
+	// from the frame — the correspondence fit is the verifier that decides
+	// which hypothesis is actually a board (#56). The first hypothesis whose
+	// fit locks wins; if none fits, the first hypothesis that at least
+	// produced a plausible quad keeps the legacy single-answer behaviour.
+	cands := []Colors{o.Colors}
+	if o.Colors == (Colors{}) {
+		cands = AutoColorCandidates(med, 5)
+		if len(cands) == 0 {
 			return corners, barEdges, lens, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
 		}
 	}
-	mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
-	mask = TriangleComponents(mask, med, colors.Felt, o.ColorTol, detW, detH)
-	var quad [4]geom.Pt
-	got := false
-	if q, ok := RowQuad(mask, detW, detH); ok {
-		quad, got = q, true
-	} else if q, ok := QuadFromMask(mask, detW, detH); ok {
-		quad, got = q, true
+	var seedC, seedB [4]geom.Pt
+	found := false
+	for _, colors := range cands {
+		c, b, l, fitOK, ok := detectWithColors(med, colors, o, detW, detH)
+		if !ok {
+			continue
+		}
+		if fitOK {
+			seedC, seedB, lens = c, b, l
+			found = true
+			break
+		}
+		if !found {
+			// remember the first plausible-but-unverified quad; keep
+			// scanning — a later hypothesis whose fit locks beats it
+			seedC, seedB, lens = c, b, l
+			found = true
+		}
 	}
-	if !got {
-		return corners, barEdges, lens, fmt.Errorf("no plausible board found in the frame")
-	}
-	if !quadInBounds(quad, detW, detH) {
-		quad = clampQuad(quad, detW, detH)
-	}
-
-	// Locate the bar as the central low-triangle-density valley in the quad's
-	// own rectified frame; fall back to a centred default when it isn't clear.
-	leftFrac, rightFrac := 0.47, 0.53
-	if cal, ok := calibrate.New(quad, o.Canonical); ok {
-		leftFrac, rightFrac = barFractions(cal.Rectify(med), o.Canonical, colors, o.ColorTol)
-	}
-
-	// Seed handles in DETECTION space: the mask quad nudged outward toward
-	// the playing-surface corners (the triangle mask sits inside by the
-	// margins), bar edges riding the top/bottom edges at the detected
-	// fractions — the GUI's fraction model.
-	seedC := expandQuad(quad, 0.045, 0.04)
-	tl, tr, br, bl := seedC[0], seedC[1], seedC[2], seedC[3]
-	lerp := func(a, b geom.Pt, t float64) geom.Pt {
-		return geom.P(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
-	}
-	seedB := [4]geom.Pt{lerp(tl, tr, leftFrac), lerp(tl, tr, rightFrac), lerp(bl, br, rightFrac), lerp(bl, br, leftFrac)}
-
-	// Correspondence fit (ADR-0008): sharpen the seed against the detected
-	// triangle apexes and lateral edges. Failure is detectable (too few
-	// matches, loose residual), in which case the mask-extremes seed stands.
-	if fit, ok := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); ok {
-		seedC, seedB = fit.Corners, fit.BarEdges
-		lens = fit.Lens
+	if !found {
+		return corners, barEdges, lens, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
 	}
 
 	sx := float64(srcW) / float64(detW)
@@ -788,121 +797,15 @@ func expandQuad(q [4]geom.Pt, fx, fy float64) [4]geom.Pt {
 // the felt is the dominant low-saturation tone of the frame's center, and
 // the point colors are the two dominant saturated clusters ADJACENT to felt
 // pixels — adjacency is what excludes the table wood, carpet and clothing,
-// which are saturated but never surrounded by felt.
+// which are saturated but never surrounded by felt. It is exactly the first
+// candidate of AutoColorCandidates; callers that can VERIFY a hypothesis
+// (the correspondence fit) should iterate the candidates instead (#56).
 func AutoColors(med *image.RGBA) (Colors, bool) {
-	b := med.Bounds()
-	w, h := b.Dx(), b.Dy()
-	x0, x1 := w/5, w*4/5
-	y0, y1 := h/5, h*4/5
-
-	q := func(v uint8) int { return int(v) / 24 }
-	type bin struct{ r, g, b int }
-	at := func(x, y int) (uint8, uint8, uint8) {
-		i := med.PixOffset(b.Min.X+x, b.Min.Y+y)
-		return med.Pix[i], med.Pix[i+1], med.Pix[i+2]
-	}
-
-	// 1. felt: dominant unsaturated mid-brightness bin in the center.
-	feltBins := map[bin]int{}
-	for y := y0; y < y1; y++ {
-		for x := x0; x < x1; x++ {
-			r, g, bl := at(x, y)
-			mx, mn := max(r, max(g, bl)), min(r, min(g, bl))
-			if int(mx)-int(mn) < 30 && mx > 60 && mx < 235 {
-				feltBins[bin{q(r), q(g), q(bl)}]++
-			}
-		}
-	}
-	var feltBin bin
-	bestN := 0
-	for k, n := range feltBins {
-		if n > bestN {
-			feltBin, bestN = k, n
-		}
-	}
-	if bestN == 0 {
+	cands := AutoColorCandidates(med, 1)
+	if len(cands) == 0 {
 		return Colors{}, false
 	}
-	felt := color.RGBA{uint8(feltBin.r*24 + 12), uint8(feltBin.g*24 + 12), uint8(feltBin.b*24 + 12), 255}
-
-	// felt mask for the adjacency test
-	isFelt := func(x, y int) bool {
-		if x < 0 || x >= w || y < 0 || y >= h {
-			return false
-		}
-		r, g, bl := at(x, y)
-		return q(r) == feltBin.r && q(g) == feltBin.g && q(bl) == feltBin.b
-	}
-
-	// 2. point-color candidates: pixels clearly DIFFERENT from the felt yet
-	// adjacent to it. A hard saturation gate misses dim point colors under
-	// warm light (teal reads (24,72,72): spread 48); distance-from-felt with
-	// only a weak spread floor keeps them while the felt-distance excludes
-	// warm wood and the spread floor excludes white/dark checkers.
-	satBins := map[bin]int{}
-	sums := map[bin][4]int{} // r,g,b,count for cluster averaging
-	const reach = 8
-	for y := y0; y < y1; y++ {
-		for x := x0; x < x1; x++ {
-			r, g, bl := at(x, y)
-			mx, mn := max(r, max(g, bl)), min(r, min(g, bl))
-			if int(mx)-int(mn) < 18 {
-				continue
-			}
-			dr := float64(r) - float64(felt.R)
-			dg := float64(g) - float64(felt.G)
-			db := float64(bl) - float64(felt.B)
-			if dr*dr+dg*dg+db*db < 45*45 {
-				continue
-			}
-			adj := 0
-			for _, d := range [4][2]int{{reach, 0}, {-reach, 0}, {0, reach}, {0, -reach}} {
-				if isFelt(x+d[0], y+d[1]) {
-					adj++
-				}
-			}
-			if adj < 1 {
-				continue
-			}
-			k := bin{q(r), q(g), q(bl)}
-			satBins[k]++
-			s := sums[k]
-			s[0] += int(r)
-			s[1] += int(g)
-			s[2] += int(bl)
-			s[3]++
-			sums[k] = s
-		}
-	}
-	// top-2 distinct bins (distinct = not neighbours in quantized space)
-	var k1, k2 bin
-	n1, n2 := 0, 0
-	for k, n := range satBins {
-		if n > n1 {
-			k2, n2 = k1, n1
-			k1, n1 = k, n
-		} else if n > n2 {
-			near := abs(k.r-k1.r) <= 1 && abs(k.g-k1.g) <= 1 && abs(k.b-k1.b) <= 1
-			if !near {
-				k2, n2 = k, n
-			}
-		}
-	}
-	if n1 == 0 {
-		return Colors{}, false
-	}
-	avg := func(k bin) color.RGBA {
-		s := sums[k]
-		if s[3] == 0 {
-			return color.RGBA{}
-		}
-		return color.RGBA{uint8(s[0] / s[3]), uint8(s[1] / s[3]), uint8(s[2] / s[3]), 255}
-	}
-	c := Colors{PointA: avg(k1), PointB: avg(k1), Felt: felt}
-	if n2 > 0 {
-		c.PointB = avg(k2)
-	}
-	return c, true
+	return cands[0], true
 }
 
 func abs(v int) int {
@@ -1118,4 +1021,51 @@ func fitAtInstants(video string, ticks []int, o Options, seedCorners [4]geom.Pt,
 		res.Lens.Norm *= sx
 	}
 	return res, true
+}
+
+// detectWithColors runs the mask → quad → bar → correspondence-fit chain for
+// ONE color hypothesis, in detection space. ok is false when no plausible
+// quad exists under these colors; fitOK says whether the correspondence fit
+// verified the hypothesis (the caller prefers verified hypotheses).
+func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int) (seedC, seedB [4]geom.Pt, lens calibrate.Lens, fitOK, ok bool) {
+	mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
+	mask = TriangleComponents(mask, med, colors.Felt, o.ColorTol, detW, detH)
+	var quad [4]geom.Pt
+	got := false
+	if q, k := RowQuad(mask, detW, detH); k {
+		quad, got = q, true
+	} else if q, k := QuadFromMask(mask, detW, detH); k {
+		quad, got = q, true
+	}
+	if !got {
+		return seedC, seedB, lens, false, false
+	}
+	if !quadInBounds(quad, detW, detH) {
+		quad = clampQuad(quad, detW, detH)
+	}
+
+	// Locate the bar as the central low-triangle-density valley in the quad's
+	// own rectified frame; fall back to a centred default when it isn't clear.
+	leftFrac, rightFrac := 0.47, 0.53
+	if cal, k := calibrate.New(quad, o.Canonical); k {
+		leftFrac, rightFrac = barFractions(cal.Rectify(med), o.Canonical, colors, o.ColorTol)
+	}
+
+	// Seed handles: the mask quad nudged outward toward the playing-surface
+	// corners (the triangle mask sits inside by the margins), bar edges
+	// riding the top/bottom edges at the detected fractions.
+	seedC = expandQuad(quad, 0.045, 0.04)
+	tl, tr, br, bl := seedC[0], seedC[1], seedC[2], seedC[3]
+	lerp := func(a, b geom.Pt, t float64) geom.Pt {
+		return geom.P(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
+	}
+	seedB = [4]geom.Pt{lerp(tl, tr, leftFrac), lerp(tl, tr, rightFrac), lerp(bl, br, rightFrac), lerp(bl, br, leftFrac)}
+
+	// Correspondence fit (ADR-0008): sharpen the seed against the detected
+	// triangle apexes and lateral edges — and, for auto-derived colors,
+	// verify the hypothesis at all.
+	if fit, k := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); k {
+		return fit.Corners, fit.BarEdges, fit.Lens, true, true
+	}
+	return seedC, seedB, calibrate.Lens{}, false, true
 }
