@@ -231,6 +231,32 @@ func calibrateColors(video string, o Options, med *image.RGBA, srcW, srcH, detW,
 // quad remains the fallback. In the nominal case the first instant verifies
 // and exactly one median is decoded, so interactive latency is unchanged.
 func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, err error) {
+	type lock struct {
+		c, b [4]geom.Pt
+		l    calibrate.Lens
+		f    FitResult
+	}
+	// agree reports whether two locks describe the same physical board: the
+	// camera is fixed, so a TRUE lock reproduces across instants within a
+	// fraction of the pitch, while a false lock (driven by one frame's junk
+	// apexes) does not. Cross-instant agreement is the strongest oracle-free
+	// verifier available — stronger than any single fit's match count.
+	agree := func(a, b lock) bool {
+		pitch := math.Hypot(a.c[1].X-a.c[0].X, a.c[1].Y-a.c[0].Y) / 13
+		for i := range a.c {
+			if math.Hypot(a.c[i].X-b.c[i].X, a.c[i].Y-b.c[i].Y) > 0.35*pitch {
+				return false
+			}
+		}
+		return true
+	}
+	better := func(a, b lock) lock {
+		if b.f.Matches > a.f.Matches || (b.f.Matches == a.f.Matches && b.f.Resid < a.f.Resid) {
+			return b
+		}
+		return a
+	}
+	var locks []lock
 	var firstErr error
 	found := false
 	for _, off := range []int{0, 6000, 15000, -6000, 30000} {
@@ -238,7 +264,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		if t < 0 {
 			continue
 		}
-		c, b, l, verified, e := detectAt(video, t, o)
+		c, b, l, f, verified, e := detectAt(video, t, o)
 		if e != nil {
 			if firstErr == nil {
 				firstErr = e
@@ -246,12 +272,28 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 			continue
 		}
 		if verified {
-			return c, b, l, nil
+			cur := lock{c: c, b: b, l: l, f: f}
+			for _, pl := range locks {
+				if agree(pl, cur) {
+					win := better(pl, cur)
+					return win.c, win.b, win.l, nil // confirmed by a second instant
+				}
+			}
+			locks = append(locks, cur)
+			continue
 		}
 		if !found {
 			corners, barEdges, lens = c, b, l
 			found = true
 		}
+	}
+	if len(locks) > 0 {
+		// No confirmed pair: fall back to the best single lock.
+		win := locks[0]
+		for _, pl := range locks[1:] {
+			win = better(win, pl)
+		}
+		return win.c, win.b, win.l, nil
 	}
 	if found {
 		return corners, barEdges, lens, nil
@@ -265,10 +307,10 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 // detectAt runs the single-instant detection: short median, color
 // hypotheses, correspondence fit. verified reports whether the fit locked
 // (the caller prefers verified instants).
-func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, verified bool, err error) {
+func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, fit FitResult, verified bool, err error) {
 	probe, err := capture.FrameAt(video, tickMs)
 	if err != nil {
-		return corners, barEdges, lens, false, fmt.Errorf("decode at %dms: %w", tickMs, err)
+		return corners, barEdges, lens, fit, false, fmt.Errorf("decode at %dms: %w", tickMs, err)
 	}
 	srcW, srcH := probe.Bounds().Dx(), probe.Bounds().Dy()
 	// Detect at the tuned default resolution: the mask/component thresholds and
@@ -279,7 +321,7 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 	// A short median suppresses transient hands/dice without scanning the video.
 	med, err := MedianFrame(video, tickMs, tickMs+1500, 5, detW, detH)
 	if err != nil {
-		return corners, barEdges, lens, false, fmt.Errorf("sample near %dms: %w", tickMs, err)
+		return corners, barEdges, lens, fit, false, fmt.Errorf("sample near %dms: %w", tickMs, err)
 	}
 	// Color hypotheses: declared priors, or the ranked candidates derived
 	// from the frame — the correspondence fit is the verifier that decides
@@ -290,30 +332,40 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 	if o.Colors == (Colors{}) {
 		cands = AutoColorCandidates(med, 8)
 		if len(cands) == 0 {
-			return corners, barEdges, lens, false, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
+			return corners, barEdges, lens, fit, false, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
 		}
 	}
+	// Rank VERIFIED hypotheses by (matches desc, residual asc): a fit locked
+	// on a shifted or junk indexing matches fewer apexes than the true one,
+	// so first-verified-wins would let a wrong hypothesis shadow the right
+	// one (the ratchet caught exactly that). Unverified plausible quads stay
+	// the fallback.
 	var seedC, seedB [4]geom.Pt
 	found := false
+	var bestFit FitResult
 	for _, colors := range cands {
-		c, b, l, fitOK, ok := detectWithColors(med, colors, o, detW, detH)
+		c, b, l, f, fitOK, ok := detectWithColors(med, colors, o, detW, detH)
 		if !ok {
 			continue
 		}
 		if fitOK {
-			seedC, seedB, lens = c, b, l
-			found, verified = true, true
-			break
+			if !verified || f.Matches > bestFit.Matches || (f.Matches == bestFit.Matches && f.Resid < bestFit.Resid) {
+				seedC, seedB, lens, bestFit = c, b, l, f
+				found, verified = true, true
+			}
+			if bestFit.Matches >= 18 {
+				break // near-full coverage: no better hypothesis exists
+			}
+			continue
 		}
 		if !found {
-			// remember the first plausible-but-unverified quad; keep
-			// scanning — a later hypothesis whose fit locks beats it
+			// remember the first plausible-but-unverified quad
 			seedC, seedB, lens = c, b, l
 			found = true
 		}
 	}
 	if !found {
-		return corners, barEdges, lens, false, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
+		return corners, barEdges, lens, fit, false, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
 	}
 
 	sx := float64(srcW) / float64(detW)
@@ -330,7 +382,7 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 		lens.CenterY *= sx
 		lens.Norm *= sx
 	}
-	return corners, barEdges, lens, verified, nil
+	return corners, barEdges, lens, bestFit, verified, nil
 }
 
 // barFractions finds the bar's left/right position as fractions of the board
@@ -1068,7 +1120,7 @@ func fitAtInstants(video string, ticks []int, o Options, seedCorners [4]geom.Pt,
 // ONE color hypothesis, in detection space. ok is false when no plausible
 // quad exists under these colors; fitOK says whether the correspondence fit
 // verified the hypothesis (the caller prefers verified hypotheses).
-func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int) (seedC, seedB [4]geom.Pt, lens calibrate.Lens, fitOK, ok bool) {
+func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int) (seedC, seedB [4]geom.Pt, lens calibrate.Lens, fit FitResult, fitOK, ok bool) {
 	mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
 	mask = TriangleComponents(mask, med, colors.Felt, o.ColorTol, detW, detH)
 	var quad [4]geom.Pt
@@ -1079,7 +1131,7 @@ func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int)
 		quad, got = q, true
 	}
 	if !got {
-		return seedC, seedB, lens, false, false
+		return seedC, seedB, lens, fit, false, false
 	}
 	if !quadInBounds(quad, detW, detH) {
 		quad = clampQuad(quad, detW, detH)
@@ -1105,8 +1157,8 @@ func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int)
 	// Correspondence fit (ADR-0008): sharpen the seed against the detected
 	// triangle apexes and lateral edges — and, for auto-derived colors,
 	// verify the hypothesis at all.
-	if fit, k := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); k {
-		return fit.Corners, fit.BarEdges, fit.Lens, true, true
+	if f, k := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); k {
+		return f.Corners, f.BarEdges, f.Lens, f, true, true
 	}
-	return seedC, seedB, calibrate.Lens{}, false, true
+	return seedC, seedB, calibrate.Lens{}, fit, false, true
 }

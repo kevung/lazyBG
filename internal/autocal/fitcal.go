@@ -117,7 +117,16 @@ func FitApexes(apexes []Apex, w, h int, corners, barEdges [4]geom.Pt, cb calibra
 		var canonL, imgL, canonR, imgR []geom.Pt
 		var bases []baseCand
 		count := 0
-		for slot, det := range matches {
+		// Sorted slots: map iteration order must not leak into the
+		// floating-point accumulation order (non-associativity flips
+		// borderline gates between runs — the bench must be deterministic).
+		slots := make([]int, 0, len(matches))
+		for slot := range matches {
+			slots = append(slots, slot)
+		}
+		sort.Ints(slots)
+		for _, slot := range slots {
+			det := matches[slot]
 			p := slot + 1
 			topRow := p >= 13
 			a := apexes[det]
@@ -157,7 +166,8 @@ func FitApexes(apexes []Apex, w, h int, corners, barEdges [4]geom.Pt, cb calibra
 		if invL, okIL := ff.hL.Inverse(); okIL {
 			if invR, okIR := ff.hR.Inverse(); okIR {
 				var ds []float64
-				for slot, det := range matches {
+				for _, slot := range slots {
+					det := matches[slot]
 					p := slot + 1
 					a := apexes[det]
 					if a.Down != (p >= 13) {
@@ -210,14 +220,20 @@ func FitApexes(apexes []Apex, w, h int, corners, barEdges [4]geom.Pt, cb calibra
 		}
 		return ff.resid
 	}
+	// A coefficient that lands at the search-bracket edge means the
+	// optimizer railed: the "lens" is absorbing a non-lens error (bad
+	// indexing, wrong geometry) — never admit it.
+	railed := func(k, lo, hi float64) bool {
+		return k < lo+0.02 || k > hi-0.02
+	}
 	lens := calibrate.Lens{}
 	r0 := res.Resid
 	k1, r1 := golden1D(func(k float64) float64 { return residOf(mkLens(k, 0)) }, -0.35, 0.35)
-	if admits(r1, r0) {
+	if admits(r1, r0) && !railed(k1, -0.35, 0.35) {
 		lens = mkLens(k1, 0)
 		k2, r2 := golden1D(func(k float64) float64 { return residOf(mkLens(k1, k)) }, -0.25, 0.25)
-		if admits(r2, r1) {
-			if k1b, r2b := golden1D(func(k float64) float64 { return residOf(mkLens(k, k2)) }, -0.35, 0.35); r2b < r2 {
+		if admits(r2, r1) && !railed(k2, -0.25, 0.25) {
+			if k1b, r2b := golden1D(func(k float64) float64 { return residOf(mkLens(k, k2)) }, -0.35, 0.35); r2b < r2 && !railed(k1b, -0.35, 0.35) {
 				k1, r2 = k1b, r2b
 			}
 			lens = mkLens(k1, k2)
