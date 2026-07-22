@@ -224,10 +224,51 @@ func calibrateColors(video string, o Options, med *image.RGBA, srcW, srcH, detW,
 // by dragging, not a trusted calibration. All points are source-frame pixels.
 // The returned lens (zero = pinhole) is the fit's admitted radial
 // distortion, already scaled to source pixels.
+//
+// A single instant can be hostile — an arm across the board, dice mid-air —
+// so when the requested instant's fit does not verify, nearby instants are
+// probed and the first VERIFIED one wins; the requested instant's plausible
+// quad remains the fallback. In the nominal case the first instant verifies
+// and exactly one median is decoded, so interactive latency is unchanged.
 func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, err error) {
+	var firstErr error
+	found := false
+	for _, off := range []int{0, 6000, 15000, -6000, 30000} {
+		t := tickMs + off
+		if t < 0 {
+			continue
+		}
+		c, b, l, verified, e := detectAt(video, t, o)
+		if e != nil {
+			if firstErr == nil {
+				firstErr = e
+			}
+			continue
+		}
+		if verified {
+			return c, b, l, nil
+		}
+		if !found {
+			corners, barEdges, lens = c, b, l
+			found = true
+		}
+	}
+	if found {
+		return corners, barEdges, lens, nil
+	}
+	if firstErr == nil {
+		firstErr = fmt.Errorf("no plausible board found near %dms", tickMs)
+	}
+	return corners, barEdges, lens, firstErr
+}
+
+// detectAt runs the single-instant detection: short median, color
+// hypotheses, correspondence fit. verified reports whether the fit locked
+// (the caller prefers verified instants).
+func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, verified bool, err error) {
 	probe, err := capture.FrameAt(video, tickMs)
 	if err != nil {
-		return corners, barEdges, lens, fmt.Errorf("decode at %dms: %w", tickMs, err)
+		return corners, barEdges, lens, false, fmt.Errorf("decode at %dms: %w", tickMs, err)
 	}
 	srcW, srcH := probe.Bounds().Dx(), probe.Bounds().Dy()
 	// Detect at the tuned default resolution: the mask/component thresholds and
@@ -238,7 +279,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	// A short median suppresses transient hands/dice without scanning the video.
 	med, err := MedianFrame(video, tickMs, tickMs+1500, 5, detW, detH)
 	if err != nil {
-		return corners, barEdges, lens, fmt.Errorf("sample near %dms: %w", tickMs, err)
+		return corners, barEdges, lens, false, fmt.Errorf("sample near %dms: %w", tickMs, err)
 	}
 	// Color hypotheses: declared priors, or the ranked candidates derived
 	// from the frame — the correspondence fit is the verifier that decides
@@ -249,7 +290,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	if o.Colors == (Colors{}) {
 		cands = AutoColorCandidates(med, 8)
 		if len(cands) == 0 {
-			return corners, barEdges, lens, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
+			return corners, barEdges, lens, false, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
 		}
 	}
 	var seedC, seedB [4]geom.Pt
@@ -261,7 +302,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		}
 		if fitOK {
 			seedC, seedB, lens = c, b, l
-			found = true
+			found, verified = true, true
 			break
 		}
 		if !found {
@@ -272,7 +313,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		}
 	}
 	if !found {
-		return corners, barEdges, lens, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
+		return corners, barEdges, lens, false, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
 	}
 
 	sx := float64(srcW) / float64(detW)
@@ -289,7 +330,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		lens.CenterY *= sx
 		lens.Norm *= sx
 	}
-	return corners, barEdges, lens, nil
+	return corners, barEdges, lens, verified, nil
 }
 
 // barFractions finds the bar's left/right position as fractions of the board

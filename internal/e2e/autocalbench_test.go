@@ -101,6 +101,9 @@ func formatResult(r bench.CaptureResult) string {
 	if r.BarDistPx != nil {
 		s += fmt.Sprintf("  bar %.0fpx", maxf(r.BarDistPx))
 	}
+	if r.K1 != 0 || r.K2 != 0 {
+		s += fmt.Sprintf("  lens k1=%.3f k2=%.3f", r.K1, r.K2)
+	}
 	return s
 }
 

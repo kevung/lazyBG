@@ -39,6 +39,11 @@ type CaptureResult struct {
 	// edges (calibration v2).
 	CornerDistPx []float64 `json:"cornerDistPx,omitempty"`
 	BarDistPx    []float64 `json:"barDistPx,omitempty"`
+	// K1/K2 are the fit's admitted lens coefficients (0 = pinhole) — the
+	// diagnostic that shows whether real wide-angle captures trigger the
+	// lens estimator.
+	K1 float64 `json:"k1,omitempty"`
+	K2 float64 `json:"k2,omitempty"`
 }
 
 // Report is the whole bench run; the committed baseline is one of these.
@@ -154,11 +159,13 @@ func RunCapture(root string, m corpus.Manifest) CaptureResult {
 	out.OpeningTickMs = tick
 	out.ScoreManual = scoreManual
 
-	corners, barEdges, _, err := autocal.DetectHandles(video, tick, o)
+	corners, barEdges, detLens, err := autocal.DetectHandles(video, tick, o)
 	if err != nil {
 		out.Err = fmt.Sprintf("detect: %v", err)
 		return out
 	}
+
+	out.K1, out.K2 = detLens.K1, detLens.K2
 
 	frame, err := capture.FrameAt(video, tick)
 	if err != nil {
