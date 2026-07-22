@@ -99,3 +99,66 @@ func TestAutoColorCandidates_Deduplicates(t *testing.T) {
 		seen[c] = true
 	}
 }
+
+// blueFeltBoard reproduces the 2026-05 Marseille blind spot: a SATURATED
+// blue felt with light-blue and cream triangles, on a white plastic frame
+// over a red table. No unsaturated surface is the felt, so the legacy
+// felt model cannot express the right hypothesis at all.
+func blueFeltBoard() *image.RGBA {
+	w, h := 640, 360
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	fill := func(x0, y0, x1, y1 int, c color.RGBA) {
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				img.SetRGBA(x, y, c)
+			}
+		}
+	}
+	red := color.RGBA{140, 40, 50, 255}     // table cloth
+	frame := color.RGBA{235, 235, 232, 255} // white plastic frame (unsaturated)
+	felt := color.RGBA{35, 70, 160, 255}    // saturated blue felt
+	lightBlue := color.RGBA{90, 150, 220, 255}
+	cream := color.RGBA{225, 222, 195, 255}
+
+	fill(0, 0, w, h, red)
+	fill(140, 60, 500, 300, frame)
+	fill(170, 80, 470, 280, felt)
+	for i := 0; i < 10; i++ {
+		c := lightBlue
+		if i%2 == 1 {
+			c = cream
+		}
+		fill(180+i*29, 86, 180+i*29+14, 150, c) // top row
+		fill(180+i*29, 210, 180+i*29+14, 274, c) // bottom row
+	}
+	return img
+}
+
+func TestAutoColorCandidates_SaturatedFeltBoards(t *testing.T) {
+	med := blueFeltBoard()
+	cands := AutoColorCandidates(med, 8)
+	felt := color.RGBA{35, 70, 160, 255}
+	lightBlue := color.RGBA{90, 150, 220, 255}
+	cream := color.RGBA{225, 222, 195, 255}
+	found := false
+	for _, c := range cands {
+		pointsOK := (near(c.PointA, lightBlue, 35) && near(c.PointB, cream, 35)) ||
+			(near(c.PointA, cream, 35) && near(c.PointB, lightBlue, 35))
+		if pointsOK && near(c.Felt, felt, 35) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no candidate matches the blue-felt board; got %+v", cands)
+	}
+}
+
+func TestAutoColorCandidates_SaturatedFeltsRankAfterUnsaturated(t *testing.T) {
+	// Compat: on a classic unsaturated-felt board the first candidates (and
+	// #0 = legacy) must stay what they were before saturated felts existed.
+	med := marseilleLike()
+	legacy, _ := AutoColors(med)
+	if cands := AutoColorCandidates(med, 8); cands[0] != legacy {
+		t.Fatalf("candidate #0 changed: %+v vs %+v", cands[0], legacy)
+	}
+}
