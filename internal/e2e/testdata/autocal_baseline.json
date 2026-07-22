@@ -27,12 +27,12 @@
     {
       "id": "2025-05_hsbtMarseille_or-r1_HanotinDenis",
       "scoreManual": 23,
-      "scoreAuto": 16,
+      "scoreAuto": 15,
       "cornerDistPx": [
-        44.23566693416844,
-        5.546181192235636,
-        12.885827850195579,
-        30.50912858566018
+        44.40342298324887,
+        16.417336894018828,
+        27.396861103098434,
+        26.618109641012982
       ]
     },
     {
@@ -42,9 +42,9 @@
       "scoreAuto": 14,
       "cornerDistPx": [
         46.23224645746617,
-        24.757729405636656,
-        13.253988430230626,
-        47.72021209653661
+        24.75772940563601,
+        13.253988430231011,
+        47.72021209653667
       ]
     },
     {
@@ -148,22 +148,22 @@
       "scoreManual": 19,
       "scoreAuto": 13,
       "cornerDistPx": [
-        13.273436681703025,
-        26.689645993679893,
-        42.21384468990196,
-        17.22131856656285
+        13.273436681700877,
+        26.689645993679875,
+        42.21384468990323,
+        17.22131856656354
       ]
     },
     {
       "id": "2025-11_hsbtParis_r2_StephaneCheneviere",
       "openingTickMs": 9000,
       "scoreManual": 21,
-      "scoreAuto": 14,
+      "scoreAuto": 11,
       "cornerDistPx": [
-        15.932805707351246,
-        29.947728128350562,
-        18.152737003264445,
-        12.080847092547017
+        15.422580439301173,
+        29.90987292652311,
+        16.18963387699305,
+        17.545079322758717
       ]
     },
     {
@@ -215,15 +215,27 @@
     },
     {
       "id": "2026-05_hsbtMarseille_main-r1_JeanLucLelievre",
-      "err": "detect: no plausible board found in the frame (5 colour hypotheses tried)",
       "openingTickMs": 1122500,
-      "scoreManual": 12
+      "scoreManual": 12,
+      "scoreAuto": 10,
+      "cornerDistPx": [
+        106.78091147803495,
+        186.37386515620537,
+        333.13392760209973,
+        65.97248025754315
+      ]
     },
     {
       "id": "2026-05_hsbtMarseille_main-r4_MichelHileyan",
-      "err": "detect: no plausible board found in the frame (5 colour hypotheses tried)",
       "openingTickMs": 237000,
-      "scoreManual": 21
+      "scoreManual": 21,
+      "scoreAuto": 2,
+      "cornerDistPx": [
+        263.49790511501226,
+        258.3425942426065,
+        380.6613954684662,
+        202.97368499389276
+      ]
     },
     {
       "id": "2026-05_hsbtMarseille_main-r5_TristanRemille",
@@ -243,10 +255,10 @@
       "scoreManual": 21,
       "scoreAuto": 13,
       "cornerDistPx": [
-        61.181601189791685,
-        26.960866377446962,
-        12.641117962045444,
-        31.877091032372775
+        61.18160118979366,
+        26.96086637744655,
+        12.641117962044767,
+        31.87709103237124
       ]
     }
   ]

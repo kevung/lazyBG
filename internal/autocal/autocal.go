@@ -98,7 +98,7 @@ func Calibrate(video string, o Options) (Result, error) {
 	// first hypothesis reaching a trusted opening wins (#56).
 	colorCands := []Colors{o.Colors}
 	if o.Colors == (Colors{}) {
-		colorCands = AutoColorCandidates(med, 4)
+		colorCands = AutoColorCandidates(med, 6)
 		if len(colorCands) == 0 {
 			return Result{}, fmt.Errorf("autocal: could not derive board colors from %s", video)
 		}
@@ -247,7 +247,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	// produced a plausible quad keeps the legacy single-answer behaviour.
 	cands := []Colors{o.Colors}
 	if o.Colors == (Colors{}) {
-		cands = AutoColorCandidates(med, 5)
+		cands = AutoColorCandidates(med, 8)
 		if len(cands) == 0 {
 			return corners, barEdges, lens, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
 		}

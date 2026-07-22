@@ -20,8 +20,23 @@ func AutoColorCandidates(med *image.RGBA, max int) []Colors {
 	if max < 1 {
 		max = 1
 	}
-	hist := feltHistogram(med)
-	felts := topBins(hist, 2)
+	// Unsaturated felts first (the common case — keeps candidate #0 legacy),
+	// then the dominant centre colors REGARDLESS of saturation: blue- or
+	// green-felt boards (2026-05 Marseille) have no unsaturated felt at all,
+	// and the fit-verifier makes wrong extra hypotheses harmless (#57).
+	felts := topBins(feltHistogram(med), 2)
+	for _, fb := range topBins(anyFeltHistogram(med), 3) {
+		dup := false
+		for _, o := range felts {
+			if binsNeighbor(fb, o) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			felts = append(felts, fb)
+		}
+	}
 	var out []Colors
 	seen := map[Colors]bool{}
 	add := func(c Colors) {
@@ -72,6 +87,26 @@ func feltHistogram(med *image.RGBA) map[colorBin]int {
 			r, g, bl := med.Pix[i], med.Pix[i+1], med.Pix[i+2]
 			mx, mn := max(r, max(g, bl)), min(r, min(g, bl))
 			if int(mx)-int(mn) < 30 && mx > 60 && mx < 235 {
+				hist[binOf(r, g, bl)]++
+			}
+		}
+	}
+	return hist
+}
+
+// anyFeltHistogram counts ALL mid-brightness bins of the frame centre —
+// saturated felts included. Extreme brightness stays excluded: near-black
+// shadows and blown-white frames are never a playing surface.
+func anyFeltHistogram(med *image.RGBA) map[colorBin]int {
+	b := med.Bounds()
+	w, h := b.Dx(), b.Dy()
+	hist := map[colorBin]int{}
+	for y := h / 5; y < h*4/5; y++ {
+		for x := w / 5; x < w*4/5; x++ {
+			i := med.PixOffset(b.Min.X+x, b.Min.Y+y)
+			r, g, bl := med.Pix[i], med.Pix[i+1], med.Pix[i+2]
+			mx := max(r, max(g, bl))
+			if mx > 40 && mx < 245 {
 				hist[binOf(r, g, bl)]++
 			}
 		}
