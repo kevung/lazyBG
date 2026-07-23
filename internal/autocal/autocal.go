@@ -235,7 +235,11 @@ func calibrateColors(video string, o Options, med *image.RGBA, srcW, srcH, detW,
 // triangles any single instant loses (ADR-0008 §7) — accepted only when the
 // refit keeps the coverage and stays on the same board. The requested
 // instant's plausible-but-unverified quad remains the last-resort fallback.
-func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, err error) {
+// The returned Colors are the hypothesis the winning fit was found under —
+// the board's own palette, measured and already adjudicated by the fit itself
+// (#64). It is computed either way; returning it costs nothing and spares the
+// GUI a second, weaker guess.
+func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, colors Colors, err error) {
 	var locks []instantLock
 	var fallback instantLock
 	var firstErr error
@@ -266,21 +270,22 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		if uf, ok := refineOnUnion(locks, win, o); ok {
 			win = uf
 		}
-		return win.corners, win.barEdges, win.lens, nil
+		return win.corners, win.barEdges, win.lens, win.colors, nil
 	}
 	if found {
-		return fallback.corners, fallback.barEdges, fallback.lens, nil
+		return fallback.corners, fallback.barEdges, fallback.lens, fallback.colors, nil
 	}
 	if firstErr == nil {
 		firstErr = fmt.Errorf("no plausible board found near %dms", tickMs)
 	}
-	return corners, barEdges, lens, firstErr
+	return corners, barEdges, lens, colors, firstErr
 }
 
 // instantLock is one instant's detection: source-space handles + the fit
 // evidence and det-space apexes the cross-instant adjudication needs.
 type instantLock struct {
 	corners, barEdges [4]geom.Pt
+	colors            Colors         // the hypothesis this lock was found under
 	lens              calibrate.Lens // source-space
 	fit               FitResult
 	aps               []Apex // det-space apexes of the winning hypothesis
@@ -408,6 +413,7 @@ func detectAt(video string, tickMs int, o Options) (lk instantLock, verified boo
 	var seedC, seedB [4]geom.Pt
 	var lens calibrate.Lens
 	var aps []Apex
+	var seedColors Colors
 	found := false
 	var bestFit FitResult
 	for _, colors := range cands {
@@ -418,6 +424,7 @@ func detectAt(video string, tickMs int, o Options) (lk instantLock, verified boo
 		if fitOK {
 			if !verified || f.Matches > bestFit.Matches || (f.Matches == bestFit.Matches && f.Resid < bestFit.Resid) {
 				seedC, seedB, lens, aps, bestFit = c, b, l, a, f
+				seedColors = colors
 				found, verified = true, true
 			}
 			if bestFit.Matches >= 18 {
@@ -428,6 +435,7 @@ func detectAt(video string, tickMs int, o Options) (lk instantLock, verified boo
 		if !found {
 			// remember the first plausible-but-unverified quad
 			seedC, seedB, lens = c, b, l
+			seedColors = colors
 			found = true
 		}
 	}
@@ -448,6 +456,7 @@ func detectAt(video string, tickMs int, o Options) (lk instantLock, verified boo
 		lens.Norm *= sx
 	}
 	lk.lens = lens
+	lk.colors = seedColors
 	lk.fit = bestFit
 	lk.aps = aps
 	lk.detW, lk.detH, lk.sx = detW, detH, sx

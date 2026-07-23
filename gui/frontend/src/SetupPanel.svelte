@@ -30,6 +30,15 @@
   let swapPresses = 0
   let checkerA = '#e7e0d5'
   let checkerB = '#31221c'
+  // The board's own colours (#64). Measured from the capture so the
+  // reconstructed board wears the same palette as the video: everything that
+  // should coincide coincides, and what is left differing IS the reading
+  // error. Empty = the renderer's neutral default.
+  let pointA = ''
+  let pointB = ''
+  let felt = ''
+  let paletteMsg = ''
+  let sampling = false
 
   // The opening position, drawn in the orientation preview so the user can see
   // each player's home board and colours and flip until it matches the video.
@@ -75,6 +84,9 @@
       if (res?.Corners?.length === 4) {
         corners = res.Corners.map((c) => [...c])
         lens = res.Lens ?? null // a fresh detection replaces the whole estimate
+        // The fit adjudicated a colour hypothesis to find the board; that IS
+        // the board's palette, so take it rather than guess again (#64).
+        if (res.PointA) { pointA = res.PointA; pointB = res.PointB; felt = res.Felt }
         if (res.BarEdges?.length === 4) {
           const [TL, TR, BR, BL] = corners
           barFrac = {
@@ -100,6 +112,44 @@
       detectMsg = 'Auto-detect failed: ' + (e?.message || String(e)) + ' — place the handles by dragging.'
     }
     detecting = false
+  }
+
+  // samplePalette measures the five colours on the CURRENT frame through the
+  // handles as they stand — so it works before the first save, and on the
+  // manual calibration path, which is the one taken when detection fails.
+  // Explicit gesture: it fills the swatches, the user sees and can correct.
+  async function samplePalette() {
+    const fn = window.go?.main?.App?.SamplePalette
+    if (!fn) {
+      paletteMsg = 'Colour sampling unavailable in this build.'
+      return
+    }
+    if (corners.length !== 4) {
+      paletteMsg = 'Place the 4 corner handles first — the colours are read through them.'
+      return
+    }
+    sampling = true
+    paletteMsg = 'Reading the colours…'
+    try {
+      const tick = Math.round((videoEl?.currentTime ?? 0) * 1000)
+      const cal = { corners, barEdges: barEdges(), lens, version: 2 }
+      const p = await fn(tick, cal, checkerA, checkerB)
+      pointA = p.pointA || pointA
+      pointB = p.pointB || pointB
+      felt = p.felt || felt
+      if (p.hasCheckers) {
+        checkerA = p.checkerA
+        checkerB = p.checkerB
+        paletteMsg = 'Sampled — check the two checker colours below, and swap the players if they are the wrong way round.'
+      } else {
+        // Honest: the board colours were measured, the checker ones were not.
+        paletteMsg = 'Board colours sampled; no checkers stood out on this frame — seek to a frame with checkers on the points for those.'
+      }
+      drawFrame()
+    } catch (e) {
+      paletteMsg = 'Colour sampling failed: ' + (e?.message || String(e))
+    }
+    sampling = false
   }
 
   const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
@@ -146,6 +196,9 @@
         orientation = parseOrientation(initial.priors.orientation)
         checkerA = initial.priors.checkerA || checkerA
         checkerB = initial.priors.checkerB || checkerB
+        pointA = initial.priors.pointA || ''
+        pointB = initial.priors.pointB || ''
+        felt = initial.priors.felt || ''
       }
       videoUrl = initial.videoUrl || ''
       lens = initial.lens ?? null
@@ -319,6 +372,9 @@
         orientation: orientationName(orientation),
         checkerA,
         checkerB,
+        pointA,
+        pointB,
+        felt,
         cubeInPlay,
         crawford,
         jacoby,
@@ -409,8 +465,11 @@
         class="detect"
         on:click={() => { seedCalibration(false); detectMsg = 'Handles reset to the default inset.'; drawFrame() }}
       >Reset handles</button>
+      <button type="button" class="detect" on:click={samplePalette} disabled={sampling}>
+        {sampling ? 'Reading…' : 'Sample colours from this frame'}
+      </button>
       <span class="hint">
-        {#if detectMsg}{detectMsg}{:else}Drag the green corners and the orange bar handles until the grid matches the board.{/if}
+        {#if paletteMsg}{paletteMsg}{:else if detectMsg}{detectMsg}{:else}Drag the green corners and the orange bar handles until the grid matches the board.{/if}
       </span>
     </div>
     {#if lensActive(lens)}
@@ -426,7 +485,13 @@
     <h3>Orientation</h3>
     <div class="orient">
       <div class="orient-board">
-        <Board board={startBoard} {orientation} checkerColors={[checkerA, checkerB]} playerLabels={players} />
+        <Board
+          board={startBoard}
+          {orientation}
+          checkerColors={[checkerA, checkerB]}
+          playerLabels={players}
+          boardColors={{ pointA, pointB, felt }}
+        />
       </div>
       <div class="orient-controls">
         <p>

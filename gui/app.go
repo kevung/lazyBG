@@ -17,6 +17,7 @@ import (
 	"lazybg/internal/mediaserver"
 	"lazybg/internal/perceive/pointnet"
 	"lazybg/internal/proxy"
+	"lazybg/internal/corpus"
 	"lazybg/internal/session"
 )
 
@@ -309,6 +310,14 @@ func (a *App) Overlay(tickMs int) session.OverlayView {
 // quickly; the frontend fills the handles and the user refines by dragging.
 func (a *App) DetectCorners(tickMs int) (session.DetectedHandles, error) {
 	return a.service().DetectCorners(tickMs)
+}
+
+// SamplePalette measures the board's colours on the frame at tickMs, through
+// the calibration handles as they stand in the setup form (issue #64). An
+// explicit gesture: it fills the form's swatches, it never writes behind the
+// user's back.
+func (a *App) SamplePalette(tickMs int, cal corpus.Calibration, declA, declB string) (session.PaletteSample, error) {
+	return a.service().SamplePalette(tickMs, cal, declA, declB)
 }
 
 // ExportDialog asks where to save the .mat and writes both projections
