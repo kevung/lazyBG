@@ -4,7 +4,7 @@ import {
   canonicalSize, landmarks, canonicalGridLines, solveHomography, projectPoint,
   buildCalibration, projectCanonical, gridOnFrame, canonicalPointCenters, roiBBox,
   DEFAULT_CANONICAL, distortPoint, projectCanonicalLens, undistortPoint,
-  workspaceRect, clampToWorkspace, WORKSPACE_MARGIN,
+  workspaceRect, clampToWorkspace, WORKSPACE_MARGIN, canonicalCheckerSlots, checkerRadiusOnFrame,
 } from './calibration.js'
 
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`)
@@ -178,4 +178,40 @@ test('clampToWorkspace clamps per axis and leaves inside points untouched', () =
   assert.deepEqual(clampToWorkspace([-900, 400], r), [-150, 400]) // x only
   assert.deepEqual(clampToWorkspace([5000, -5000], r), [1150, -120])
   assert.deepEqual(clampToWorkspace([5, 5], null), [5, 5]) // no rect ⇒ no clamp
+})
+
+test('canonicalCheckerSlots stacks from the point base inward', () => {
+  // Top row (13..24) grows downward from the outer edge; bottom row upward.
+  const top = canonicalCheckerSlots(13, 3)
+  assert.deepEqual(top.map((s) => s[0]), [50, 50, 50]) // column centre
+  assert.deepEqual(top.map((s) => s[1]), [50, 110, 170]) // marginY + (k+0.5)*pointW
+  const bottom = canonicalCheckerSlots(1, 2)
+  assert.deepEqual(bottom.map((s) => s[0]), [750, 750])
+  assert.deepEqual(bottom.map((s) => s[1]), [750, 690]) // h - marginY - (k+0.5)*pointW
+})
+
+test('canonicalCheckerSlots compresses a stack too tall for the quadrant', () => {
+  // quadH 360 / pointW 60 holds 6 checkers; 9 must still fit inside the quad.
+  const slots = canonicalCheckerSlots(13, 9)
+  assert.equal(slots.length, 9)
+  const first = slots[0][1]
+  const last = slots[8][1]
+  assert.ok(first >= DEFAULT_CANONICAL.marginY, `first ${first} inside the quad`)
+  assert.ok(last <= DEFAULT_CANONICAL.marginY + DEFAULT_CANONICAL.quadH, `last ${last} inside the quad`)
+  // Still monotonic, still in stacking order.
+  for (let i = 1; i < slots.length; i++) assert.ok(slots[i][1] > slots[i - 1][1])
+})
+
+test('canonicalCheckerSlots returns nothing for an empty point', () => {
+  assert.deepEqual(canonicalCheckerSlots(13, 0), [])
+})
+
+test('checkerRadiusOnFrame measures the projected checker size', () => {
+  const identity = (x, y) => [x, y]
+  assert.equal(checkerRadiusOnFrame(identity, [100, 100]), DEFAULT_CANONICAL.pointW / 2)
+  // A projection that halves y halves the drawn checker.
+  const squashed = (x, y) => [x, y / 2]
+  assert.equal(checkerRadiusOnFrame(squashed, [100, 100]), DEFAULT_CANONICAL.pointW / 4)
+  // Never degenerates to zero, whatever the projection does.
+  assert.ok(checkerRadiusOnFrame(() => [0, 0], [100, 100]) >= 2)
 })

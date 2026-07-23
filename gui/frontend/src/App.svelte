@@ -9,7 +9,7 @@
   import VideoControls from './VideoControls.svelte'
   import { skip } from './lib/video.js'
   import {
-    gridOnFrame, buildCalibration, projectCanonicalLens, canonicalPointCenters, roiBBox,
+    gridOnFrame, buildCalibration, projectCanonicalLens, canonicalCheckerSlots, checkerRadiusOnFrame, roiBBox,
     DEFAULT_CANONICAL,
   } from './lib/calibration.js'
 
@@ -396,24 +396,33 @@
     const proj = (cx, cy) => tx(projectCanonicalLens(cal, calLens, [cx, cy]))
     const rad = Math.max(4, w / 45)
 
+    // The reading layer draws one disc PER CHECKER the learned reader counted,
+    // in the slot a real checker would occupy. A miscount then reads as a stack
+    // visibly too short or too tall against the frame underneath — you see the
+    // error instead of comparing a number to the pixels yourself. The count
+    // still labels the top of the stack, the outline stays confidence-coloured.
     if (overlayLayers.occupancy && ov.Points) {
-      const centers = canonicalPointCenters()
       for (let p = 1; p <= 24; p++) {
         const o = ov.Points[p]
         if (!o || o.Count === 0) continue
-        const [x, y] = proj(centers[p][0], centers[p][1])
-        ctx.beginPath()
-        ctx.arc(x, y, rad, 0, 2 * Math.PI)
-        ctx.fillStyle = o.Side === 2 ? '#f472b6cc' : '#38bdf8cc' // B=pink, A=blue
-        ctx.fill()
-        ctx.lineWidth = 2
+        const slots = canonicalCheckerSlots(p, o.Count)
+        const r = checkerRadiusOnFrame(proj, slots[0])
+        ctx.lineWidth = Math.max(1, r * 0.14)
         ctx.strokeStyle = o.Confidence < 0.5 ? '#ef4444' : '#22c55e' // low conf = red
-        ctx.stroke()
+        ctx.fillStyle = o.Side === 2 ? '#f472b6aa' : '#38bdf8aa' // B=pink, A=blue
+        for (const s of slots) {
+          const [x, y] = proj(s[0], s[1])
+          ctx.beginPath()
+          ctx.arc(x, y, r, 0, 2 * Math.PI)
+          ctx.fill()
+          ctx.stroke()
+        }
+        const [lx, ly] = proj(slots[slots.length - 1][0], slots[slots.length - 1][1])
         ctx.fillStyle = '#000'
-        ctx.font = `bold ${Math.round(rad * 1.3)}px sans-serif`
+        ctx.font = `bold ${Math.round(Math.max(8, r * 1.1))}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(String(o.Count), x, y)
+        ctx.fillText(String(o.Count), lx, ly)
       }
     }
     if (overlayLayers.discs && ov.Circles) {
@@ -422,7 +431,7 @@
       for (const c of ov.Circles) {
         const [x, y] = proj(c.X, c.Y)
         ctx.beginPath()
-        ctx.arc(x, y, rad * 0.9, 0, 2 * Math.PI)
+        ctx.arc(x, y, checkerRadiusOnFrame(proj, [c.X, c.Y]), 0, 2 * Math.PI)
         ctx.stroke()
       }
     }

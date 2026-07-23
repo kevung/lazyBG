@@ -224,6 +224,45 @@ export function canonicalPointCenters(cb = DEFAULT_CANONICAL) {
   return out
 }
 
+// canonicalCheckerSlots returns the canonical-space centre [x,y] of each of a
+// point's `count` checkers, in stacking order: outer edge first, growing toward
+// the felt band — down for the top row (13..24), up for the bottom row (1..12),
+// matching calibrate.PointRegion's StackDir.
+//
+// This is how the perception overlay draws what the LEARNED reader believes:
+// one disc per checker it counted, where a real checker would sit. Drawing the
+// reader's own belief is what keeps the overlay honest — the alternative, a
+// second unmeasured detector, drifts silently from the pipeline it depicts.
+//
+// A stack taller than the quadrant holds is compressed (real checkers overlap on
+// a crowded point too) so it never spills into the felt or off the board.
+export function canonicalCheckerSlots(p, count, cb = DEFAULT_CANONICAL) {
+  if (!(count > 0)) return []
+  const { h } = canonicalSize(cb)
+  const down = p >= 13
+  const x = colX(cb, down ? p - 13 : 12 - p) + cb.pointW / 2
+  const base = down ? cb.marginY : h - cb.marginY
+  const step = Math.min(cb.pointW, cb.quadH / count)
+  const out = new Array(count)
+  for (let k = 0; k < count; k++) {
+    const along = k * step + step / 2
+    out[k] = [x, down ? base + along : base - along]
+  }
+  return out
+}
+
+// checkerRadiusOnFrame returns the on-frame radius (in whatever pixels `proj`
+// returns) of a checker sitting at canonical point `pt`. It measures rather than
+// assumes: half the projected distance between two canonical points one checker
+// diameter apart, sampled at that spot, so a checker at the far end of a
+// perspective-squashed board draws smaller — exactly as it appears.
+export function checkerRadiusOnFrame(proj, pt, cb = DEFAULT_CANONICAL) {
+  const [x, y] = pt
+  const a = proj(x, y - cb.pointW / 2)
+  const b = proj(x, y + cb.pointW / 2)
+  return Math.max(2, Math.hypot(b[0] - a[0], b[1] - a[1]) / 2)
+}
+
 // WORKSPACE_MARGIN is how far outside the frame a calibration handle may sit,
 // as a fraction of the frame's width/height. It mirrors autocal.quadInBounds'
 // 0.15 (internal/autocal/autocal.go) on purpose: everything auto-calibration
