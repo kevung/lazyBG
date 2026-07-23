@@ -132,6 +132,18 @@ inheriting from the previous Part when the camera is unchanged. The stored forma
 legacy four-corner calibrations **migrate deterministically** (bar edges synthesised via the old
 homography) so they reproduce the old grid and re-calibrate to gain accuracy. Later: automatic
 calibration (`internal/autocal`) as a best-effort **seed** for the handles, never the final word.
+
+The eight points are coordinates of the **recorded frame** — the pixels as captured, lens
+distortion included. Undistortion belongs to *building* the calibration (`calibrate.NewFromHandles`
+undistorts them before fitting), never to placing or storing them. Anything drawing the grid back
+onto the frame must therefore re-apply the lens, or the drawn grid detaches from the handles it
+came from.
+
+They live in the **Calibration Workspace**: the frame expanded by **15 %** on every side — the same
+tolerance auto-calibration uses to judge a quad still plausibly a board. Wider than the frame
+because a tight capture legitimately crops the playing surface's corner (four corpus manifests
+carry one, and read correctly); bounded, because a handle further out is a failed detection, not a
+board, and a handle the user cannot see is a handle they cannot fix.
 *Rule: board reading is undefined without a Board Calibration.*
 
 ---

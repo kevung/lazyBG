@@ -100,6 +100,15 @@ the cells don't sit on the real triangles, drag until they do. The live grid is 
 the schematic prevents the first mistake. Automatic corner detection, when added, only *seeds* the
 handles — never the final word.
 
+**The drawing area is the Calibration Workspace, not the video frame** (`domain-model.md` §Board
+Calibration): the frame plus a 15 % margin, drawn as a neutral band around a bordered video. A
+corner may legitimately sit just outside a tightly cropped capture, and it stays visible and
+draggable there — a handle beyond the canvas is a handle the user cannot get back. A detection
+overshooting the workspace is **pulled back and announced** ("the detected board runs past the
+frame — fix the handles, or this video does not show the whole board"): the app cannot tell a
+runaway fit from a cropped board, but it must stay silent about neither. A **"Reset handles"**
+action restores the default inset in one gesture, since "Cancel" is not offered on a first setup.
+
 **Orientation is declared WYSIWYG, by mirroring** (ADR-0006) — not a dropdown. The
 orientation-aware reconstructed board is shown beside the video frame with two **mirror buttons**
 (horizontal / vertical = the four dihedral states); the user flips the synthetic board until it
