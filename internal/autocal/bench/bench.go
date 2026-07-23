@@ -159,7 +159,7 @@ func RunCapture(root string, m corpus.Manifest) CaptureResult {
 	out.OpeningTickMs = tick
 	out.ScoreManual = scoreManual
 
-	corners, barEdges, detLens, err := autocal.DetectHandles(video, tick, o)
+	corners, barEdges, detLens, _, err := autocal.DetectHandles(video, tick, o)
 	if err != nil {
 		out.Err = fmt.Sprintf("detect: %v", err)
 		return out

@@ -28,6 +28,11 @@
     // When set, they override the defaults so the board matches the video — the
     // WYSIWYG orientation control relies on this (issue #37).
     checkerColors = null,
+    // Optional measured board palette {pointA, pointB, felt} (#64). When set,
+    // the reconstruction wears the capture's own colours instead of the
+    // neutral wooden default, so the two panels differ only where the reading
+    // does. Any field may be empty — each falls back on its own.
+    boardColors = null,
   } = $props()
 
   const CFG = {
@@ -82,8 +87,16 @@
 
   // Redraw whenever the data, orientation, or the canvas size changes.
   $effect(() => {
-    board, cube, score, orientation, playerLabels
+    board, cube, score, orientation, playerLabels, checkerColors, boardColors
     draw()
+  })
+
+  // Board paint: the measured palette when there is one, else the neutral
+  // default. Felt doubles as the surface behind the triangles.
+  const paint = () => ({
+    felt: boardColors?.felt || CFG.boardFill,
+    triA: boardColors?.pointA || CFG.triFill1,
+    triB: boardColors?.pointB || CFG.triFill2,
   })
 
   function draw() {
@@ -107,15 +120,16 @@
     const slotOf = (p) => colOf(p) - 6 // ±1..±6, never 0 (the bar)
     const onTop = (p) => isTop(p)
 
+    const pal = paint()
     const bgRect = two.makeRectangle(W / 2, H / 2, boardW, boardH)
-    bgRect.fill = CFG.boardFill
+    bgRect.fill = pal.felt
     bgRect.noStroke()
     const tray = two.makeRectangle(xOf(7), H / 2, u, boardH)
-    tray.fill = CFG.tray
+    tray.fill = outlineOf(pal.felt)
     tray.noStroke()
 
     if (board) {
-      drawTriangles(xOf, slotOf, onTop, yTop, yBot, u)
+      drawTriangles(xOf, slotOf, onTop, yTop, yBot, u, pal)
       drawCheckers(xOf, slotOf, onTop, yTop, yBot, r)
       drawBarAndOff(xOf, cx, mid, yTop, yBot, u, r)
     }
@@ -129,14 +143,14 @@
     two.update()
   }
 
-  function drawTriangles(xOf, slotOf, onTop, yTop, yBot, u) {
+  function drawTriangles(xOf, slotOf, onTop, yTop, yBot, u, pal) {
     for (let p = 1; p <= 24; p++) {
       const cx = xOf(slotOf(p))
       const half = u * 0.44
       const tri = onTop(p)
         ? two.makePath(cx - half, yTop, cx + half, yTop, cx, yTop + 5 * u)
         : two.makePath(cx - half, yBot, cx + half, yBot, cx, yBot - 5 * u)
-      tri.fill = p % 2 === 0 ? CFG.triFill1 : CFG.triFill2
+      tri.fill = p % 2 === 0 ? pal.triA : pal.triB
       tri.stroke = CFG.triStroke
       tri.linewidth = 1
     }

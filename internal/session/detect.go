@@ -7,6 +7,7 @@ package session
 
 import (
 	"fmt"
+	"image/color"
 	"log"
 	"math"
 
@@ -85,6 +86,21 @@ type DetectedHandles struct {
 	// explicit message: either the detection ran off, or the video does not
 	// show the whole board — it cannot tell which, but it must not stay silent.
 	Clamped bool
+	// PointA/PointB/Felt are the board's own colours, as hex — the hypothesis
+	// the winning fit was found under, so they are measured and already
+	// adjudicated rather than guessed a second time (#64). Empty when the
+	// detection fell back to a quad with no colour hypothesis behind it.
+	PointA string
+	PointB string
+	Felt   string
+}
+
+// hexOf renders a measured colour as "#rrggbb", or "" for the zero colour.
+func hexOf(c color.RGBA) string {
+	if c == (color.RGBA{}) {
+		return ""
+	}
+	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
 }
 
 // DetectCorners detects the eight calibration handles on the frame at tickMs and
@@ -99,14 +115,21 @@ func (s *Service) DetectCorners(tickMs int) (DetectedHandles, error) {
 	if video == "" {
 		return DetectedHandles{}, fmt.Errorf("no video to detect from")
 	}
-	corners, barEdges, lens, err := autocal.DetectHandles(video, tickMs, autocal.DefaultOptions())
+	corners, barEdges, lens, colors, err := autocal.DetectHandles(video, tickMs, autocal.DefaultOptions())
 	if err != nil {
 		log.Printf("DetectCorners @%dms: %v", tickMs, err)
 		return DetectedHandles{}, err
 	}
 	w, h := frameSize(video, tickMs)
 	corners, barEdges, clamped := clampHandles(corners, barEdges, w, h)
-	out := DetectedHandles{Corners: make([][2]float64, 4), BarEdges: make([][2]float64, 4), Clamped: clamped}
+	out := DetectedHandles{
+		Corners:  make([][2]float64, 4),
+		BarEdges: make([][2]float64, 4),
+		Clamped:  clamped,
+		PointA:   hexOf(colors.PointA),
+		PointB:   hexOf(colors.PointB),
+		Felt:     hexOf(colors.Felt),
+	}
 	if lens.K1 != 0 || lens.K2 != 0 {
 		out.Lens = &corpus.Lens{K1: lens.K1, K2: lens.K2, CenterX: lens.CenterX, CenterY: lens.CenterY, Norm: lens.Norm}
 	}

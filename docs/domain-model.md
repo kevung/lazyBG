@@ -100,7 +100,11 @@ Fields (all optional; each present prior tightens perception and raises baseline
   One `Transform()` owns the mirror (bar stays centered, off tray flips with the home) and
   provably never exchanges the two rows. See ADR-0006 and ADR-0009. *(Supersedes the old
   `p1-right`/`p1-left`/`p1-bottom` and the four-value `p1-home-*-*` strings.)*
-- **Board color scheme** — surface, point colors, checker colors (drives color-segmentation).
+- **Board color scheme** — felt, the two point-triangle colors, checker colors (drives
+  color-segmentation, and paints the reconstructed board so it can be compared to the video at a
+  glance). Still **declared**: measuring them from the capture (an explicit "sample colours from
+  this frame" gesture, issue #64) is an *input method*, not a competing authority — one value is
+  stored, the user sees what was read and can correct it.
 - **Players** — names and checker colors, for the `.mat` metadata. **Player 1 is the bottom
   player**; `checkerA` is therefore the bottom player's colour (ADR-0009).
 - **Match length** — target score (e.g. 7-point match), and rule flags (**Crawford**, **Jacoby**,

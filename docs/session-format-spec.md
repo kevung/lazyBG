@@ -66,6 +66,11 @@ use case.
 **Schema versioning: a `SchemaVersion` int field**, mirroring `corpus.Manifest` exactly — no new
 strategy needed, same precedent extended.
 
+**Board colours live in the Part's priors**: `checkerA`/`checkerB` (the two players', A being the
+bottom player's) plus `pointA`/`pointB`/`felt` (the board's own). All five may be measured from the
+capture and all five stay user-editable — an absent board colour just means the renderer's neutral
+default.
+
 **Exchanging the two players is a document-level operation.** Player 1 is the player at the bottom
 of the video (ADR-0009), so getting the near player into the "Player 1" slot is a rename — and the
 rename has to carry everything that is *per player*:

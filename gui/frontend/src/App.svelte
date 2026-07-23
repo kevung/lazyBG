@@ -309,6 +309,9 @@
   // Declared player names, printed on their own side of the reconstructed
   // board — Player 1 on the bottom row, always (ADR-0009).
   let playerLabels = null
+  // Measured board palette (#64) — the reconstruction wears the capture's own
+  // colours so the side-by-side comparison has nothing spurious in it.
+  let boardColors = null
 
   // Perception Overlay (#36, domain-model §3): calibration grid + detections
   // drawn on the ROI-cropped frame, recomputed only on a stabilised frame.
@@ -338,6 +341,9 @@
       calLens = s?.lens ?? null
       if (s?.priors?.checkerA) checkerColors = [s.priors.checkerA, s.priors.checkerB]
       if (s?.players?.[0]) playerLabels = [...s.players]
+      boardColors = s?.priors?.pointA
+        ? { pointA: s.priors.pointA, pointB: s.priors.pointB, felt: s.priors.felt }
+        : null
       overlayCache.clear()
     } catch { /* non-fatal */ }
   }
@@ -801,7 +807,7 @@
             <button class="linklike" on:click={backToLive}>back to live</button>
           {/if}
         </h4>
-        <Board board={boardState ?? START_BOARD} {cube} {score} {orientation} {checkerColors} {playerLabels} />
+        <Board board={boardState ?? START_BOARD} {cube} {score} {orientation} {checkerColors} {playerLabels} {boardColors} />
       </div>
       <div class="board-half">
         <h4>

@@ -49,6 +49,14 @@ type Priors struct {
 	MatchLength int    `json:"matchLength,omitempty"`
 	CheckerA    string `json:"checkerA,omitempty"`
 	CheckerB    string `json:"checkerB,omitempty"`
+	// PointA/PointB/Felt are the board's own colours — the two alternating
+	// point triangles and the playing surface. Measured from the capture
+	// (issue #64) so the reconstructed board can wear the same palette as the
+	// video and the only remaining difference between the two panels is the
+	// reading error. Empty = the renderer's neutral default.
+	PointA string `json:"pointA,omitempty"`
+	PointB string `json:"pointB,omitempty"`
+	Felt   string `json:"felt,omitempty"`
 	Orientation string `json:"orientation,omitempty"`
 	// ClockROI is the chess clock's box in frame coordinates
 	// (x0,y0,x1,y1) — the clock-hit commit detector's search region.
