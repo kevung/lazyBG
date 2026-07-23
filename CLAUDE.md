@@ -39,6 +39,17 @@ and are rebuilding everything else on clean foundations.
 - **The labeling machine is live** (`lazybg align`): truth-forced monotonic alignment anchors a
   `.mat` to its video (per-turn ticks written into `corpus/manifest/*.json`) and extracts
   labeled per-point training crops (`corpus/crops/<id>/`).
+- **Auto-calibration is measured and ratcheted** (ADR-0008, issues #49–#59): `internal/autocal`
+  detects the 8 calibration handles by a correspondence fit (triangle apexes + outer-edge lines,
+  seed-free bootstrap anchored on the bar gap, color hypotheses adjudicated by the fit, lens
+  k1+k2 with nested admission, nearby-instant probing with cross-instant confirmation). The
+  multi-capture bench (`TestRealCorpus_AutocalBench`, baseline committed in
+  `internal/e2e/testdata/autocal_baseline.json`, bit-deterministic) sits at ~10.7/24 mean auto
+  opening score over 22 captures — zero hard failures — vs ~18/24 with hand-placed handles;
+  `Calibrate` reaches 20/24 on the pilot. NEVER tune detection without re-running the bench
+  (regenerate: `LAZYBG_AUTOCAL_BASELINE=write`; from a worktree point videos via
+  `LAZYBG_CORPUS_ROOT`). The GUI's Detect button seeds all 8 handles + lens; the overlay draws
+  the grid through the lens (honest curves).
 - **The learned point reader exists end-to-end**: `ml/` trains a tiny CNN on the aligned crops
   (89% per-crop on held-out games from the pilot's 1464 crops), exports ONNX + a flat weight
   file, and `internal/perceive/pointnet` runs it in pure Go (no cgo, torch-parity-tested);
