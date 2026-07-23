@@ -10,6 +10,7 @@
   import Two from 'two.js'
   import { onMount } from 'svelte'
   import { isTop, colOf, stack, flipH, flipV } from './lib/boardGeometry.js'
+  import { labelOn, outlineOf } from './lib/checkerColors.js'
 
   let {
     board = null,
@@ -28,9 +29,12 @@
     triFill1: '#8a6b4f',
     triFill2: '#5c4433',
     triStroke: '#00000055',
-    checker: ['#2a2320', '#e7e0d5'], // [owner0 dark, owner1 light]
-    checkerStroke: ['#000000', '#7c7266'],
-    checkerLabel: ['#e7e0d5', '#2a2320'],
+    // Fallback fills when no colours are declared, in SetupPanel's order
+    // (P1 light, P2 dark) — a table in the other order painted P1 in the
+    // colour the form had just assigned to P2 (#62). The rim and the stack
+    // digit are NOT tabulated: they are derived from whichever fill actually
+    // ends up on the checker, declared or not.
+    checker: ['#e7e0d5', '#31221c'], // [owner0 = P1, owner1 = P2]
     barLine: '#000000',
     text: '#cbb79a',
     cubeFill: '#efe9dd',
@@ -151,13 +155,14 @@
 
   function placeChecker(cx, cy, r, owner, label) {
     const c = two.makeCircle(cx, cy, r)
-    c.fill = checkerColors?.[owner] ?? CFG.checker[owner] ?? CFG.checker[0]
-    c.stroke = CFG.checkerStroke[owner] ?? '#000'
+    const fill = checkerColors?.[owner] ?? CFG.checker[owner] ?? CFG.checker[0]
+    c.fill = fill
+    c.stroke = outlineOf(fill)
     c.linewidth = 1.5
     if (label) {
       const t = two.makeText(String(label), cx, cy)
       t.size = r
-      t.fill = CFG.checkerLabel[owner] ?? '#fff'
+      t.fill = labelOn(fill)
       t.alignment = 'center'
       t.baseline = 'middle'
     }
