@@ -18,13 +18,19 @@
 
 TAGS := lazybggui webkit2_41
 
-.PHONY: dev build clean
+.PHONY: dev build test clean
 
 dev: ## Run the app with hot reload
 	wails dev -tags "$(TAGS)"
 
 build: ## Build the production binary (build/bin/lazybg-gui)
 	wails build -tags "$(TAGS)"
+
+# The frontend's pure logic (lib/) is unit-tested with node:test — no browser,
+# no webkit, no wails CLI needed. Nothing ran these before; they are the only
+# automatic coverage the Svelte side has.
+test: ## Run the frontend unit tests
+	cd frontend && npm test
 
 clean:
 	rm -rf build/bin

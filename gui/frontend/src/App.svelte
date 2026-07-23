@@ -391,7 +391,7 @@
 
     const ov = overlayCache.get(currentTickMs())
     if (!ov || !ov.OK) return
-    const cal = buildCalibration(calCorners, calBarEdges)
+    const cal = buildCalibration(calCorners, calBarEdges, DEFAULT_CANONICAL, calLens)
     if (!cal) return
     const proj = (cx, cy) => tx(projectCanonicalLens(cal, calLens, [cx, cy]))
     const rad = Math.max(4, w / 45)
