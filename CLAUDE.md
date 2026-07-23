@@ -50,12 +50,17 @@ and are rebuilding everything else on clean foundations.
   (regenerate: `LAZYBG_AUTOCAL_BASELINE=write`; from a worktree point videos via
   `LAZYBG_CORPUS_ROOT`). The GUI's Detect button seeds all 8 handles + lens; the overlay draws
   the grid through the lens (honest curves).
-- **The learned point reader exists end-to-end**: `ml/` trains a tiny CNN on the aligned crops
-  (89% per-crop on held-out games from the pilot's 1464 crops), exports ONNX + a flat weight
-  file, and `internal/perceive/pointnet` runs it in pure Go (no cgo, torch-parity-tested);
-  `transcribe.RunOptions.ModelPath` swaps it in (model embedded from `data/models/`). It already
-  beats the classical baseline on blind transcription (3 vs 0 matched plies over the pilot's
-  first minutes) but needs **more corpus manifests** (diversity) to lift auto-fill coverage.
+- **The learned point reader is trained on the full corpus and saturated**: `ml/` trains a tiny
+  CNN on the aligned crops — currently 45.8k crops / 21 recordings / 5 venues, held-out BY
+  RECORDING at **98.1% per-crop** (retrain #3; the pilot-only 89% era is long past) — exports
+  ONNX + a flat weight file, and `internal/perceive/pointnet` runs it in pure Go (no cgo,
+  torch-parity-tested); the embedded `data/models/pointreader.bin` is the measured winner of the
+  issue-#40 A/B duels (candidates with identical per-crop scores lost the blind-transcription
+  duel, so per-crop accuracy no longer discriminates — only the e2e duel does). Auto-fill
+  coverage is NOT blocked by these weights anymore: the measured blocker is the dice-value cue
+  (issue #40; pending hand labels in `corpus/dicescan/`). Beware: the pilot exists under two
+  manifest ids (`hsbtMars2025-main-r1` and `2025-05_hsbtMarseille_main-r1_PavicevicNina`) —
+  retrains must exclude one (handled by `tools/retrain.sh --exclude-recordings`).
 - **The learned dice-value cue ships by default**: `internal/perceive/dienet` (pure Go,
   torch-parity-tested) runs the DieNet7 classifier trained on 1325 hand-labeled die-box crops
   (65% per-die, 99.6% junk rejection on held-out recordings) over diceevent boxes, feeding the
