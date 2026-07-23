@@ -168,10 +168,43 @@ func Open(lbgPath string) (*Service, string, error) {
 	if len(doc.Parts) == 0 {
 		return nil, "", fmt.Errorf("%s: no video part", lbgPath)
 	}
+	// A document written before ADR-0009 could put Player 1 on the top row
+	// ("p1-home-top-*"), the only gesture the old UI offered for "the other
+	// player is the near one". Under the current rule Player 1 IS the bottom
+	// player, so reading such a document means exchanging its two players —
+	// names, colours, every ply and every game result.
+	doc.migrateLegacyTopOrientation()
 
 	s := New()
 	s.lbgPath = lbgPath
 	s.doc = &doc
+	if err := s.rebuildFromDoc(); err != nil {
+		return nil, "", fmt.Errorf("%s: %w", lbgPath, err)
+	}
+
+	warn := ""
+	part := doc.Parts[0]
+	if fp, err := Fingerprint(part.File); err != nil {
+		warn = fmt.Sprintf("video file %s is missing or unreadable (%v) — fix the path to keep transcribing; the transcription itself is intact", part.File, err)
+	} else if fp != part.Fingerprint {
+		warn = fmt.Sprintf("video file %s does not match the recorded fingerprint — it may have been replaced or re-encoded; ticks may no longer line up", part.File)
+	}
+	return s, warn, nil
+}
+
+// rebuildFromDoc derives every in-memory state from s.doc: match metadata, the
+// board chain (by replaying the recorded turns), alternation, cube and review
+// queue. Open uses it to resume; SwapPlayers uses it to re-derive after
+// exchanging the two players in the document. The seams wired by callers
+// (video reader, grabber) are deliberately untouched.
+func (s *Service) rebuildFromDoc() error {
+	doc := s.doc
+	s.match = bg.Match{Games: []bg.Game{{Number: 1}}, Players: s.match.Players}
+	s.board = bg.StandardStart()
+	s.cube = cubeState{value: 1}
+	s.onRoll = bg.P1
+	s.pending = nil
+	s.obs = nil
 	if doc.Players[0] != "" {
 		s.match.Players = doc.Players
 	}
@@ -227,7 +260,7 @@ func Open(lbgPath string) (*Service, string, error) {
 		if !t.CannotMove && t.Notation != "" {
 			board, err := derive.ApplyNotation(s.board, bg.Player(t.Player), t.Notation)
 			if err != nil {
-				return nil, "", fmt.Errorf("%s: replay turn %d (%s): %w", lbgPath, i+1, t.Notation, err)
+				return fmt.Errorf("replay turn %d (%s): %w", i+1, t.Notation, err)
 			}
 			s.board = board
 		}
@@ -248,15 +281,76 @@ func Open(lbgPath string) (*Service, string, error) {
 		}
 	}
 	s.reviews = append([]LBGReview(nil), doc.Review...)
+	return nil
+}
 
-	warn := ""
-	part := doc.Parts[0]
-	if fp, err := Fingerprint(part.File); err != nil {
-		warn = fmt.Sprintf("video file %s is missing or unreadable (%v) — fix the path to keep transcribing; the transcription itself is intact", part.File, err)
-	} else if fp != part.Fingerprint {
-		warn = fmt.Sprintf("video file %s does not match the recorded fingerprint — it may have been replaced or re-encoded; ticks may no longer line up", part.File)
+// SwapPlayers exchanges the two players of the whole session: names, declared
+// checker colours (in every Part), every recorded ply's player, and every
+// closed game's winner — the score being derived from those. It is the gesture
+// behind the setup panel's "swap the two players", and the second half of
+// migrating a pre-ADR-0009 document.
+//
+// Notation is stored player-relative (see derive.parsePlays), so no move is
+// rewritten: replaying the same notations with the players exchanged yields the
+// mirrored board, which is exactly the intent. The operation is an involution.
+func (s *Service) SwapPlayers() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.doc == nil {
+		s.match.Players[0], s.match.Players[1] = s.match.Players[1], s.match.Players[0]
+		return nil
 	}
-	return s, warn, nil
+	s.doc.swapPlayers()
+	if err := s.rebuildFromDoc(); err != nil {
+		return err
+	}
+	return s.save()
+}
+
+// swapPlayers exchanges the two players in the document. Everything per-player
+// moves; notation, candidates, cube actions ("double"/"take"/"drop", read
+// relative to the mover) and review entries do not.
+func (d *LBG) swapPlayers() {
+	d.Players[0], d.Players[1] = d.Players[1], d.Players[0]
+	for i := range d.Parts {
+		p := &d.Parts[i].Priors
+		p.CheckerA, p.CheckerB = p.CheckerB, p.CheckerA
+	}
+	d.swapPlies()
+}
+
+// swapPlies moves the recorded play to the other player: who played each turn,
+// and who won each closed game (the displayed score is derived from it). It is
+// the half of a swap that the setup form cannot do itself — the form already
+// holds the exchanged names and colours, but the plies live in the document.
+func (d *LBG) swapPlies() {
+	for i := range d.Turns {
+		d.Turns[i].Player ^= 1
+	}
+	for i := range d.Results {
+		d.Results[i].Winner ^= 1
+	}
+}
+
+// migrateLegacyTopOrientation rewrites a document written under the pre-ADR-0009
+// four-value model with Player 1 on the top row. Dropping the vertical mirror
+// keeps the home boards on their side; exchanging the two players restores who
+// is who. Documents already under the current rule are untouched.
+func (d *LBG) migrateLegacyTopOrientation() {
+	legacy := false
+	for _, p := range d.Parts {
+		if bg.LegacyTopOrientation(p.Priors.Orientation) {
+			legacy = true
+		}
+	}
+	if !legacy {
+		return
+	}
+	d.swapPlayers()
+	for i := range d.Parts {
+		o, _ := bg.ParseOrientation(d.Parts[i].Priors.Orientation)
+		d.Parts[i].Priors.Orientation = o.String()
+	}
 }
 
 // save writes the document atomically (temp file + rename).

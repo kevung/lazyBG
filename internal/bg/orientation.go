@@ -2,77 +2,76 @@ package bg
 
 // Orientation is the board's on-screen orientation relative to the canonical
 // numbering — a Capture Profile prior (docs/domain-model.md §Capture Profile,
-// ADR-0006). It names the video quadrant that holds Player 1's home (inner)
-// board. The core (Board, engine, .mat) always uses the canonical numbering
-// (P1 home = points 1..6, bottom-right); Orientation is applied ONLY at the two
-// boundaries — perception-in (observed region -> canonical point) and
-// display-out (canonical point -> on-screen position). It never enters the core.
+// ADR-0006, ADR-0009). The core (Board, engine, .mat) always uses the canonical
+// numbering (P1 home = points 1..6, bottom-right); Orientation is applied ONLY
+// at the two boundaries — perception-in (observed region -> canonical point)
+// and display-out (canonical point -> on-screen position). It never enters the
+// core.
 //
-// The four values are the dihedral configurations preserving the "bar in the
-// middle, two rows" structure. Each is an involution (its own inverse), so the
-// same TransformPoint maps position->point and point->position.
+// **Player 1 is the player at the bottom of the video, by definition**
+// (ADR-0009). Who is called "Player 1" is a naming convention, not a fact read
+// off the capture: when the near player is the one entered second, the fix is
+// to exchange the two players, not to turn the board over. Only the left/right
+// mirror is therefore left — the direction of play, i.e. which half holds the
+// two home boards.
 type Orientation int
 
 const (
-	// P1HomeBottomRight is the canonical reference (identity): Player 1's home
-	// board is in the bottom-right quadrant, matching bg.Board's numbering.
-	P1HomeBottomRight Orientation = iota
-	// P1HomeBottomLeft is the horizontal mirror.
-	P1HomeBottomLeft
-	// P1HomeTopRight is the vertical mirror.
-	P1HomeTopRight
-	// P1HomeTopLeft is the 180° rotation.
-	P1HomeTopLeft
+	// P1HomeRight is the canonical reference (identity): the home boards are
+	// in the right half, Player 1's in the bottom-right quadrant, matching
+	// bg.Board's numbering.
+	P1HomeRight Orientation = iota
+	// P1HomeLeft is the horizontal mirror: the home boards are in the left
+	// half, Player 1's in the bottom-left quadrant.
+	P1HomeLeft
 )
 
-// The two bits: bit 0 = horizontal mirror, bit 1 = vertical mirror.
+// flipH reports whether o mirrors left<->right.
 func (o Orientation) flipH() bool { return o&1 != 0 }
-func (o Orientation) flipV() bool { return o&2 != 0 }
 
-// AllOrientations returns the four orientations in canonical order.
+// AllOrientations returns the orientations in canonical order.
 func AllOrientations() []Orientation {
-	return []Orientation{P1HomeBottomRight, P1HomeBottomLeft, P1HomeTopRight, P1HomeTopLeft}
+	return []Orientation{P1HomeRight, P1HomeLeft}
 }
 
 // String renders the stable machine form used for persistence.
 func (o Orientation) String() string {
-	switch o {
-	case P1HomeBottomRight:
-		return "p1-home-bottom-right"
-	case P1HomeBottomLeft:
-		return "p1-home-bottom-left"
-	case P1HomeTopRight:
-		return "p1-home-top-right"
-	case P1HomeTopLeft:
-		return "p1-home-top-left"
+	if o == P1HomeLeft {
+		return "p1-home-left"
 	}
-	return "p1-home-bottom-right"
+	return "p1-home-right"
 }
 
-// ParseOrientation maps a stored string onto the enum. It accepts the canonical
-// String() forms and migrates the three legacy vocabularies (ADR-0006):
-// "p1-right"/"p1-bottom" -> P1HomeBottomRight, "p1-left" -> P1HomeBottomLeft.
-// The legacy forms only ever encoded the bearing side (P1 implicitly bottom).
+// ParseOrientation maps a stored string onto the enum, migrating every
+// vocabulary this repo has written: "p1-right"/"p1-bottom"/"" and the
+// four-value "p1-home-bottom-right" -> P1HomeRight, "p1-left" and
+// "p1-home-bottom-left" -> P1HomeLeft.
+//
+// The two "p1-home-top-*" forms also land on the side that keeps the home
+// boards where they were — but that is only half of reading such a document,
+// because its Player 1 is the top player. Callers holding a whole session must
+// additionally exchange the players; LegacyTopOrientation reports exactly that
+// case.
 func ParseOrientation(s string) (Orientation, bool) {
 	switch s {
-	case "p1-home-bottom-right", "p1-right", "p1-bottom", "":
-		return P1HomeBottomRight, true
-	case "p1-home-bottom-left", "p1-left":
-		return P1HomeBottomLeft, true
-	case "p1-home-top-right":
-		return P1HomeTopRight, true
-	case "p1-home-top-left":
-		return P1HomeTopLeft, true
+	case "p1-home-right", "p1-home-bottom-right", "p1-home-top-right", "p1-right", "p1-bottom", "":
+		return P1HomeRight, true
+	case "p1-home-left", "p1-home-bottom-left", "p1-home-top-left", "p1-left":
+		return P1HomeLeft, true
 	}
-	return P1HomeBottomRight, false
+	return P1HomeRight, false
 }
 
-// FlipHorizontal returns the orientation mirrored left↔right (for the WYSIWYG
-// mirror control, issue #37).
-func (o Orientation) FlipHorizontal() Orientation { return o ^ 1 }
+// LegacyTopOrientation reports that s was written under the pre-ADR-0009 model
+// with Player 1 on the top row. Such a document's players must be exchanged to
+// be read under the current rule (see session.SwapPlayers).
+func LegacyTopOrientation(s string) bool {
+	return s == "p1-home-top-right" || s == "p1-home-top-left"
+}
 
-// FlipVertical returns the orientation mirrored top↔bottom.
-func (o Orientation) FlipVertical() Orientation { return o ^ 2 }
+// FlipHorizontal returns the orientation mirrored left<->right — the single
+// WYSIWYG mirror control (issue #37, ADR-0009).
+func (o Orientation) FlipHorizontal() Orientation { return o ^ 1 }
 
 // pointToCell maps a canonical point (1..24) to its grid cell under the identity
 // orientation, matching the calibrate canonical board: top row 13..24 fill
@@ -101,7 +100,8 @@ func cellToPoint(col int, top bool) int {
 //     TransformPoint(p).
 //
 // Points outside 1..24 (bar/off sentinels) pass through unchanged — orientation
-// never renumbers the bar or the bearoff tray.
+// never renumbers the bar or the bearoff tray. Rows are never exchanged, which
+// is what keeps Player 1 at the bottom.
 func (o Orientation) TransformPoint(p int) int {
 	if p < 1 || p > 24 {
 		return p
@@ -109,9 +109,6 @@ func (o Orientation) TransformPoint(p int) int {
 	col, top := pointToCell(p)
 	if o.flipH() {
 		col = 11 - col
-	}
-	if o.flipV() {
-		top = !top
 	}
 	return cellToPoint(col, top)
 }

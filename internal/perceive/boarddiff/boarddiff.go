@@ -97,7 +97,7 @@ func Decide(pre bg.Position, post perceive.ObservedBoard, observedDice *bg.Dice,
 // perception-in boundary calls it right after the board reader, so every
 // downstream consumer sees a canonically-numbered board (P1 home = 1..6).
 func Reorient(ob perceive.ObservedBoard, o bg.Orientation) perceive.ObservedBoard {
-	if o == bg.P1HomeBottomRight {
+	if o == bg.P1HomeRight {
 		return ob // identity fast path
 	}
 	var out perceive.ObservedBoard
