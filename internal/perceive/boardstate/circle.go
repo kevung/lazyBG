@@ -21,6 +21,54 @@ type CircleReader struct {
 	Params  checker.Params // detector tuning; zero value uses checker defaults
 }
 
+// DiscParams is the disc-detector tuning the shipped readers run with (the value
+// both the transcribe runner and auto-calibration pass). Exported so the GUI's
+// perception overlay draws the discs the pipeline actually sees rather than a
+// differently-tuned second opinion.
+var DiscParams = checker.Params{PeakFrac: 0.38}
+
+// discMargin pads a point region before detection so a disc whose rim straddles
+// the region edge still gathers its votes.
+const discMargin = 4
+
+// DetectDiscs returns the checker discs found in each point's stack region,
+// indexed 1..24, in img (rectified) coordinates.
+//
+// It detects region by region rather than in one board-wide pass on purpose.
+// checker's thresholds are relative to the image it is handed — rim candidates
+// at EdgeFrac × the max gradient, centres at PeakFrac × the max accumulator — so
+// a board-wide pass lets the single highest-contrast disc set the bar for the
+// whole board and silence every dimmer one (measured on the pilot's settled
+// opening: 21 discs for 30 checkers, four of them on no point at all). Per
+// region, "contrast-relative" means relative to that point's own contrast, which
+// is the behaviour the detector was designed for.
+//
+// Detections are binned back to the region that owns them, so the padding never
+// reports a disc twice.
+func DetectDiscs(img image.Image, cb calibrate.CanonicalBoard, radius int, p checker.Params) [25][]checker.Circle {
+	var out [25][]checker.Circle
+	for pt := 1; pt <= 24; pt++ {
+		region, _ := cb.PointRegion(pt)
+		out[pt] = detectInRegion(img, region, radius, p)
+	}
+	return out
+}
+
+// detectInRegion runs the disc detector over one padded point region and returns
+// the centres that belong to it, in img coordinates.
+func detectInRegion(img image.Image, region image.Rectangle, radius int, p checker.Params) []checker.Circle {
+	crop := region.Inset(-discMargin).Intersect(img.Bounds())
+	var out []checker.Circle
+	for _, c := range checker.DetectWith(toGray(img, crop), radius, p) {
+		ix, iy := crop.Min.X+c.X, crop.Min.Y+c.Y
+		if !image.Pt(ix, iy).In(region) { // bin to this point only
+			continue
+		}
+		out = append(out, checker.Circle{X: ix, Y: iy, Score: c.Score})
+	}
+	return out
+}
+
 // Read produces an ObservedBoard for points 1..24 from the rectified image.
 func (cr CircleReader) Read(img image.Image, cb calibrate.CanonicalBoard) perceive.ObservedBoard {
 	r := cr.Radius
@@ -35,22 +83,12 @@ func (cr CircleReader) Read(img image.Image, cb calibrate.CanonicalBoard) percei
 	return ob
 }
 
-// readPoint detects discs within a point's region (padded so rim pixels at the
-// region edge still vote) and assigns the owning side by the majority of the
-// detected discs' centre colours.
+// readPoint detects discs within a point's region and assigns the owning side by
+// the majority of the detected discs' centre colours.
 func (cr CircleReader) readPoint(img image.Image, region image.Rectangle, r int) perceive.PointObs {
-	const margin = 4
-	crop := region.Inset(-margin).Intersect(img.Bounds())
-	gray := toGray(img, crop)
-	circles := checker.DetectWith(gray, r, cr.Params)
-
 	var aVotes, bVotes int
-	for _, c := range circles {
-		ix, iy := crop.Min.X+c.X, crop.Min.Y+c.Y
-		if !image.Pt(ix, iy).In(region) { // bin to this point only
-			continue
-		}
-		if nearestSide(img.At(ix, iy), cr.Profile) == perceive.A {
+	for _, c := range detectInRegion(img, region, r, cr.Params) {
+		if nearestSide(img.At(c.X, c.Y), cr.Profile) == perceive.A {
 			aVotes++
 		} else {
 			bVotes++

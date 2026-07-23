@@ -16,7 +16,7 @@ import (
 	"image/color"
 
 	"lazybg/internal/perceive"
-	"lazybg/internal/perceive/checker"
+	"lazybg/internal/perceive/boardstate"
 	"lazybg/internal/perceive/dice"
 )
 
@@ -63,15 +63,18 @@ func (s *Service) Overlay(tickMs int) OverlayView {
 	if s.reader != nil {
 		out.Points = s.reader.Read(rect, cb).Points
 	}
-	// Layer 3a: checker discs (radius ≈ half a point column) on the rectified
-	// grayscale.
-	g := grayOf(rect)
+	// Layer 3a: checker discs (radius ≈ half a point column), detected per point
+	// region with the shipped readers' tuning — see boardstate.DetectDiscs for
+	// why a board-wide pass under-reports, and why this layer must run the same
+	// parameters the pipeline does to be worth looking at.
 	radius := cb.PointW / 2
 	if radius < 4 {
 		radius = 4
 	}
-	for _, c := range checker.Detect(g, radius) {
-		out.Circles = append(out.Circles, OverlayDot{X: c.X, Y: c.Y, Score: c.Score})
+	for _, cs := range boardstate.DetectDiscs(rect, cb, radius, boardstate.DiscParams) {
+		for _, c := range cs {
+			out.Circles = append(out.Circles, OverlayDot{X: c.X, Y: c.Y, Score: c.Score})
+		}
 	}
 	// Layer 3b: dice pips in the central felt band (no declared dice ROI in the
 	// MVP, so scan the middle 40–60% — the same band the runner's dice scan uses).
