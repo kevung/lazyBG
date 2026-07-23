@@ -3,7 +3,9 @@
   // this runs once per Part (and again only for corrections), so no keyboard
   // optimization. The 4 corners are clicked on the current video frame.
   import { createEventDispatcher, onMount } from 'svelte'
-  import { gridOnFrame, lensActive, DEFAULT_CANONICAL } from './lib/calibration.js'
+  import {
+    gridOnFrame, lensActive, DEFAULT_CANONICAL, workspaceRect, clampToWorkspace,
+  } from './lib/calibration.js'
   import {
     orientationName, parseOrientation, flipHorizontal, flipVertical,
   } from './lib/boardGeometry.js'
@@ -77,7 +79,12 @@
             bl: fracAlong(res.BarEdges[3], BL, BR),
           }
         }
-        detectMsg = 'Detected — fine-tune the handles until the grid matches the board.'
+        // Clamped ⇒ the fit put a handle beyond the workspace and the session
+        // pulled it back (#61). Say which of the two causes it can be instead
+        // of letting the user wonder why the grid is off in one corner.
+        detectMsg = res.Clamped
+          ? 'The detected board runs past the frame — fix the handles, or this video does not show the whole board.'
+          : 'Detected — fine-tune the handles until the grid matches the board.'
         drawFrame()
       } else {
         detectMsg = 'No board detected — place the handles by dragging.'
@@ -150,12 +157,19 @@
 
   // seedCalibration pre-places the handles so the user adjusts rather than
   // placing from scratch: prior values when correcting, else a default inset.
-  function seedCalibration() {
+  // useInitial=false is the reset action — the default inset, whatever the
+  // session already held (#61): the one-gesture way back from tangled handles,
+  // which "Cancel" cannot offer on a first setup (it is not rendered then).
+  function seedCalibration(useInitial = true) {
     const w = videoEl?.videoWidth || 640
     const h = videoEl?.videoHeight || 360
-    corners = initial?.corners?.length === 4
+    corners = useInitial && initial?.corners?.length === 4
       ? initial.corners.map((c) => [...c])
       : [[0.15 * w, 0.18 * h], [0.85 * w, 0.18 * h], [0.85 * w, 0.82 * h], [0.15 * w, 0.82 * h]]
+    if (!useInitial) {
+      barFrac = { tl: 0.47, tr: 0.53, bl: 0.47, br: 0.53 }
+      return
+    }
     if (initial?.barEdges?.length === 4) {
       const [TL, TR, BR, BL] = corners
       barFrac = {
@@ -167,12 +181,30 @@
     }
   }
 
+  // workspace is the calibration workspace — the frame plus a 15% margin on
+  // every side. The canvas spans it (not the frame), so a handle sitting
+  // outside the video is drawn AND reachable by the mouse; before #61 it was
+  // clipped away and unrecoverable, since the pointer could never leave the
+  // frame. Computed on call, not with `$:` — videoWidth is a DOM property that
+  // fills in on loadedmetadata without notifying Svelte.
+  const workspace = () => workspaceRect(videoEl?.videoWidth, videoEl?.videoHeight)
+
   function drawFrame() {
-    if (!canvas || !videoEl || !videoEl.videoWidth) return
-    canvas.width = videoEl.videoWidth
-    canvas.height = videoEl.videoHeight
+    const ws = workspace()
+    if (!canvas || !videoEl || !videoEl.videoWidth || !ws) return
+    canvas.width = ws.w
+    canvas.height = ws.h
     const ctx = canvas.getContext('2d')
+    // The margin reads as "outside the video": neutral fill, then the frame
+    // drawn at its true place with a border marking where the capture ends.
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.fillStyle = '#111114'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.setTransform(1, 0, 0, 1, -ws.x, -ws.y) // draw everything in frame px
     ctx.drawImage(videoEl, 0, 0)
+    ctx.strokeStyle = '#52525b'
+    ctx.lineWidth = Math.max(1, canvas.width / 600)
+    ctx.strokeRect(0, 0, videoEl.videoWidth, videoEl.videoHeight)
     // Live dual half-grid: if the 24 cells / bar don't sit on the real triangles,
     // drag the handles until they do (#46).
     const grid = gridOnFrame(corners, barEdges(), DEFAULT_CANONICAL, lens)
@@ -202,11 +234,17 @@
     }
   }
 
+  // canvasPt converts a pointer event to FRAME pixels — the coordinate system
+  // every handle, the manifest and the Go reader use. Outside the video it is
+  // legitimately negative or past the frame size, up to the workspace border.
   function canvasPt(e) {
     const rect = canvas.getBoundingClientRect()
+    const ws = workspace()
+    const ox = ws ? ws.x : 0
+    const oy = ws ? ws.y : 0
     return [
-      ((e.clientX - rect.left) / rect.width) * canvas.width,
-      ((e.clientY - rect.top) / rect.height) * canvas.height,
+      ((e.clientX - rect.left) / rect.width) * canvas.width + ox,
+      ((e.clientY - rect.top) / rect.height) * canvas.height + oy,
     ]
   }
 
@@ -229,7 +267,9 @@
     if (!dragging || corners.length !== 4) return
     const p = canvasPt(e)
     if (dragging[0] === 'c') {
-      corners[+dragging[1]] = p
+      // Corners are confined to the workspace; the bar handles need no clamp,
+      // fracAlong already pins them to the corner segments.
+      corners[+dragging[1]] = clampToWorkspace(p, workspace())
       corners = corners
     } else {
       const [TL, TR, BR, BL] = corners
@@ -336,7 +376,8 @@
         the outer tips of the corner triangles, <strong>not</strong> the wooden frame. Then drag the
         <strong>4 orange bar handles</strong> onto the two edges of the centre bar (they slide along
         the top/bottom edges). A blue grid follows live — adjust until its 24 cells sit on the real
-        triangles.
+        triangles. The dark band around the video is working room: a corner may sit just outside
+        the frame when the capture crops the board, and stays draggable there.
       </p>
     </div>
     <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
@@ -345,6 +386,11 @@
       <button type="button" class="detect" on:click={detectCorners} disabled={detecting}>
         {detecting ? 'Detecting…' : 'Detect corners'}
       </button>
+      <button
+        type="button"
+        class="detect"
+        on:click={() => { seedCalibration(false); detectMsg = 'Handles reset to the default inset.'; drawFrame() }}
+      >Reset handles</button>
       <span class="hint">
         {#if detectMsg}{detectMsg}{:else}Drag the green corners and the orange bar handles until the grid matches the board.{/if}
       </span>
