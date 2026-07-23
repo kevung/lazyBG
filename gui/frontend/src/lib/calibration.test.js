@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import {
   canonicalSize, landmarks, canonicalGridLines, solveHomography, projectPoint,
   buildCalibration, projectCanonical, gridOnFrame, canonicalPointCenters, roiBBox,
-  DEFAULT_CANONICAL, distortPoint, projectCanonicalLens,
+  DEFAULT_CANONICAL, distortPoint, projectCanonicalLens, undistortPoint,
+  workspaceRect, clampToWorkspace, WORKSPACE_MARGIN,
 } from './calibration.js'
 
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`)
@@ -120,4 +121,61 @@ test('projectCanonicalLens: homography then lens', () => {
   const lens = { k1: -0.1, k2: 0.02, centerX: 300, centerY: 250, norm: 300 }
   const p = projectCanonical(cal, [430, 40])
   assert.deepEqual(projectCanonicalLens(cal, lens, [430, 40]), distortPoint(lens, p))
+})
+
+// Both directions are asserted only for radially MONOTONE lenses. A strong
+// barrel (k1 ≤ ~-0.2 at r > 1) caps the recordable radius — ru - 0.2·ru³ peaks
+// at 0.86 — so beyond that cap no ideal point maps there and distort∘undistort
+// has nothing to invert. calibrate.Lens.undistort has the identical limit; the
+// admitted fits stay well inside it.
+test('undistortPoint inverts distortPoint (mirrors calibrate.Lens.undistort)', () => {
+  assert.deepEqual(undistortPoint(null, [10, 20]), [10, 20])
+  for (const lens of [
+    { k1: -0.08, k2: 0, centerX: 300, centerY: 250, norm: 300 }, // barrel
+    { k1: 0.12, k2: 0, centerX: 300, centerY: 250, norm: 300 }, // pincushion
+    { k1: -0.18, k2: 0.03, centerX: 300, centerY: 250, norm: 300 }, // k1+k2
+  ]) {
+    for (const p of [[300, 250], [600, 250], [0, 0], [610, 505], [120, 480]]) {
+      approxPt(undistortPoint(lens, distortPoint(lens, p)), p, 1e-6)
+      approxPt(distortPoint(lens, undistortPoint(lens, p)), p, 1e-6)
+    }
+  }
+})
+
+// The regression test for the JS/Go mismatch (issue #61): the handles are points
+// of the RECORDED frame, so buildCalibration must undistort them exactly like
+// calibrate.NewSplitWithLens does — otherwise the drawn grid corner lands on
+// distort(handle) instead of the handle, tens of pixels away.
+test('buildCalibration undistorts the handles: each grid landmark lands back on its handle', () => {
+  const lens = { k1: -0.18, k2: 0.03, centerX: 600, centerY: 400, norm: 600 }
+  const cal = buildCalibration(CORNERS, BAR, DEFAULT_CANONICAL, lens)
+  const lm = landmarks()
+  const handles = [...CORNERS, ...BAR]
+  for (let i = 0; i < 8; i++) {
+    approxPt(projectCanonicalLens(cal, lens, lm[i]), handles[i], 1e-3)
+  }
+})
+
+test('gridOnFrame: with an active lens the border corners sit ON the handles', () => {
+  const lens = { k1: -0.18, k2: 0.03, centerX: 600, centerY: 400, norm: 600 }
+  const grid = gridOnFrame(CORNERS, BAR, DEFAULT_CANONICAL, lens)
+  const border = grid[0]
+  approxPt(border[0], CORNERS[0], 1e-3) // TL
+  const bar = grid[grid.length - 1]
+  approxPt(bar[0], BAR[0], 1e-3) // barTL
+})
+
+test('workspaceRect is the frame expanded by the 15% handle margin', () => {
+  assert.equal(WORKSPACE_MARGIN, 0.15)
+  assert.deepEqual(workspaceRect(1000, 800), { x: -150, y: -120, w: 1300, h: 1040 })
+  assert.equal(workspaceRect(0, 0), null)
+})
+
+test('clampToWorkspace clamps per axis and leaves inside points untouched', () => {
+  const r = workspaceRect(1000, 800)
+  assert.deepEqual(clampToWorkspace([500, 400], r), [500, 400])
+  assert.deepEqual(clampToWorkspace([-40, 900], r), [-40, 900]) // inside the margin
+  assert.deepEqual(clampToWorkspace([-900, 400], r), [-150, 400]) // x only
+  assert.deepEqual(clampToWorkspace([5000, -5000], r), [1150, -120])
+  assert.deepEqual(clampToWorkspace([5, 5], null), [5, 5]) // no rect ⇒ no clamp
 })

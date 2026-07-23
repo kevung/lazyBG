@@ -93,19 +93,26 @@ export function projectPoint(H, [x, y]) {
   return [(H[0] * x + H[1] * y + H[2]) / d, (H[3] * x + H[4] * y + H[5]) / d]
 }
 
-// buildCalibration returns { left, right, splitX } — two canonical→source
+// buildCalibration returns { left, right, splitX } — two canonical→IDEAL-source
 // homographies split at the bar — from the four corners (TL,TR,BR,BL) and four
 // bar edges (barTL,barTR,barBR,barBL). With no valid bar edges it migrates: a
 // single full-quad homography used for both halves (legacy v1). Null if degenerate.
-export function buildCalibration(corners, barEdges, cb = DEFAULT_CANONICAL) {
+//
+// The eight handles are points of the RECORDED frame, so an active lens is
+// undistorted out of them first — exactly what calibrate.NewSplitWithLens does.
+// Skipping that step (the pre-#61 behaviour) put every drawn grid vertex at
+// distort(handle) instead of handle: the grid visibly detached from the handles
+// on lens-active captures, and did not show what the Go reader actually uses.
+export function buildCalibration(corners, barEdges, cb = DEFAULT_CANONICAL, lens = null) {
   if (!corners || corners.length !== 4) return null
   const lm = landmarks(cb)
   const sx = splitX(cb)
+  const ideal = (p) => undistortPoint(lens, p)
   if (barEdges && barEdges.length === 4) {
     const leftCanon = [lm[0], lm[4], lm[7], lm[3]]
-    const leftSrc = [corners[0], barEdges[0], barEdges[3], corners[3]]
+    const leftSrc = [corners[0], barEdges[0], barEdges[3], corners[3]].map(ideal)
     const rightCanon = [lm[5], lm[1], lm[2], lm[6]]
-    const rightSrc = [barEdges[1], corners[1], corners[2], barEdges[2]]
+    const rightSrc = [barEdges[1], corners[1], corners[2], barEdges[2]].map(ideal)
     const left = solveHomography(leftCanon, leftSrc)
     const right = solveHomography(rightCanon, rightSrc)
     if (!left || !right) return null
@@ -113,7 +120,7 @@ export function buildCalibration(corners, barEdges, cb = DEFAULT_CANONICAL) {
   }
   // Migrate: single homography from the full canonical rect to the corners.
   const { w, h } = canonicalSize(cb)
-  const H = solveHomography([[0, 0], [w, 0], [w, h], [0, h]], corners)
+  const H = solveHomography([[0, 0], [w, 0], [w, h], [0, h]], corners.map(ideal))
   if (!H) return null
   return { left: H, right: H, splitX: sx }
 }
@@ -139,6 +146,30 @@ export function distortPoint(lens, [x, y]) {
   const r2 = (dx * dx + dy * dy) / (lens.norm * lens.norm)
   const f = 1 + (lens.k1 || 0) * r2 + (lens.k2 || 0) * r2 * r2
   return [lens.centerX + dx * f, lens.centerY + dy * f]
+}
+
+// undistortPoint maps a RECORDED point back to the ideal (pinhole) point —
+// mirrors calibrate.Lens.undistort: Newton on the radial quintic
+// Rd = Ru + k1·Ru³ + k2·Ru⁵ (stable for barrel, where the naive fixed point
+// diverges at the periphery). Identity when the lens is inactive.
+export function undistortPoint(lens, [x, y]) {
+  if (!lensActive(lens)) return [x, y]
+  const dx = x - lens.centerX
+  const dy = y - lens.centerY
+  const rd = Math.hypot(dx, dy) / lens.norm
+  if (rd < 1e-9) return [x, y]
+  const k1 = lens.k1 || 0
+  const k2 = lens.k2 || 0
+  let ru = rd
+  for (let i = 0; i < 25; i++) {
+    const ru2 = ru * ru
+    const f = k2 * ru2 * ru2 * ru + k1 * ru2 * ru + ru - rd
+    const df = 5 * k2 * ru2 * ru2 + 3 * k1 * ru2 + 1
+    if (df === 0) break
+    ru -= f / df
+  }
+  const scale = ru / rd
+  return [lens.centerX + dx * scale, lens.centerY + dy * scale]
 }
 
 // projectCanonicalLens projects a canonical point onto the RECORDED frame:
@@ -167,7 +198,7 @@ function sampleLine(line, maxStep) {
 // homography; with an active lens each segment is sampled and distorted so
 // the drawn grid curves exactly like the recorded board (ADR-0008 §9).
 export function gridOnFrame(corners, barEdges, cb = DEFAULT_CANONICAL, lens = null) {
-  const cal = buildCalibration(corners, barEdges, cb)
+  const cal = buildCalibration(corners, barEdges, cb, lens)
   if (!cal) return null
   const lines = canonicalGridLines(cb)
   if (!lensActive(lens)) {
@@ -191,6 +222,37 @@ export function canonicalPointCenters(cb = DEFAULT_CANONICAL) {
     }
   }
   return out
+}
+
+// WORKSPACE_MARGIN is how far outside the frame a calibration handle may sit,
+// as a fraction of the frame's width/height. It mirrors autocal.quadInBounds'
+// 0.15 (internal/autocal/autocal.go) on purpose: everything auto-calibration
+// still considers a plausible board is representable — and grabbable — in the
+// GUI, and nothing beyond it is. Real captures need this: four committed corpus
+// manifests carry a corner a few pixels ABOVE the frame (the playing surface's
+// top edge is cropped) and read correctly, so clamping onto the frame itself
+// would silently rewrite working calibrations.
+export const WORKSPACE_MARGIN = 0.15
+
+// workspaceRect is the drawing/interaction area for the calibration handles:
+// the video frame expanded by WORKSPACE_MARGIN on every side, in frame pixels
+// (so its origin is negative). Null for a frame of unknown size.
+export function workspaceRect(videoW, videoH) {
+  if (!videoW || !videoH) return null
+  const mx = WORKSPACE_MARGIN * videoW
+  const my = WORKSPACE_MARGIN * videoH
+  return { x: -mx, y: -my, w: videoW + 2 * mx, h: videoH + 2 * my }
+}
+
+// clampToWorkspace confines a handle to the workspace, per axis (so a handle
+// dragged past a corner slides along the border instead of sticking). A null
+// rect leaves the point untouched — an unknown frame size must not move handles.
+export function clampToWorkspace([x, y], rect) {
+  if (!rect) return [x, y]
+  return [
+    Math.min(Math.max(x, rect.x), rect.x + rect.w),
+    Math.min(Math.max(y, rect.y), rect.y + rect.h),
+  ]
 }
 
 // roiBBox returns the axis-aligned bounding box {x,y,w,h} of the given source
