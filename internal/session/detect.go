@@ -8,10 +8,68 @@ package session
 import (
 	"fmt"
 	"log"
+	"math"
 
 	"lazybg/internal/autocal"
+	"lazybg/internal/capture"
 	"lazybg/internal/corpus"
+	"lazybg/internal/geom"
 )
+
+// workspaceMargin is how far outside the frame a calibration handle may sit, as
+// a fraction of the frame's width/height. It mirrors autocal.quadInBounds' 0.15
+// on purpose: everything auto-calibration still considers a plausible board is
+// representable — and draggable — in the GUI, and nothing beyond it is. The
+// margin is not slack: four committed corpus manifests carry a corner a few
+// pixels above the frame (the playing surface's top edge is cropped) and read
+// correctly, so clamping onto the frame itself would rewrite working
+// calibrations.
+//
+// The clamp lives HERE and not in internal/autocal on purpose: the ratcheted
+// multi-capture bench calls autocal.DetectHandles directly and its committed
+// baseline is bit-deterministic. The bench must keep measuring what detection
+// really finds, overshoot included.
+const workspaceMargin = 0.15
+
+// clampHandles confines the eight detected handles to the workspace, per axis,
+// and reports whether anything moved. A zero frame size leaves them untouched:
+// better an unclamped handle than one teleported by a failed probe.
+func clampHandles(corners, barEdges [4]geom.Pt, w, h int) ([4]geom.Pt, [4]geom.Pt, bool) {
+	if w <= 0 || h <= 0 {
+		return corners, barEdges, false
+	}
+	mx, my := workspaceMargin*float64(w), workspaceMargin*float64(h)
+	clamped := false
+	clamp := func(p geom.Pt) geom.Pt {
+		q := geom.P(
+			math.Min(math.Max(p.X, -mx), float64(w)+mx),
+			math.Min(math.Max(p.Y, -my), float64(h)+my),
+		)
+		if q != p {
+			clamped = true
+		}
+		return q
+	}
+	for i := range corners {
+		corners[i] = clamp(corners[i])
+	}
+	for i := range barEdges {
+		barEdges[i] = clamp(barEdges[i])
+	}
+	return corners, barEdges, clamped
+}
+
+// frameSize probes the video for its pixel dimensions — the same one-frame
+// probe segmentation uses. Zeroes on failure, so clampHandles leaves the
+// handles alone rather than guessing.
+func frameSize(video string, tickMs int) (int, int) {
+	img, err := capture.FrameAt(video, tickMs)
+	if err != nil {
+		log.Printf("frameSize %s @%dms: %v", video, tickMs, err)
+		return 0, 0
+	}
+	return img.Bounds().Dx(), img.Bounds().Dy()
+}
 
 // DetectedHandles is a best-effort auto-calibration seed: the four playing-surface
 // corners (TL,TR,BR,BL) and the four bar-edge points (barTL,barTR,barBR,barBL),
@@ -22,6 +80,11 @@ type DetectedHandles struct {
 	// Lens is the fit's admitted radial distortion (nil = pinhole), in the
 	// manifest's schema so the GUI/session can persist it as-is.
 	Lens *corpus.Lens
+	// Clamped reports that the fit put at least one handle beyond the
+	// workspace and it was pulled back (#61). The GUI turns this into an
+	// explicit message: either the detection ran off, or the video does not
+	// show the whole board — it cannot tell which, but it must not stay silent.
+	Clamped bool
 }
 
 // DetectCorners detects the eight calibration handles on the frame at tickMs and
@@ -41,7 +104,9 @@ func (s *Service) DetectCorners(tickMs int) (DetectedHandles, error) {
 		log.Printf("DetectCorners @%dms: %v", tickMs, err)
 		return DetectedHandles{}, err
 	}
-	out := DetectedHandles{Corners: make([][2]float64, 4), BarEdges: make([][2]float64, 4)}
+	w, h := frameSize(video, tickMs)
+	corners, barEdges, clamped := clampHandles(corners, barEdges, w, h)
+	out := DetectedHandles{Corners: make([][2]float64, 4), BarEdges: make([][2]float64, 4), Clamped: clamped}
 	if lens.K1 != 0 || lens.K2 != 0 {
 		out.Lens = &corpus.Lens{K1: lens.K1, K2: lens.K2, CenterX: lens.CenterX, CenterY: lens.CenterY, Norm: lens.Norm}
 	}
