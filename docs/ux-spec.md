@@ -110,11 +110,19 @@ runaway fit from a cropped board, but it must stay silent about neither. A **"Re
 action restores the default inset in one gesture, since "Cancel" is not offered on a first setup.
 
 **Orientation is declared WYSIWYG, by mirroring** (ADR-0006) — not a dropdown. The
-orientation-aware reconstructed board is shown beside the video frame with two **mirror buttons**
-(horizontal / vertical = the four dihedral states); the user flips the synthetic board until it
-coincides with the video (same colors in the same corners, home on the correct side). What they
-set *is* the `Orientation`, and it simultaneously validates the checker-color assignment. This
-replaces the old two-value "P1 bears off left/right" `<select>`.
+orientation-aware reconstructed board is shown beside the video frame with a **mirror button**
+(left/right — which half holds the home boards) and a **"swap the two players" button**; the user
+adjusts the synthetic board until it coincides with the video (same colors in the same corners).
+What they set *is* the `Orientation`, and it simultaneously validates the checker-color
+assignment.
+
+**Player 1 is the player at the bottom of the video, always** (ADR-0009). The rule is *shown*
+rather than stated: the fields read `Player 1 — bottom of the video ▼` / `Player 2 — top ▲`, and
+the declared names are printed on their own row of the preview, Player 1's on the bottom one. So
+the near player being the one entered second is a **rename**, not a board flip — which is what the
+old vertical mirror button silently did instead, leaving the declared colours apparently swapped.
+A swap moves the whole session with it (names, colours, every recorded ply, every game result);
+it is involutive, so pressing it twice is a no-op.
 
 ## 11. Pass 3 checkpoint
 

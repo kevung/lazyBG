@@ -26,6 +26,11 @@ type Setup struct {
 	// VideoURL is the capture's canonical source (e.g. the YouTube URL) —
 	// the portability half of the video reference (session-format-spec §1).
 	VideoURL string `json:"videoUrl"`
+	// SwapPlies asks for the recorded play to change hands along with this
+	// setup: the form's "swap the two players" button already exchanged the
+	// names and the colours it holds, but who played each turn and who won
+	// each game lives in the document (ADR-0009). Odd number of presses ⇒ true.
+	SwapPlies bool `json:"swapPlies,omitempty"`
 }
 
 // SaveSetup stores the setup (initial or correction) and applies the match
@@ -57,8 +62,18 @@ func (s *Service) SaveSetup(setup Setup) error {
 		if setup.VideoURL != "" {
 			s.doc.Parts[s.activePartIdx()].URL = setup.VideoURL
 		}
+		if setup.SwapPlies {
+			s.doc.swapPlies()
+		}
 		if err := s.save(); err != nil {
 			return fmt.Errorf("autosave: %w", err)
+		}
+		if setup.SwapPlies {
+			// Re-derive the board chain: the same player-relative notations
+			// replayed by the other player give the mirrored position.
+			if err := s.rebuildFromDoc(); err != nil {
+				return fmt.Errorf("re-derive after swapping the players: %w", err)
+			}
 		}
 	}
 	return nil
@@ -83,13 +98,14 @@ func (s *Service) GetSetup() Setup {
 }
 
 // Orientation returns the parsed board-orientation prior of the (first) Part —
-// P1HomeBottomRight when unset. It drives the reconstructed board's on-screen
-// orientation (display-out boundary, ADR-0006).
+// P1HomeRight when unset. It drives the reconstructed board's on-screen
+// orientation (display-out boundary, ADR-0006). Player 1 is always the bottom
+// player, so this says only which half holds the home boards (ADR-0009).
 func (s *Service) Orientation() bg.Orientation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.doc == nil || len(s.doc.Parts) == 0 {
-		return bg.P1HomeBottomRight
+		return bg.P1HomeRight
 	}
 	o, _ := bg.ParseOrientation(s.doc.Parts[s.activePartIdx()].Priors.Orientation)
 	return o

@@ -1,6 +1,13 @@
 ---
-status: accepted
+status: partially superseded by ADR-0009
 ---
+
+> **Decisions 1 and 4 are superseded by [ADR-0009](0009-player-1-is-the-bottom-player.md)**
+> (2026-07-23). Player 1 is now *defined* as the player at the bottom of the video, so
+> `Orientation` has **two** values, not four, and the vertical mirror became "swap the two
+> players". Decisions 2 and 3 stand unchanged. The reasoning below is kept because it records
+> why four values looked necessary — the argument is geometrically sound and modelling-wise
+> wrong, and that is the trap worth remembering.
 
 # Board orientation is a boundary transform, never in the core model
 
@@ -25,7 +32,8 @@ The reconstructed-board renderer (`Board.svelte` + `lib/boardGeometry.js`) hardc
 
 ## Decisions
 
-1. **Orientation has four values, not two.** A backgammon board seen top-down has a dihedral
+1. ~~**Orientation has four values, not two.**~~ *(superseded by ADR-0009 — the argument below
+   treats "who is Player 1" as a fact of the capture; it is a free naming convention.)* A backgammon board seen top-down has a dihedral
    symmetry; exactly four configurations preserve the "bar in the middle, two rows" structure.
    Competition footage puts Player 1 on the near *or* far side depending on the video, so a
    two-value left/right prior (which implicitly pins P1 to the bottom row) is insufficient. The
@@ -52,7 +60,8 @@ The reconstructed-board renderer (`Board.svelte` + `lib/boardGeometry.js`) hardc
    GUI strings and the corpus builder's `p1-bottom` are migrated onto this enum; `p1-right`/
    `p1-left`/`p1-bottom` are removed.
 
-4. **The user declares orientation WYSIWYG, by mirroring.** Because the reconstructed board is
+4. **The user declares orientation WYSIWYG, by mirroring.** *(amended by ADR-0009: one mirror
+   button plus a "swap the two players" button; the WYSIWYG principle itself is unchanged.)* Because the reconstructed board is
    now orientation-aware (decision 2, display-out), the calibration UI *is* that render: shown
    beside the video frame with two mirror buttons (horizontal / vertical = the four dihedral
    states). The user flips the synthetic board until it coincides with the video — same colors in

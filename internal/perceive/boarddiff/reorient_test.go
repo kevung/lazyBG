@@ -11,7 +11,7 @@ func TestReorientIdentity(t *testing.T) {
 	var ob perceive.ObservedBoard
 	ob.Points[1] = perceive.PointObs{Count: 2, Side: perceive.A, Confidence: 0.9}
 	ob.Points[24] = perceive.PointObs{Count: 5, Side: perceive.B, Confidence: 0.7}
-	got := Reorient(ob, bg.P1HomeBottomRight)
+	got := Reorient(ob, bg.P1HomeRight)
 	if got != ob {
 		t.Errorf("identity Reorient changed the reading: %+v != %+v", got, ob)
 	}
@@ -21,9 +21,9 @@ func TestReorientMovesPointsByTransform(t *testing.T) {
 	var ob perceive.ObservedBoard
 	// A reading sitting at the canonical region of point 1 (bottom-right cell).
 	ob.Points[1] = perceive.PointObs{Count: 3, Side: perceive.A, Confidence: 0.8}
-	// Under P1HomeBottomLeft the physical board is mirrored, so that cell's
+	// Under P1HomeLeft the physical board is mirrored, so that cell's
 	// checkers belong to canonical point 12 (TransformPoint(1) == 12).
-	got := Reorient(ob, bg.P1HomeBottomLeft)
+	got := Reorient(ob, bg.P1HomeLeft)
 	if got.Points[12] != (perceive.PointObs{Count: 3, Side: perceive.A, Confidence: 0.8}) {
 		t.Errorf("point-1 reading did not move to canonical point 12: %+v", got.Points[12])
 	}

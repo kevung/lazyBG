@@ -7,9 +7,12 @@
   // frame are directly comparable. Text (counts, score, cube) stays upright —
   // only positions mirror. The mirror is bar-centred, matching
   // bg.Orientation.TransformPoint (boardGeometry.transformPoint).
+  //
+  // Player 1 is the player at the BOTTOM of the video, always (ADR-0009): the
+  // only mirror is left/right, so P1's half of the drawing never moves.
   import Two from 'two.js'
   import { onMount } from 'svelte'
-  import { isTop, colOf, stack, flipH, flipV } from './lib/boardGeometry.js'
+  import { isTop, colOf, stack, flipH } from './lib/boardGeometry.js'
   import { labelOn, outlineOf } from './lib/checkerColors.js'
 
   let {
@@ -17,6 +20,10 @@
     cube = { value: 1, owner: 0, centered: true },
     score = [0, 0],
     orientation = 0,
+    // Optional [P1, P2] names, printed on each player's own side. Player 1's
+    // label always sits on the bottom row — that is what the invariant looks
+    // like on screen, and it is how the setup panel states it (#63).
+    playerLabels = null,
     // Optional [P1, P2] checker fill colours (the declared checkerA/checkerB).
     // When set, they override the defaults so the board matches the video — the
     // WYSIWYG orientation control relies on this (issue #37).
@@ -75,7 +82,7 @@
 
   // Redraw whenever the data, orientation, or the canvas size changes.
   $effect(() => {
-    board, cube, score, orientation
+    board, cube, score, orientation, playerLabels
     draw()
   })
 
@@ -95,14 +102,10 @@
     const leftX = cx - boardW / 2
 
     const fH = flipH(orientation)
-    const fV = flipV(orientation)
-    // Player 1's home is bottom under the identity, so P1 sits on the top row
-    // exactly when the board is vertically mirrored.
-    const p1Top = fV
 
     const xOf = (slot) => cx + (fH ? -slot : slot) * u
     const slotOf = (p) => colOf(p) - 6 // ±1..±6, never 0 (the bar)
-    const onTop = (p) => (fV ? !isTop(p) : isTop(p))
+    const onTop = (p) => isTop(p)
 
     const bgRect = two.makeRectangle(W / 2, H / 2, boardW, boardH)
     bgRect.fill = CFG.boardFill
@@ -114,10 +117,10 @@
     if (board) {
       drawTriangles(xOf, slotOf, onTop, yTop, yBot, u)
       drawCheckers(xOf, slotOf, onTop, yTop, yBot, r)
-      drawBarAndOff(xOf, cx, mid, yTop, yBot, p1Top, u, r)
+      drawBarAndOff(xOf, cx, mid, yTop, yBot, u, r)
     }
-    drawCube(cx, yTop, yBot, mid, p1Top, u)
-    drawScore(leftX, yTop, yBot, p1Top, u)
+    drawCube(cx, yTop, yBot, mid, u)
+    drawScore(leftX, yTop, yBot, u)
 
     const bar = two.makeRectangle(cx, H / 2, u * 0.12, boardH)
     bar.fill = CFG.barLine
@@ -168,29 +171,26 @@
     }
   }
 
-  function drawBarAndOff(xOf, barX, mid, yTop, yBot, p1Top, u, r) {
+  function drawBarAndOff(xOf, barX, mid, yTop, yBot, u, r) {
     // Bar checkers stack inward from the centre on their owner's side.
     if (board.Bar?.[0] > 0) {
-      const y = p1Top ? mid - r - 4 : mid + r + 4
-      placeChecker(barX, y, r, 0, board.Bar[0] > 1 ? board.Bar[0] : 0)
+      placeChecker(barX, mid + r + 4, r, 0, board.Bar[0] > 1 ? board.Bar[0] : 0)
     }
     if (board.Bar?.[1] > 0) {
-      const y = p1Top ? mid + r + 4 : mid - r - 4
-      placeChecker(barX, y, r, 1, board.Bar[1] > 1 ? board.Bar[1] : 0)
+      placeChecker(barX, mid - r - 4, r, 1, board.Bar[1] > 1 ? board.Bar[1] : 0)
     }
     const trayX = xOf(7)
-    const p1Y = p1Top ? yTop + u * 0.6 : yBot - u * 0.6
-    const p2Y = p1Top ? yBot - u * 0.6 : yTop + u * 0.6
+    const p1Y = yBot - u * 0.6
+    const p2Y = yTop + u * 0.6
     if (board.Off?.[0]) makeLabel(`▲ ${board.Off[0]}`, trayX, p1Y, u * 0.42)
     if (board.Off?.[1]) makeLabel(`▼ ${board.Off[1]}`, trayX, p2Y, u * 0.42)
   }
 
-  function drawCube(barX, yTop, yBot, mid, p1Top, u) {
+  function drawCube(barX, yTop, yBot, mid, u) {
     const size = u * 0.9
     let y = mid
     if (!cube.centered) {
-      const ownerTop = cube.owner === 0 ? p1Top : !p1Top
-      y = ownerTop ? yTop + size : yBot - size
+      y = cube.owner === 0 ? yBot - size : yTop + size
     }
     const box = two.makeRoundedRectangle(barX, y, size, size, size * 0.18)
     box.fill = CFG.cubeFill
@@ -203,11 +203,12 @@
     t.baseline = 'middle'
   }
 
-  function drawScore(leftX, yTop, yBot, p1Top, u) {
-    const p1Y = p1Top ? yTop + u * 0.5 : yBot - u * 0.5
-    const p2Y = p1Top ? yBot - u * 0.5 : yTop + u * 0.5
-    makeLabel(`P1  ${score[0] ?? 0}`, leftX + u * 0.9, p1Y, u * 0.42)
-    makeLabel(`P2  ${score[1] ?? 0}`, leftX + u * 0.9, p2Y, u * 0.42)
+  // Player 1 is the bottom player, so its label is on the bottom row — the
+  // invariant is shown, not stated (#63).
+  function drawScore(leftX, yTop, yBot, u) {
+    const name = (i) => playerLabels?.[i] || `P${i + 1}`
+    makeLabel(`${name(0)}  ${score[0] ?? 0}`, leftX + u * 0.9, yBot - u * 0.5, u * 0.42)
+    makeLabel(`${name(1)}  ${score[1] ?? 0}`, leftX + u * 0.9, yTop + u * 0.5, u * 0.42)
   }
 
   function makeLabel(str, x, y, size) {

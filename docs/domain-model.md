@@ -90,17 +90,19 @@ on open and a mismatch is surfaced.* See ADR-0004.
 biggest robustness lever (survey §0, §12). Declared once at transcription setup, editable later.
 Fields (all optional; each present prior tightens perception and raises baseline confidence):
 - **Clock present?** and its rough on-screen location (drives Commit-Event detection).
-- **Board orientation** — a closed 4-value **`Orientation`** enum naming the video quadrant that
-  holds **Player 1's home (inner) board**: `P1HomeBottomRight` (canonical reference),
-  `P1HomeBottomLeft`, `P1HomeTopRight`, `P1HomeTopLeft`. This single fact fixes both the bearing
-  direction (left/right) *and* near/far (top/bottom row) — competition footage puts P1 on either
-  side. It is a **boundary transform**, never in the core model: applied at perception-in
-  (observed point → canonical `bg.Board` number) and display-out (rendering the reconstructed
-  board in the video's sense). One `Transform()` owns the dihedral logic (bar stays centered, off
-  tray flips with the home). See ADR-0006. *(Supersedes the old `p1-right`/`p1-left` /
-  `p1-bottom` strings.)*
+- **Board orientation** — a closed 2-value **`Orientation`** enum naming the half that holds the
+  two home (inner) boards: `P1HomeRight` (canonical reference) and `P1HomeLeft`. It is the
+  direction of play, and nothing else: **Player 1 is by definition the player at the bottom of
+  the video** (ADR-0009), so near/far is not a degree of freedom — when the near player is the
+  one entered second, the two *players* are exchanged, not the board. It is a **boundary
+  transform**, never in the core model: applied at perception-in (observed point → canonical
+  `bg.Board` number) and display-out (rendering the reconstructed board in the video's sense).
+  One `Transform()` owns the mirror (bar stays centered, off tray flips with the home) and
+  provably never exchanges the two rows. See ADR-0006 and ADR-0009. *(Supersedes the old
+  `p1-right`/`p1-left`/`p1-bottom` and the four-value `p1-home-*-*` strings.)*
 - **Board color scheme** — surface, point colors, checker colors (drives color-segmentation).
-- **Players** — names and checker colors (Black/White mapping), for the `.mat` metadata.
+- **Players** — names and checker colors, for the `.mat` metadata. **Player 1 is the bottom
+  player**; `checkerA` is therefore the bottom player's colour (ADR-0009).
 - **Match length** — target score (e.g. 7-point match), and rule flags (**Crawford**, **Jacoby**,
   **Beaver**).
 - **Camera fixed?** — if yes, one Board Calibration serves the whole Capture.

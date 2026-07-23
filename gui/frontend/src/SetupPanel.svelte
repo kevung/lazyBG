@@ -6,9 +6,7 @@
   import {
     gridOnFrame, lensActive, DEFAULT_CANONICAL, workspaceRect, clampToWorkspace,
   } from './lib/calibration.js'
-  import {
-    orientationName, parseOrientation, flipHorizontal, flipVertical,
-  } from './lib/boardGeometry.js'
+  import { orientationName, parseOrientation, flipHorizontal } from './lib/boardGeometry.js'
   import Board from './Board.svelte'
 
   export let videoEl = null
@@ -25,6 +23,11 @@
   let jacoby = false
   let beaver = false
   let orientation = 0 // bg.Orientation value (WYSIWYG mirror control, #37)
+  // Player 1 is the player at the BOTTOM of the video, always (ADR-0009).
+  // Getting the near player into the "Player 1" field is therefore a rename,
+  // not a board flip: swapPlies counts the presses so SaveSetup can move the
+  // recorded play with the names (an even number cancels out).
+  let swapPresses = 0
   let checkerA = '#e7e0d5'
   let checkerB = '#31221c'
 
@@ -33,6 +36,8 @@
   const startBoard = (() => {
     const Pts = Array.from({ length: 25 }, () => ({ N: 0, Owner: 0 }))
     const set = (p, n, o) => (Pts[p] = { N: n, Owner: o })
+    // Player 1 owns the two back checkers on the 24-point, drawn on the TOP
+    // row: its home board — and the player — are at the bottom (ADR-0009).
     set(24, 2, 0); set(13, 5, 0); set(8, 3, 0); set(6, 5, 0) // Player 1
     set(1, 2, 1); set(12, 5, 1); set(17, 3, 1); set(19, 5, 1) // Player 2
     return { Pts, Bar: [0, 0], Off: [0, 0] }
@@ -286,6 +291,18 @@
     dragging = null
   }
 
+  // swapPlayers exchanges the two players — names and colours — leaving the
+  // board alone. On the opening position this looks almost exactly like the
+  // old vertical mirror, which is why the two were confusable; the difference
+  // is that Player 1 stays the bottom player (ADR-0009).
+  function swapPlayers() {
+    players = [players[1], players[0]]
+    const a = checkerA
+    checkerA = checkerB
+    checkerB = a
+    swapPresses += 1
+  }
+
   function save() {
     error = ''
     if (corners.length !== 4) {
@@ -309,6 +326,7 @@
       },
       corners,
       barEdges: barEdges(),
+      swapPlies: swapPresses % 2 === 1,
     })
   }
 </script>
@@ -322,13 +340,13 @@
     </p>
 
     <div class="grid">
-      <label>Player 1 &amp; checker colour
+      <label>Player 1 — bottom of the video ▼ &amp; checker colour
         <span class="name-color">
           <input bind:value={players[0]} />
           <input type="color" bind:value={checkerA} title="Player 1 checker colour" />
         </span>
       </label>
-      <label>Player 2 &amp; checker colour
+      <label>Player 2 — top of the video ▲ &amp; checker colour
         <span class="name-color">
           <input bind:value={players[1]} />
           <input type="color" bind:value={checkerB} title="Player 2 checker colour" />
@@ -408,19 +426,22 @@
     <h3>Orientation</h3>
     <div class="orient">
       <div class="orient-board">
-        <Board board={startBoard} {orientation} checkerColors={[checkerA, checkerB]} />
+        <Board board={startBoard} {orientation} checkerColors={[checkerA, checkerB]} playerLabels={players} />
       </div>
       <div class="orient-controls">
         <p>
-          Flip until this board matches the video frame above — the <strong>same colours in the
-          same corners</strong>, each player's home board on the correct side. This sets the board
-          orientation and confirms the checker-colour assignment in one step.
+          Match this board to the video frame above — the <strong>same colours in the same
+          corners</strong>. Mirror it if the home boards are on the other side; swap the players if
+          the one sitting at the <strong>bottom</strong> of the video is the one you entered second.
         </p>
         <div class="orient-buttons">
           <button type="button" on:click={() => (orientation = flipHorizontal(orientation))}>⇄ Mirror left / right</button>
-          <button type="button" on:click={() => (orientation = flipVertical(orientation))}>⇅ Mirror top / bottom</button>
+          <button type="button" on:click={swapPlayers}>⇅ Swap the two players</button>
         </div>
-        <p class="hint">{orientationName(orientation)}</p>
+        <p class="hint">
+          {orientationName(orientation)} — <strong>Player 1 is always the player at the bottom</strong>,
+          so the two back checkers on the top row are Player 1's.
+        </p>
       </div>
     </div>
 

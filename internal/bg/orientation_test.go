@@ -4,32 +4,26 @@ import "testing"
 
 func TestOrientationIdentity(t *testing.T) {
 	for p := 1; p <= 24; p++ {
-		if got := P1HomeBottomRight.TransformPoint(p); got != p {
-			t.Errorf("P1HomeBottomRight.TransformPoint(%d) = %d, want %d (identity)", p, got, p)
+		if got := P1HomeRight.TransformPoint(p); got != p {
+			t.Errorf("P1HomeRight.TransformPoint(%d) = %d, want %d (identity)", p, got, p)
 		}
 	}
 }
 
 func TestOrientationAnchors(t *testing.T) {
-	// Hand-worked anchors from the calibrate canonical convention:
-	// top row 13..24 at columns 0..11, bottom row 12..1 at columns 0..11,
-	// P1 home (1..6) in the bottom-right half under the identity.
+	// Hand-worked anchors from the calibrate canonical convention: top row
+	// 13..24 at columns 0..11, bottom row 12..1 at columns 0..11, P1 home
+	// (1..6) in the bottom-right half under the identity. Player 1 is the
+	// bottom player by definition (ADR-0009), so only the left/right mirror
+	// exists — the rows never exchange.
 	cases := []struct {
 		o       Orientation
 		p, want int
 	}{
-		// Horizontal mirror: P1 home moves to the bottom-left half.
-		{P1HomeBottomLeft, 1, 12},
-		{P1HomeBottomLeft, 6, 7},
-		{P1HomeBottomLeft, 24, 13},
-		{P1HomeBottomLeft, 13, 24},
-		// Vertical mirror: P1 home moves to the top-right half.
-		{P1HomeTopRight, 1, 24},
-		{P1HomeTopRight, 24, 1},
-		{P1HomeTopRight, 6, 19},
-		// 180°: P1 home moves to the top-left half.
-		{P1HomeTopLeft, 1, 13},
-		{P1HomeTopLeft, 13, 1},
+		{P1HomeLeft, 1, 12},
+		{P1HomeLeft, 6, 7},
+		{P1HomeLeft, 24, 13},
+		{P1HomeLeft, 13, 24},
 	}
 	for _, c := range cases {
 		if got := c.o.TransformPoint(c.p); got != c.want {
@@ -38,7 +32,20 @@ func TestOrientationAnchors(t *testing.T) {
 	}
 }
 
-// Every orientation is a dihedral involution: applying it twice is the identity.
+// The mirror never moves a point across the rows: a top-row point stays on the
+// top row. This is the property that makes "Player 1 sits at the bottom" an
+// invariant of the renderer rather than a convention it has to remember.
+func TestOrientationKeepsRows(t *testing.T) {
+	for _, o := range AllOrientations() {
+		for p := 1; p <= 24; p++ {
+			if (p >= 13) != (o.TransformPoint(p) >= 13) {
+				t.Errorf("%v.TransformPoint(%d) = %d crossed the rows", o, p, o.TransformPoint(p))
+			}
+		}
+	}
+}
+
+// Every orientation is an involution: applying it twice is the identity.
 func TestOrientationInvolution(t *testing.T) {
 	for _, o := range AllOrientations() {
 		for p := 1; p <= 24; p++ {
@@ -67,7 +74,7 @@ func TestOrientationBijection(t *testing.T) {
 }
 
 // Points outside 1..24 (bar/off sentinels) pass through unchanged: orientation
-// never renumbers the bar or the bearoff tray (ADR-0006).
+// never renumbers the bar or the bearoff tray (ADR-0006 decision 2, intact).
 func TestOrientationPassthrough(t *testing.T) {
 	for _, o := range AllOrientations() {
 		for _, p := range []int{0, 25, -1} {
@@ -79,24 +86,13 @@ func TestOrientationPassthrough(t *testing.T) {
 }
 
 func TestOrientationFlips(t *testing.T) {
-	// Two horizontal flips (or two vertical) return to the start; H then V is
-	// the 180° rotation.
 	for _, o := range AllOrientations() {
 		if o.FlipHorizontal().FlipHorizontal() != o {
 			t.Errorf("%v: double horizontal flip not identity", o)
 		}
-		if o.FlipVertical().FlipVertical() != o {
-			t.Errorf("%v: double vertical flip not identity", o)
-		}
 	}
-	if P1HomeBottomRight.FlipHorizontal() != P1HomeBottomLeft {
-		t.Error("bottom-right flipped horizontally should be bottom-left")
-	}
-	if P1HomeBottomRight.FlipVertical() != P1HomeTopRight {
-		t.Error("bottom-right flipped vertically should be top-right")
-	}
-	if P1HomeBottomRight.FlipHorizontal().FlipVertical() != P1HomeTopLeft {
-		t.Error("bottom-right flipped both ways should be top-left")
+	if P1HomeRight.FlipHorizontal() != P1HomeLeft {
+		t.Error("right flipped horizontally should be left")
 	}
 }
 
@@ -110,14 +106,37 @@ func TestOrientationParse(t *testing.T) {
 	if _, ok := ParseOrientation("nonsense"); ok {
 		t.Error("ParseOrientation(nonsense) ok=true, want false")
 	}
-	// Legacy strings migrate onto the enum (ADR-0006).
+	// Every vocabulary this repo has ever written, migrated (ADR-0006, ADR-0009).
+	// The 23 committed corpus manifests all say "p1-bottom".
 	for legacy, want := range map[string]Orientation{
-		"p1-right":  P1HomeBottomRight,
-		"p1-left":   P1HomeBottomLeft,
-		"p1-bottom": P1HomeBottomRight,
+		"":                     P1HomeRight,
+		"p1-right":             P1HomeRight,
+		"p1-bottom":            P1HomeRight,
+		"p1-home-bottom-right": P1HomeRight,
+		"p1-home-top-right":    P1HomeRight,
+		"p1-left":              P1HomeLeft,
+		"p1-home-bottom-left":  P1HomeLeft,
+		"p1-home-top-left":     P1HomeLeft,
 	} {
 		if got, ok := ParseOrientation(legacy); !ok || got != want {
 			t.Errorf("ParseOrientation(%q) = %v,%v; want %v,true", legacy, got, ok, want)
+		}
+	}
+}
+
+// A "p1-home-top-*" document was written under the old four-value model, where
+// the vertical mirror was the only way to say "the other player is the near
+// one". Its Player 1 is the top player, so reading it under the new rule means
+// exchanging the two players — the geometry alone is not enough.
+func TestLegacyTopOrientation(t *testing.T) {
+	for _, s := range []string{"p1-home-top-right", "p1-home-top-left"} {
+		if !LegacyTopOrientation(s) {
+			t.Errorf("LegacyTopOrientation(%q) = false, want true", s)
+		}
+	}
+	for _, s := range []string{"", "p1-bottom", "p1-right", "p1-left", "p1-home-right", "p1-home-left", "nonsense"} {
+		if LegacyTopOrientation(s) {
+			t.Errorf("LegacyTopOrientation(%q) = true, want false", s)
 		}
 	}
 }

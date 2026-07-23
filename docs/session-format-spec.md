@@ -66,6 +66,28 @@ use case.
 **Schema versioning: a `SchemaVersion` int field**, mirroring `corpus.Manifest` exactly — no new
 strategy needed, same precedent extended.
 
+**Exchanging the two players is a document-level operation.** Player 1 is the player at the bottom
+of the video (ADR-0009), so getting the near player into the "Player 1" slot is a rename — and the
+rename has to carry everything that is *per player*:
+
+| field | transformation |
+|---|---|
+| `players[2]` | exchanged |
+| `parts[].priors.checkerA` / `checkerB` | exchanged — **in every Part** |
+| `turns[].player` | `^= 1` |
+| `results[].winner` | `^= 1` (the displayed score is derived from it, not stored) |
+| `turns[].notation`, `turns[].candidates[]` | unchanged — notation is **player-relative** |
+| `turns[].cube` (`double`/`take`/`drop`), `review[].turnSeq` | unchanged |
+
+Replaying the same player-relative notations with the players exchanged rebuilds the mirrored
+board, which is the intent. The operation is involutive.
+
+**Legacy migration (read path).** Documents written before ADR-0009 may carry
+`"orientation": "p1-home-top-*"`, the four-value era's way of saying "Player 1 is the far player".
+On load the vertical bit is dropped — keeping the home boards in their half — and the two players
+are exchanged. This happens without bumping `SchemaVersion`: the field's *vocabulary* changed, not
+the document's shape, and `ParseOrientation` still accepts every string ever written.
+
 ## 4. Open items — implementation-level, deferred to the build
 
 - Exact video fingerprint mechanism (hash of what — full file? first N MB? ffprobe metadata?) —

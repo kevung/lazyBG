@@ -306,6 +306,9 @@
   // Declared checker colours [P1, P2] so the reconstructed board matches the
   // video for the at-a-glance comparison (#43). Defaults mirror SetupPanel.
   let checkerColors = ['#e7e0d5', '#31221c']
+  // Declared player names, printed on their own side of the reconstructed
+  // board — Player 1 on the bottom row, always (ADR-0009).
+  let playerLabels = null
 
   // Perception Overlay (#36, domain-model §3): calibration grid + detections
   // drawn on the ROI-cropped frame, recomputed only on a stabilised frame.
@@ -334,6 +337,7 @@
       calBarEdges = s?.barEdges ?? []
       calLens = s?.lens ?? null
       if (s?.priors?.checkerA) checkerColors = [s.priors.checkerA, s.priors.checkerB]
+      if (s?.players?.[0]) playerLabels = [...s.players]
       overlayCache.clear()
     } catch { /* non-fatal */ }
   }
@@ -797,7 +801,7 @@
             <button class="linklike" on:click={backToLive}>back to live</button>
           {/if}
         </h4>
-        <Board board={boardState ?? START_BOARD} {cube} {score} {orientation} {checkerColors} />
+        <Board board={boardState ?? START_BOARD} {cube} {score} {orientation} {checkerColors} {playerLabels} />
       </div>
       <div class="board-half">
         <h4>
