@@ -18,6 +18,10 @@ type FitResult struct {
 	Lens    calibrate.Lens
 	Matches int     // apex↔slot correspondences the final fit used
 	Resid   float64 // rms reprojection of the matched apexes, px
+	// ApexY is the fitted apex line's canonical y (the effective triangle
+	// length, re-estimated per capture): with it a caller can reproject the
+	// 24 slot tip positions exactly as the fit saw them.
+	ApexY float64
 }
 
 // fitMinMatchesHalf is the fewest correspondences a half-board homography
@@ -158,6 +162,7 @@ func FitApexes(apexes []Apex, w, h int, corners, barEdges [4]geom.Pt, cb calibra
 		projectHandles(&res, ff, calibrate.Lens{}, lm, leftLM, rightLM)
 		res.Matches = count
 		res.Resid = ff.resid
+		res.ApexY = apexY
 		lastL, lastImgL, lastR, lastImgR, lastBases = canonL, imgL, canonR, imgR, bases
 
 		// Re-estimate the apex line from this round's homographies: project
