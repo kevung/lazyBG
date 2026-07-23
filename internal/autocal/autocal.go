@@ -226,37 +226,18 @@ func calibrateColors(video string, o Options, med *image.RGBA, srcW, srcH, detW,
 // distortion, already scaled to source pixels.
 //
 // A single instant can be hostile — an arm across the board, dice mid-air —
-// so when the requested instant's fit does not verify, nearby instants are
-// probed and the first VERIFIED one wins; the requested instant's plausible
-// quad remains the fallback. In the nominal case the first instant verifies
-// and exactly one median is decoded, so interactive latency is unchanged.
+// so several nearby instants are probed. Verified locks are adjudicated
+// cross-instant: a pair that AGREES (a true lock reproduces on a fixed
+// camera; a junk-apex lock does not) confirms the board, otherwise the
+// strongest single lock wins (pickLock: coverage, then residual). The chosen
+// lock is then POLISHED by refitting on the union of every verified
+// instant's apexes — checkers move between instants, so the union covers
+// triangles any single instant loses (ADR-0008 §7) — accepted only when the
+// refit keeps the coverage and stays on the same board. The requested
+// instant's plausible-but-unverified quad remains the last-resort fallback.
 func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, err error) {
-	type lock struct {
-		c, b [4]geom.Pt
-		l    calibrate.Lens
-		f    FitResult
-	}
-	// agree reports whether two locks describe the same physical board: the
-	// camera is fixed, so a TRUE lock reproduces across instants within a
-	// fraction of the pitch, while a false lock (driven by one frame's junk
-	// apexes) does not. Cross-instant agreement is the strongest oracle-free
-	// verifier available — stronger than any single fit's match count.
-	agree := func(a, b lock) bool {
-		pitch := math.Hypot(a.c[1].X-a.c[0].X, a.c[1].Y-a.c[0].Y) / 13
-		for i := range a.c {
-			if math.Hypot(a.c[i].X-b.c[i].X, a.c[i].Y-b.c[i].Y) > 0.35*pitch {
-				return false
-			}
-		}
-		return true
-	}
-	better := func(a, b lock) lock {
-		if b.f.Matches > a.f.Matches || (b.f.Matches == a.f.Matches && b.f.Resid < a.f.Resid) {
-			return b
-		}
-		return a
-	}
-	var locks []lock
+	var locks []instantLock
+	var fallback instantLock
 	var firstErr error
 	found := false
 	for _, off := range []int{0, 6000, 15000, -6000, 30000} {
@@ -264,7 +245,7 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 		if t < 0 {
 			continue
 		}
-		c, b, l, f, verified, e := detectAt(video, t, o)
+		lk, verified, e := detectAt(video, t, o)
 		if e != nil {
 			if firstErr == nil {
 				firstErr = e
@@ -272,31 +253,23 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 			continue
 		}
 		if verified {
-			cur := lock{c: c, b: b, l: l, f: f}
-			for _, pl := range locks {
-				if agree(pl, cur) {
-					win := better(pl, cur)
-					return win.c, win.b, win.l, nil // confirmed by a second instant
-				}
-			}
-			locks = append(locks, cur)
+			locks = append(locks, lk)
 			continue
 		}
 		if !found {
-			corners, barEdges, lens = c, b, l
+			fallback = lk
 			found = true
 		}
 	}
 	if len(locks) > 0 {
-		// No confirmed pair: fall back to the best single lock.
-		win := locks[0]
-		for _, pl := range locks[1:] {
-			win = better(win, pl)
+		win := adjudicateLocks(locks)
+		if uf, ok := refineOnUnion(locks, win, o); ok {
+			win = uf
 		}
-		return win.c, win.b, win.l, nil
+		return win.corners, win.barEdges, win.lens, nil
 	}
 	if found {
-		return corners, barEdges, lens, nil
+		return fallback.corners, fallback.barEdges, fallback.lens, nil
 	}
 	if firstErr == nil {
 		firstErr = fmt.Errorf("no plausible board found near %dms", tickMs)
@@ -304,13 +277,105 @@ func DetectHandles(video string, tickMs int, o Options) (corners, barEdges [4]ge
 	return corners, barEdges, lens, firstErr
 }
 
+// instantLock is one instant's detection: source-space handles + the fit
+// evidence and det-space apexes the cross-instant adjudication needs.
+type instantLock struct {
+	corners, barEdges [4]geom.Pt
+	lens              calibrate.Lens // source-space
+	fit               FitResult
+	aps               []Apex // det-space apexes of the winning hypothesis
+	detW, detH        int
+	sx                float64 // det → source scale
+}
+
+// locksAgree reports whether two locks describe the same physical board: the
+// camera is fixed, so a TRUE lock reproduces across instants within a
+// fraction of the pitch, while a false lock (driven by one frame's junk
+// apexes) does not. Cross-instant agreement is the strongest oracle-free
+// verifier available — stronger than any single fit's match count.
+func locksAgree(a, b [4]geom.Pt) bool {
+	pitch := math.Hypot(a[1].X-a[0].X, a[1].Y-a[0].Y) / 13
+	for i := range a {
+		if math.Hypot(a[i].X-b[i].X, a[i].Y-b[i].Y) > 0.35*pitch {
+			return false
+		}
+	}
+	return true
+}
+
+// adjudicateLocks picks the winning verified lock: the first agreeing pair
+// (in probe order) confirms the board and the pair's stronger lock wins;
+// with no agreeing pair, pickLock ranks all locks (coverage within noise,
+// then residual).
+func adjudicateLocks(locks []instantLock) instantLock {
+	rank := func(sel []instantLock) instantLock {
+		cands := make([]lockRank, len(sel))
+		for i, lk := range sel {
+			cands[i] = lockRank{Matches: lk.fit.Matches, Resid: lk.fit.Resid, SetSize: len(lk.aps)}
+		}
+		return sel[pickLock(cands)]
+	}
+	for j := 1; j < len(locks); j++ {
+		for i := 0; i < j; i++ {
+			if locksAgree(locks[i].corners, locks[j].corners) {
+				return rank([]instantLock{locks[i], locks[j]})
+			}
+		}
+	}
+	return rank(locks)
+}
+
+// refineOnUnion polishes the chosen lock by refitting on the union of every
+// VERIFIED instant's apexes (unverified instants stay out: their masks carry
+// exactly the junk that made them fail). Strictly a polish, never a jump:
+// the refit is accepted only when it verifies, keeps at least the chosen
+// lock's correspondence coverage, and lands on the same board (locksAgree).
+func refineOnUnion(locks []instantLock, win instantLock, o Options) (instantLock, bool) {
+	if len(locks) < 2 {
+		return win, false // one instant: the union adds nothing
+	}
+	sx := win.sx
+	var detC, detB [4]geom.Pt
+	for i := range win.corners {
+		detC[i] = geom.P(win.corners[i].X/sx, win.corners[i].Y/sx)
+		detB[i] = geom.P(win.barEdges[i].X/sx, win.barEdges[i].Y/sx)
+	}
+	pitch := math.Hypot(detC[1].X-detC[0].X, detC[1].Y-detC[0].Y) / 13
+	sets := make([][]Apex, len(locks))
+	for i, lk := range locks {
+		sets[i] = lk.aps
+	}
+	union := MergeApexes(sets, 0.3*pitch)
+	uf, ok := FitApexes(union, win.detW, win.detH, detC, detB, o.Canonical)
+	if !ok || uf.Matches < win.fit.Matches {
+		return win, false
+	}
+	out := win
+	for i := range uf.Corners {
+		out.corners[i] = geom.P(uf.Corners[i].X*sx, uf.Corners[i].Y*sx)
+		out.barEdges[i] = geom.P(uf.BarEdges[i].X*sx, uf.BarEdges[i].Y*sx)
+	}
+	out.lens = uf.Lens
+	if out.lens.Norm > 0 {
+		out.lens.CenterX *= sx
+		out.lens.CenterY *= sx
+		out.lens.Norm *= sx
+	}
+	out.fit = uf
+	if !locksAgree(win.corners, out.corners) {
+		return win, false
+	}
+	return out, true
+}
+
 // detectAt runs the single-instant detection: short median, color
 // hypotheses, correspondence fit. verified reports whether the fit locked
-// (the caller prefers verified instants).
-func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt, lens calibrate.Lens, fit FitResult, verified bool, err error) {
+// (the caller prefers verified instants). The returned lock carries the
+// winning hypothesis' det-space apexes for the cross-instant union refit.
+func detectAt(video string, tickMs int, o Options) (lk instantLock, verified bool, err error) {
 	probe, err := capture.FrameAt(video, tickMs)
 	if err != nil {
-		return corners, barEdges, lens, fit, false, fmt.Errorf("decode at %dms: %w", tickMs, err)
+		return lk, false, fmt.Errorf("decode at %dms: %w", tickMs, err)
 	}
 	srcW, srcH := probe.Bounds().Dx(), probe.Bounds().Dy()
 	// Detect at the tuned default resolution: the mask/component thresholds and
@@ -321,7 +386,7 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 	// A short median suppresses transient hands/dice without scanning the video.
 	med, err := MedianFrame(video, tickMs, tickMs+1500, 5, detW, detH)
 	if err != nil {
-		return corners, barEdges, lens, fit, false, fmt.Errorf("sample near %dms: %w", tickMs, err)
+		return lk, false, fmt.Errorf("sample near %dms: %w", tickMs, err)
 	}
 	// Color hypotheses: declared priors, or the ranked candidates derived
 	// from the frame — the correspondence fit is the verifier that decides
@@ -332,7 +397,7 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 	if o.Colors == (Colors{}) {
 		cands = AutoColorCandidates(med, 8)
 		if len(cands) == 0 {
-			return corners, barEdges, lens, fit, false, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
+			return lk, false, fmt.Errorf("could not derive board colours from the frame — position it on the board, or place the handles by hand")
 		}
 	}
 	// Rank VERIFIED hypotheses by (matches desc, residual asc): a fit locked
@@ -341,16 +406,18 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 	// one (the ratchet caught exactly that). Unverified plausible quads stay
 	// the fallback.
 	var seedC, seedB [4]geom.Pt
+	var lens calibrate.Lens
+	var aps []Apex
 	found := false
 	var bestFit FitResult
 	for _, colors := range cands {
-		c, b, l, f, fitOK, ok := detectWithColors(med, colors, o, detW, detH)
+		c, b, l, a, f, fitOK, ok := detectWithColors(med, colors, o, detW, detH)
 		if !ok {
 			continue
 		}
 		if fitOK {
 			if !verified || f.Matches > bestFit.Matches || (f.Matches == bestFit.Matches && f.Resid < bestFit.Resid) {
-				seedC, seedB, lens, bestFit = c, b, l, f
+				seedC, seedB, lens, aps, bestFit = c, b, l, a, f
 				found, verified = true, true
 			}
 			if bestFit.Matches >= 18 {
@@ -365,15 +432,13 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 		}
 	}
 	if !found {
-		return corners, barEdges, lens, fit, false, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
+		return lk, false, fmt.Errorf("no plausible board found in the frame (%d colour hypotheses tried)", len(cands))
 	}
 
 	sx := float64(srcW) / float64(detW)
 	for i := range seedC {
-		corners[i] = geom.P(seedC[i].X*sx, seedC[i].Y*sx)
-	}
-	for i := range seedB {
-		barEdges[i] = geom.P(seedB[i].X*sx, seedB[i].Y*sx)
+		lk.corners[i] = geom.P(seedC[i].X*sx, seedC[i].Y*sx)
+		lk.barEdges[i] = geom.P(seedB[i].X*sx, seedB[i].Y*sx)
 	}
 	// The lens was estimated in detection space; its coefficients are
 	// dimensionless, only centre and norm scale to source pixels.
@@ -382,7 +447,11 @@ func detectAt(video string, tickMs int, o Options) (corners, barEdges [4]geom.Pt
 		lens.CenterY *= sx
 		lens.Norm *= sx
 	}
-	return corners, barEdges, lens, bestFit, verified, nil
+	lk.lens = lens
+	lk.fit = bestFit
+	lk.aps = aps
+	lk.detW, lk.detH, lk.sx = detW, detH, sx
+	return lk, verified, nil
 }
 
 // barFractions finds the bar's left/right position as fractions of the board
@@ -1119,8 +1188,10 @@ func fitAtInstants(video string, ticks []int, o Options, seedCorners [4]geom.Pt,
 // detectWithColors runs the mask → quad → bar → correspondence-fit chain for
 // ONE color hypothesis, in detection space. ok is false when no plausible
 // quad exists under these colors; fitOK says whether the correspondence fit
-// verified the hypothesis (the caller prefers verified hypotheses).
-func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int) (seedC, seedB [4]geom.Pt, lens calibrate.Lens, fit FitResult, fitOK, ok bool) {
+// verified the hypothesis (the caller prefers verified hypotheses). aps is
+// the mask's det-space apex set (the fit's own input), returned so verified
+// instants can be aggregated cross-instant without re-deriving it.
+func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int) (seedC, seedB [4]geom.Pt, lens calibrate.Lens, aps []Apex, fit FitResult, fitOK, ok bool) {
 	mask := ColorMask(med, []color.RGBA{colors.PointA, colors.PointB}, o.ColorTol)
 	mask = TriangleComponents(mask, med, colors.Felt, o.ColorTol, detW, detH)
 	var quad [4]geom.Pt
@@ -1131,7 +1202,7 @@ func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int)
 		quad, got = q, true
 	}
 	if !got {
-		return seedC, seedB, lens, fit, false, false
+		return seedC, seedB, lens, nil, fit, false, false
 	}
 	if !quadInBounds(quad, detW, detH) {
 		quad = clampQuad(quad, detW, detH)
@@ -1157,8 +1228,9 @@ func detectWithColors(med *image.RGBA, colors Colors, o Options, detW, detH int)
 	// Correspondence fit (ADR-0008): sharpen the seed against the detected
 	// triangle apexes and lateral edges — and, for auto-derived colors,
 	// verify the hypothesis at all.
-	if f, k := FitHandles(mask, detW, detH, seedC, seedB, o.Canonical); k {
-		return f.Corners, f.BarEdges, f.Lens, f, true, true
+	aps = ApexComponents(mask, detW, detH)
+	if f, k := FitApexes(aps, detW, detH, seedC, seedB, o.Canonical); k {
+		return f.Corners, f.BarEdges, f.Lens, aps, f, true, true
 	}
-	return seedC, seedB, calibrate.Lens{}, fit, false, true
+	return seedC, seedB, calibrate.Lens{}, aps, fit, false, true
 }
