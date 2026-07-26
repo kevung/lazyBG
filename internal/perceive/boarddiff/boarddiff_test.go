@@ -274,3 +274,61 @@ func TestDecideAnyDice_AgreeingDiceRaiseConfidence(t *testing.T) {
 			hinted.Confidence, plain.Confidence)
 	}
 }
+
+// A SPREAD dice distribution must not steer the decision: when the PMF puts
+// equal mass on the two rolls that reach the same board, the within-roll
+// prior keeps the choice (measured motivation: hard pairs from the scan cue
+// are wrong ~83-100% of the time on real footage — a hard wrong pair
+// actively steered decisions away from truth, iteration notes 2026-07-24).
+func TestDecideAnyDice_SoftPMFSpreadDoesNotSteer(t *testing.T) {
+	start := bg.StandardStart()
+	pre := bg.Position{Board: start, PlayerOnRoll: bg.P1}
+	truth := bg.Position{Board: start, Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	post := obsFromBoard(bestResult(t, truth).Result)
+	prev := obsFromBoard(start)
+	w := fusion.DefaultWeights()
+
+	pmf := map[bg.Dice]float64{}
+	for a := 1; a <= 6; a++ {
+		for b := 1; b <= a; b++ {
+			pmf[bg.Dice{a, b}] = 0.8 / 19
+		}
+	}
+	pmf[bg.Dice{1, 1}] = 0.10 // argmax : la même paire fausse que la cue dure
+	pmf[bg.Dice{3, 1}] = 0.10 // ...mais la vraie explication porte la même masse
+	obs := &cue.Cue{Kind: cue.DiceValue, Confidence: 0.9, DicePMF: pmf}
+	d, err := DecideAnyDice(pre, prev, post, 0, w, obs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(d.Top.Dice == bg.Dice{3, 1} || d.Top.Dice == bg.Dice{1, 3}) {
+		t.Errorf("spread PMF steered dice to %v, want the prior's 3-1", d.Top.Dice)
+	}
+}
+
+// A PEAKED distribution keeps the hard cue's disambiguation power: 0.8 mass
+// on 1-1 must flip the same-board 1-1/3-1 tie exactly like the hard pair did.
+func TestDecideAnyDice_SoftPMFPeakedDisambiguates(t *testing.T) {
+	start := bg.StandardStart()
+	pre := bg.Position{Board: start, PlayerOnRoll: bg.P1}
+	truth := bg.Position{Board: start, Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1}
+	post := obsFromBoard(bestResult(t, truth).Result)
+	prev := obsFromBoard(start)
+	w := fusion.DefaultWeights()
+
+	pmf := map[bg.Dice]float64{}
+	for a := 1; a <= 6; a++ {
+		for b := 1; b <= a; b++ {
+			pmf[bg.Dice{a, b}] = 0.2 / 20
+		}
+	}
+	pmf[bg.Dice{1, 1}] = 0.8
+	obs := &cue.Cue{Kind: cue.DiceValue, Confidence: 0.9, DicePMF: pmf}
+	d, err := DecideAnyDice(pre, prev, post, 0, w, obs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if (d.Top.Dice != bg.Dice{1, 1}) {
+		t.Errorf("peaked PMF gave dice %v, want 1-1", d.Top.Dice)
+	}
+}

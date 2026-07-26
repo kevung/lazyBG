@@ -30,14 +30,15 @@ type Event struct {
 	Obs      perceive.ObservedBoard
 	Dice     bg.Dice
 	DiceConf float64
+	DicePMF  map[bg.Dice]float64 // soft pair distribution (21 rolls, high die first)
 }
 
 // diceCue renders the event's observed dice as a fusion cue (nil if absent).
 func (e Event) diceCue() *cue.Cue {
-	if e.Dice == (bg.Dice{}) || e.DiceConf <= 0 {
+	if (e.Dice == (bg.Dice{}) && len(e.DicePMF) == 0) || e.DiceConf <= 0 {
 		return nil
 	}
-	return &cue.Cue{Kind: cue.DiceValue, Tick: e.Tick, Dice: e.Dice, Confidence: e.DiceConf}
+	return &cue.Cue{Kind: cue.DiceValue, Tick: e.Tick, Dice: e.Dice, Confidence: e.DiceConf, DicePMF: e.DicePMF}
 }
 
 // Options tunes the conductor. Observations must already be in the canonical

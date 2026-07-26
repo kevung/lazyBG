@@ -281,15 +281,36 @@ func deltaMatch(pre, cand bg.Board, prev, cur perceive.ObservedBoard) float64 {
 // engine prior and the dice-agreement weight.
 func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, w fusion.Weights, observed *cue.Cue) (cue.MoveDecision, error) {
 	wDice := 0.0
-	if observed != nil && observed.Dice != (bg.Dice{}) {
+	if observed != nil && (observed.Dice != (bg.Dice{}) || len(observed.DicePMF) > 0) {
 		wDice = w.Dice * observed.Confidence
 	}
-	sameRoll := func(d bg.Dice) bool {
+	// diceAgree is each roll's agreement with the observation in [0,1]:
+	// soft (mass relative to the PMF's mode) when a distribution is given,
+	// binary exact-pair match otherwise.
+	maxPMF := 0.0
+	if observed != nil {
+		for _, v := range observed.DicePMF {
+			if v > maxPMF {
+				maxPMF = v
+			}
+		}
+	}
+	diceAgreeOf := func(d bg.Dice) float64 {
 		if observed == nil {
-			return false
+			return 0
+		}
+		if maxPMF > 0 {
+			hi, lo := d[0], d[1]
+			if lo > hi {
+				hi, lo = lo, hi
+			}
+			return observed.DicePMF[bg.Dice{hi, lo}] / maxPMF
 		}
 		o := observed.Dice
-		return (d[0] == o[0] && d[1] == o[1]) || (d[0] == o[1] && d[1] == o[0])
+		if (d[0] == o[0] && d[1] == o[1]) || (d[0] == o[1] && d[1] == o[0]) {
+			return 1
+		}
+		return 0
 	}
 	// Phase 1: unscored sweep — best diff match per roll.
 	bestMatch := make([]float64, len(rolls21))
@@ -389,10 +410,7 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 			rcs = rcs[:perRoll]
 		}
 		for _, rc := range rcs {
-			agree := 0.0
-			if sameRoll(d) {
-				agree = 1
-			}
+			agree := diceAgreeOf(d)
 			c := cand{d, rc.mv.Notation, rc.match, rc.prior, agree, 0}
 			sig := boardSig(rc.mv.Result)
 			if j, ok := bestBySig[sig]; ok {
