@@ -31,7 +31,14 @@ type Params struct {
 	// EdgeFrac × the image's max gradient (relative → contrast-adaptive).
 	EdgeFrac float64
 	// PeakFrac: an accumulator cell is a centre if it exceeds PeakFrac × the
-	// theoretical full-ring vote count (2πr) — i.e. a sufficiently complete rim.
+	// image-max accumulator value — a rim complete *relative to the strongest
+	// ring in view*, floored at 0.30 × 2πr so a lone weak ring still qualifies.
+	// It is deliberately NOT the absolute PeakFrac × 2πr an idealised full ring
+	// would suggest: a small ring's votes don't fully concentrate after the
+	// sum-blur, so its true peak sits below 2πr, and a literal absolute bar
+	// drops it. Measured — swapping to PeakFrac × 2πr collapses the dice-pip
+	// reader (ReadDice → [] for 3–6, TestReadDice_EachValue) and drops the real
+	// board frame 21→20 (TestCircleReader_RealOpeningFrame). Keep it relative.
 	PeakFrac float64
 	// NMSDistFrac: non-max-suppression radius as a fraction of r. Adjacent
 	// checkers sit ~2r apart, so < 2r keeps both; > texture jitter drops dupes.
@@ -106,6 +113,8 @@ func DetectWith(g *image.Gray, radius int, p Params) []Circle {
 	if maxAcc < ringFloor {
 		return nil
 	}
+	// Relative to maxAcc, not PeakFrac×2πr — see Params.PeakFrac for why the
+	// absolute bar regresses dice + board (measured). Do not "fix" this.
 	peakThresh := math.Max(ringFloor, p.PeakFrac*maxAcc)
 	var found []Circle
 	for y := 1; y < h-1; y++ {
