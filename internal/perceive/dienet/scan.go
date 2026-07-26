@@ -7,9 +7,10 @@ import (
 
 // Det is one die detection from a band scan.
 type Det struct {
-	Box  image.Rectangle
-	Val  int // 1..6
-	Conf float64
+	Box   image.Rectangle
+	Val   int // 1..6
+	Conf  float64
+	Probs [NClasses]float64 // full softmax (0 = junk) — feeds the soft pair PMF
 }
 
 // ScanBand runs the classifier as a sliding-window die DETECTOR over a
@@ -35,11 +36,17 @@ func ScanBand(net *Net, img *image.RGBA, band image.Rectangle, sizes []int, stri
 				if r.Dx() < 12 || r.Dy() < 12 {
 					continue
 				}
-				val, conf := Classify(net, img.SubImage(r).(*image.RGBA))
+				probs := ClassifyProbs(net, img.SubImage(r).(*image.RGBA))
+				val, conf := 0, 0.0
+				for i, v := range probs {
+					if v > conf {
+						val, conf = i, v
+					}
+				}
 				if val == 0 || conf < minConf {
 					continue
 				}
-				dets = append(dets, Det{Box: r, Val: val, Conf: conf})
+				dets = append(dets, Det{Box: r, Val: val, Conf: conf, Probs: probs})
 			}
 		}
 	}

@@ -298,6 +298,7 @@ func ReadEventsAndCommits(root string, m corpus.Manifest, o RunOptions) ([]Event
 				}
 				events[k].Dice = bg.Dice{dets[0].Val, dets[1].Val}
 				events[k].DiceConf = dets[1].Conf // the weaker of the pair
+				events[k].DicePMF = dicePairPMF(dets[0].Probs, dets[1].Probs)
 				nPairs++
 				if o.Log != nil {
 					fmt.Fprintf(o.Log, "part %d dice pair @%dms: %d-%d conf %.2f\n", pi, events[k].Tick, dets[0].Val, dets[1].Val, dets[1].Conf)
@@ -373,4 +374,33 @@ func VoteObservations(obs []perceive.ObservedBoard) perceive.ObservedBoard {
 		}
 	}
 	return out
+}
+
+// dicePairPMF turns the two detections' softmax posteriors into a
+// distribution over the 21 distinct rolls (high die first): junk mass is
+// dropped, per-die values renormalized, and the unordered pair {a,b} gets
+// the symmetrized product mass. Fusion consumes this instead of the hard
+// argmax pair, so an uncertain reading stays uncertain all the way down —
+// the measured failure of hard pairs (wrong ~83-100% on real footage) was
+// them steering DecideAnyDice away from the truth with full weight.
+func dicePairPMF(p, q [dienet.NClasses]float64) map[bg.Dice]float64 {
+	var ps, qs float64
+	for v := 1; v <= 6; v++ {
+		ps += p[v]
+		qs += q[v]
+	}
+	if ps <= 0 || qs <= 0 {
+		return nil
+	}
+	pmf := make(map[bg.Dice]float64, 21)
+	for a := 1; a <= 6; a++ {
+		for b := 1; b <= a; b++ {
+			m := p[a] / ps * q[b] / qs
+			if a != b {
+				m += p[b] / ps * q[a] / qs
+			}
+			pmf[bg.Dice{a, b}] = m
+		}
+	}
+	return pmf
 }

@@ -39,8 +39,17 @@ type Cue struct {
 	Kind       Kind
 	Tick       int
 	Confidence float64 // [0,1]
-	Dice       bg.Dice // for DiceValue
+	Dice       bg.Dice // for DiceValue: hard pair (legacy binary agreement)
 	Notation   string  // for BoardDiff: the candidate move implied by the diff
+
+	// DicePMF, for DiceValue, is a probability distribution over the 21
+	// distinct rolls (keys high-die-first, values summing to ~1). When set
+	// it replaces the hard pair in fusion: agreement becomes proportional
+	// to each roll's mass, so a SPREAD distribution cannot steer a decision
+	// the way a wrong hard pair does (measured 2026-07-24: hard scan pairs
+	// were wrong ~83-100% on real footage and pushed decisions off truth),
+	// while a PEAKED one keeps the hard pair's disambiguation power.
+	DicePMF map[bg.Dice]float64
 }
 
 // MoveHypothesis is a candidate (dice, move) with a confidence and the kinds of

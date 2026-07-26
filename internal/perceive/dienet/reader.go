@@ -10,6 +10,21 @@ import (
 // confidence, or (0, conf) when the crop is junk — not a single readable die
 // (the class the hand-labeled trainer rejects with ~99% recall).
 func Classify(net *Net, crop image.Image) (int, float64) {
+	probs := ClassifyProbs(net, crop)
+	best := 0
+	for i, v := range probs {
+		if v > probs[best] {
+			best = i
+		}
+	}
+	return best, probs[best]
+}
+
+// ClassifyProbs is Classify keeping the whole softmax: index 0 is the junk
+// probability, 1..6 the top-face values — the raw material for the soft
+// dice-pair distribution the fusion consumes (a spread posterior must reach
+// fusion as spread, not collapsed to a hard argmax pair).
+func ClassifyProbs(net *Net, crop image.Image) [NClasses]float64 {
 	b := crop.Bounds()
 	x := make([]float32, 3*In*In)
 	sx := float64(b.Dx()) / In
@@ -26,21 +41,22 @@ func Classify(net *Net, crop image.Image) (int, float64) {
 		}
 	}
 	logits := net.Forward(x)
-	best, sum := 0, 0.0
 	var mx float32
-	for i, v := range logits {
-		if v > logits[best] {
-			best = i
-		}
+	for _, v := range logits {
 		if v > mx {
 			mx = v
 		}
 	}
-	for _, v := range logits {
-		sum += math.Exp(float64(v - mx))
+	sum := 0.0
+	var probs [NClasses]float64
+	for i, v := range logits {
+		probs[i] = math.Exp(float64(v - mx))
+		sum += probs[i]
 	}
-	conf := math.Exp(float64(logits[best]-mx)) / sum
-	return best, conf
+	for i := range probs {
+		probs[i] /= sum
+	}
+	return probs
 }
 
 func bilinearRGB(img image.Image, fx, fy float64) (float32, float32, float32) {
