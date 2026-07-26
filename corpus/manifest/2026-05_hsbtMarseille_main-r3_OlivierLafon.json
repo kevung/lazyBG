@@ -1,0 +1,325 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-05_hsbtMarseille_main-r3_OlivierLafon",
+  "transcript": "/home/unger/src/lazyBG/corpus/2026-05_hsbtMarseille/main-r3_OlivierLafon/main-r3_OlivierLafon.mat",
+  "cell": {
+    "angle": "",
+    "colors": "",
+    "resolution": "",
+    "dice": "opaque",
+    "audio": "table"
+  },
+  "parts": [
+    {
+      "file": "corpus/2026-05_hsbtMarseille/main-r3_OlivierLafon/20260523 hsbtMarseille main ronde3 KevinUnger OlivierLafon 7p [piG8ptX4wzU].mkv",
+      "priors": {
+        "clock": true,
+        "matchLength": 7,
+        "checkerA": "#e1ded2",
+        "checkerB": "#464850",
+        "orientation": "p1-bottom",
+        "clockROI": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "calibration": {
+        "corners": [
+          [
+            223,
+            58
+          ],
+          [
+            888,
+            40
+          ],
+          [
+            855,
+            579
+          ],
+          [
+            223,
+            591
+          ]
+        ],
+        "canonical": {
+          "marginX": 16,
+          "marginY": 18,
+          "pointW": 58,
+          "quadH": 300,
+          "barGap": 60,
+          "offW": 24
+        },
+        "openingScore": 18
+      },
+      "span": {
+        "beginMs": 0,
+        "endMs": 2976021
+      }
+    }
+  ],
+  "turns": [
+    {
+      "index": 1,
+      "part": 0,
+      "tickMs": 11666
+    },
+    {
+      "index": 3,
+      "part": 0,
+      "tickMs": 38999
+    },
+    {
+      "index": 4,
+      "part": 0,
+      "tickMs": 47833
+    },
+    {
+      "index": 26,
+      "part": 0,
+      "tickMs": 469666
+    },
+    {
+      "index": 58,
+      "part": 0,
+      "tickMs": 860999
+    },
+    {
+      "index": 60,
+      "part": 0,
+      "tickMs": 928833
+    },
+    {
+      "index": 61,
+      "part": 0,
+      "tickMs": 930666
+    },
+    {
+      "index": 68,
+      "part": 0,
+      "tickMs": 1023833
+    },
+    {
+      "index": 73,
+      "part": 0,
+      "tickMs": 1048833
+    },
+    {
+      "index": 75,
+      "part": 0,
+      "tickMs": 1055333
+    },
+    {
+      "index": 77,
+      "part": 0,
+      "tickMs": 1082833
+    },
+    {
+      "index": 79,
+      "part": 0,
+      "tickMs": 1087833
+    },
+    {
+      "index": 83,
+      "part": 0,
+      "tickMs": 1107666
+    },
+    {
+      "index": 87,
+      "part": 0,
+      "tickMs": 1128499
+    },
+    {
+      "index": 88,
+      "part": 0,
+      "tickMs": 1135166
+    },
+    {
+      "index": 89,
+      "part": 0,
+      "tickMs": 1140499
+    },
+    {
+      "index": 90,
+      "part": 0,
+      "tickMs": 1148833
+    },
+    {
+      "index": 91,
+      "part": 0,
+      "tickMs": 1182333
+    },
+    {
+      "index": 98,
+      "part": 0,
+      "tickMs": 1281166
+    },
+    {
+      "index": 102,
+      "part": 0,
+      "tickMs": 1353833
+    },
+    {
+      "index": 109,
+      "part": 0,
+      "tickMs": 1493500
+    },
+    {
+      "index": 115,
+      "part": 0,
+      "tickMs": 1606666
+    },
+    {
+      "index": 118,
+      "part": 0,
+      "tickMs": 1612166
+    },
+    {
+      "index": 121,
+      "part": 0,
+      "tickMs": 1640166
+    },
+    {
+      "index": 125,
+      "part": 0,
+      "tickMs": 1746833
+    },
+    {
+      "index": 127,
+      "part": 0,
+      "tickMs": 1777333
+    },
+    {
+      "index": 131,
+      "part": 0,
+      "tickMs": 1807666
+    },
+    {
+      "index": 143,
+      "part": 0,
+      "tickMs": 1874333
+    },
+    {
+      "index": 144,
+      "part": 0,
+      "tickMs": 1910000
+    },
+    {
+      "index": 161,
+      "part": 0,
+      "tickMs": 2189833
+    },
+    {
+      "index": 162,
+      "part": 0,
+      "tickMs": 2237000
+    },
+    {
+      "index": 170,
+      "part": 0,
+      "tickMs": 2284166
+    },
+    {
+      "index": 171,
+      "part": 0,
+      "tickMs": 2334999
+    },
+    {
+      "index": 172,
+      "part": 0,
+      "tickMs": 2343500
+    },
+    {
+      "index": 173,
+      "part": 0,
+      "tickMs": 2350166
+    },
+    {
+      "index": 190,
+      "part": 0,
+      "tickMs": 2540833
+    },
+    {
+      "index": 191,
+      "part": 0,
+      "tickMs": 2553666
+    },
+    {
+      "index": 193,
+      "part": 0,
+      "tickMs": 2610999
+    },
+    {
+      "index": 194,
+      "part": 0,
+      "tickMs": 2650666
+    },
+    {
+      "index": 197,
+      "part": 0,
+      "tickMs": 2671666
+    },
+    {
+      "index": 199,
+      "part": 0,
+      "tickMs": 2714499
+    },
+    {
+      "index": 200,
+      "part": 0,
+      "tickMs": 2723166
+    },
+    {
+      "index": 201,
+      "part": 0,
+      "tickMs": 2727999
+    },
+    {
+      "index": 204,
+      "part": 0,
+      "tickMs": 2864833
+    },
+    {
+      "index": 205,
+      "part": 0,
+      "tickMs": 2867499
+    },
+    {
+      "index": 211,
+      "part": 0,
+      "tickMs": 2880166
+    },
+    {
+      "index": 214,
+      "part": 0,
+      "tickMs": 2883166
+    },
+    {
+      "index": 216,
+      "part": 0,
+      "tickMs": 2908833
+    },
+    {
+      "index": 217,
+      "part": 0,
+      "tickMs": 2920166
+    },
+    {
+      "index": 218,
+      "part": 0,
+      "tickMs": 2935666
+    },
+    {
+      "index": 223,
+      "part": 0,
+      "tickMs": 2954833
+    },
+    {
+      "index": 224,
+      "part": 0,
+      "tickMs": 2957166
+    }
+  ]
+}
