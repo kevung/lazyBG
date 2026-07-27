@@ -66,7 +66,11 @@ and are rebuilding everything else on clean foundations.
   (65% per-die, 99.6% junk rejection on held-out recordings) over diceevent boxes, feeding the
   DiceValue fusion cue. The CLI's `-dice-model` defaults to the embedded `data/models/dievalue.bin`
   (`none` disables; a path swaps weights). Measured on the pilot: more exact plies (7 vs 4 over
-  15 min), fewer confident errors at low gates, zero auto-fill errors introduced.
+  15 min), fewer confident errors at low gates, zero auto-fill errors introduced. **Do not try to
+  squeeze this cue with aggregation or thresholding tricks** — temporal voting over the stable
+  window was built and measured (2026-07-27): it doubles-to-quintuples cue coverage with zero
+  end-to-end gain, because the blocker is value precision, not the detection funnel
+  (`docs/experiment-plan.md` §6 "Closed experiments"; issue #65).
 - The review UI is **yet to be built.** Its first milestone is now scoped as a **manual
   transcription tool**: usable standalone, with zero automatic assistance, to produce a `.mat`
   from a video entirely by hand — built on the *same* Transcription / Turn Segment / Review Item
