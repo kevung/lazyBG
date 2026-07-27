@@ -8,6 +8,7 @@
   import SetupPanel from './SetupPanel.svelte'
   import VideoControls from './VideoControls.svelte'
   import { skip } from './lib/video.js'
+  import { keyIntent } from './lib/interaction.js'
   import {
     gridOnFrame, buildCalibration, projectCanonicalLens, canonicalCheckerSlots, checkerRadiusOnFrame, roiBBox,
     DEFAULT_CANONICAL,
@@ -640,119 +641,80 @@
     }
   }
 
+  // Keyboard handling is a thin adapter over the pure keyIntent reducer
+  // (lib/interaction.js): snapshot the reactive state, let the reducer decide
+  // the intent (with all the branching guards — tested there under node --test),
+  // then apply its state patch and run the effect. Keeps the intricate rules in
+  // one unit-tested place instead of an untestable inline switch (issue #42).
   function onKeydown(e) {
-    if (setupOpen) return // the setup form owns the keyboard
-    // Don't steal keys from form fields.
-    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
+    const inFormField = !!(e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))
+    const intent = keyIntent(
+      {
+        setupOpen,
+        inFormField,
+        firstDigit,
+        selectedSeq,
+        candidateCount: candidates.length,
+        highlight,
+        cubeCount: cubeOptions.length,
+        cubeHighlight,
+        editRoll,
+        hasVideo: !!videoEl,
+      },
+      e.key,
+      e.shiftKey,
+    )
+    if (intent.preventDefault) e.preventDefault()
 
-    if (e.key === 'Tab') {
-      navTick(e.shiftKey ? -1 : 1)
-      e.preventDefault()
-      return
+    const p = intent.patch
+    if (p) {
+      if ('firstDigit' in p) firstDigit = p.firstDigit
+      if ('highlight' in p) highlight = p.highlight
+      if ('cubeHighlight' in p) cubeHighlight = p.cubeHighlight
+      if ('overrideOpen' in p) overrideOpen = p.overrideOpen
+      if (p.clearCandidates) candidates = []
+      if (p.clearCube) cubeOptions = []
     }
-    if (e.key >= '1' && e.key <= '6') {
-      const d = Number(e.key)
-      if (firstDigit === null) {
-        firstDigit = d
-      } else {
-        const d1 = firstDigit
-        firstDigit = null
-        if (selectedSeq >= 0) {
-          editDice(d1, d) // edit mode: same flow, at the selected turn
-        } else {
-          enterDice(d1, d)
-        }
-      }
-      e.preventDefault()
-      return
-    }
-    if ((e.key === 'Delete' || e.key === 'x') && selectedSeq >= 0 && !candidates.length) {
-      deleteSelected()
-      e.preventDefault()
-      return
-    }
-    // 'i' on a selected turn: insert a skipped turn before it (issue #25).
-    // Then type the dice and pick the move (or confirm empty = Cannot Move).
-    if (e.key === 'i' && selectedSeq >= 0 && !candidates.length) {
-      startInsert()
-      e.preventDefault()
-      return
-    }
-    if (cubeOptions.length) {
-      switch (e.key) {
-        case 'ArrowDown':
-        case 'j':
-          cubeHighlight = Math.min(cubeHighlight + 1, cubeOptions.length - 1)
-          break
-        case 'ArrowUp':
-        case 'k':
-          cubeHighlight = Math.max(cubeHighlight - 1, 0)
-          break
-        case ' ':
-        case 'Enter':
-          confirmCube()
-          break
-        case 'Escape':
-          cubeOptions = []
-          break
-      }
-      e.preventDefault()
-      return
-    }
-    switch (e.key) {
-      case 'ArrowDown':
-      case 'j':
-        if (candidates.length) highlight = Math.min(highlight + 1, candidates.length - 1)
-        e.preventDefault()
+
+    switch (intent.action) {
+      case 'nav-tick':
+        navTick(intent.dir)
         break
-      case 'ArrowUp':
-      case 'k':
-        if (candidates.length) highlight = Math.max(highlight - 1, 0)
-        e.preventDefault()
+      case 'enter-dice':
+        enterDice(intent.d1, intent.d2)
         break
-      case 'ArrowLeft':
-        if (videoEl) videoEl.currentTime = skip(videoEl.currentTime, -5, videoEl.duration)
-        e.preventDefault()
+      case 'edit-dice':
+        editDice(intent.d1, intent.d2) // edit mode: same flow, at the selected turn
         break
-      case 'ArrowRight':
-        if (videoEl) videoEl.currentTime = skip(videoEl.currentTime, 5, videoEl.duration)
-        e.preventDefault()
+      case 'delete':
+        deleteSelected()
         break
-      case ' ':
-      case 'Enter':
-        if (selectedSeq >= 0 && editRoll && candidates.length) {
-          confirmEdit(candidates[highlight].notation)
-        } else {
-          // Shift+Space = confirm AND flag uncertain (ux-spec §2).
-          confirmHighlight(e.shiftKey)
-        }
-        e.preventDefault()
+      case 'insert':
+        startInsert()
         break
-      case 'Escape':
-        firstDigit = null
-        candidates = []
-        overrideOpen = false
-        if (selectedSeq >= 0) backToLive()
-        e.preventDefault()
+      case 'cube-confirm':
+        confirmCube()
         break
-      case 'p':
+      case 'confirm-edit':
+        confirmEdit(candidates[intent.index].notation)
+        break
+      case 'confirm':
+        confirmHighlight(intent.flag) // flag = Shift+Space, opens a Review Item (ux-spec §2)
+        break
+      case 'escape':
+        if (intent.backToLive) backToLive()
+        break
+      case 'toggle-player':
         togglePlayer()
-        e.preventDefault()
         break
-      case 'c':
-      case 'C':
-        // Cube menu: a separate entry point since a cube decision precedes
-        // the roll (ux-spec §9).
-        if (firstDigit === null && !candidates.length) openCubeMenu()
-        e.preventDefault()
+      case 'cube-open':
+        openCubeMenu()
         break
-      case 'o':
-      case 'O':
-        // The override escape hatch — one key away from the candidate list,
-        // never the default (ADR-0001). Needs the dice entered first.
-        if (candidates.length) overrideOpen = true
-        e.preventDefault()
+      case 'seek':
+        videoEl.currentTime = skip(videoEl.currentTime, intent.delta, videoEl.duration)
         break
+      // 'accumulate', 'cand-nav', 'cube-nav', 'cube-cancel', 'override-open'
+      // and 'none' are handled entirely by the patch above.
     }
   }
 </script>
