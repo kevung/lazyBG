@@ -183,6 +183,26 @@ easy footage.
 - **Calibration:** reprojection error of the labeled corners.
 - **Match span (later):** begin/end tick error once a boundary detector exists.
 
+### Closed experiments (do not re-propose)
+
+- **Temporal aggregation of the dice cue — NEGATIVE (2026-07-27).** Branch
+  `feat/dice-temporal-vote`, kept, never merged. Reading the dice at every interior instant of
+  the stable window and pooling the pair PMFs (log pooling; then a second variant scaling the
+  confidence by the agreement fraction, as `VoteObservations` does) **doubles** dice-cue coverage
+  on the pilot (55 read pairs vs 28) and **quintuples** it on Picot (10+ vs 2) — with **no
+  end-to-end gain**. Pilot matched 16 (main) → 15 (pool only) → 14 (pool + agreement penalty);
+  the first variant introduced an auto-fill error at the 0.80 gate, the second removed it but lost
+  main's correct auto-fill. Picot was strictly neutral throughout. The two variants bracket the
+  trade-off, so no intermediate tuning can beat main.
+  Two lessons worth more than the prototype: (1) `DiceConf` is not just a gate key — it weights
+  the cue in `DecideAnyDice`'s scoring *and* pruning, so lowering confidences degrades the
+  transcription; (2) **temporal aggregation filters independent noise, never systematic bias** —
+  the classifier's `1-1`/`6-6` collapse is a domain-shift bias, so when all three instants agree
+  they agree on the *same* error and pooling certifies it (measured: `1-1 conf 0.83 (3/3)`).
+  This independently confirms issue #65's diagnosis from a different angle: the blocker is
+  dice **value** precision, not the detection funnel. Only better-resolved captures (dice ≥15 px)
+  or a substantially better value model can move it.
+
 ### Protocol
 - **Train/test split = hold out whole Recordings.** Never split a Recording's turns across
   train/test (frames within a match are highly correlated → leakage). Reserve a fixed set of
