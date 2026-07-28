@@ -203,6 +203,27 @@ easy footage.
   dice **value** precision, not the detection funnel. Only better-resolved captures (dice ≥15 px)
   or a substantially better value model can move it.
 
+- **Component metrics do not predict the pipeline — and often invert it.** Three
+  independent candidates, three clear wins on their own metric, three losses in
+  the blind end-to-end duel, all within one session (2026-07-27/28):
+
+  | candidate | component metric | end-to-end duel |
+  |---|---|---|
+  | point reader retrain (r3 Lafon crops) | 98.33% per-crop, best ever | lost — Picot matched 12 → 6 |
+  | temporal vote of the dice PMF | dice-cue coverage ×2 to ×5 | lost — first auto-fill error at the 0.80 gate |
+  | class-weighted die reader | +9.5 pts per-die (0.49 → 0.59) | lost — Picot matched 12 → 4 |
+
+  The last one shows the mechanism. Weighting made junk cheap (0.27 vs 1.2-2.4),
+  so 47 of 403 junk boxes started reading as dice — confident-but-wrong pairs
+  that steer `DecideAnyDice` away from the truth. **The 54% junk imbalance is not
+  a bug to fix, it is a useful prior**: for this cue, abstaining beats reading
+  well. All three candidates made the cue more talkative, which suggests the
+  lever is the CALIBRATION of `DiceConf` and the ability to say nothing — not
+  accuracy. Measure precision at fixed coverage, not accuracy.
+
+  Practical rule: never propose a weights swap on a component metric. Only the
+  blind duel decides (issue #40).
+
 ### Protocol
 - **Train/test split = hold out whole Recordings.** Never split a Recording's turns across
   train/test (frames within a match are highly correlated → leakage). Reserve a fixed set of
