@@ -229,13 +229,19 @@ func weight(a, b float64) float64 {
 	return w
 }
 
-// deltaMatch scores a candidate move in delta space: the reading change
+// DeltaMatch scores a candidate move in delta space: the reading change
 // observed between the previous and current observations must equal the
 // board change the candidate predicts. Comparing deltas — not absolute
 // values — makes stable per-point reader bias invisible (it appears
 // identically in both readings). Scored only over points where either side
 // changed; 1.0 when the deltas agree everywhere.
-func deltaMatch(pre, cand bg.Board, prev, cur perceive.ObservedBoard) float64 {
+//
+// This is the per-move discriminator WholeBoardMatch explicitly is not: it
+// ignores the ~20 points a single move leaves untouched, instead of averaging
+// the answer away across them. Exported so callers that must rank candidate
+// moves — and any harness measuring such a ranking — use this rather than
+// WholeBoardMatch. It costs one extra input: the reading from BEFORE the move.
+func DeltaMatch(pre, cand bg.Board, prev, cur perceive.ObservedBoard) float64 {
 	var wsum, agree float64
 	for p := 1; p <= 24; p++ {
 		predicted := signedPt(cand.Pts[p]) - signedPt(pre.Pts[p])
@@ -261,7 +267,7 @@ func deltaMatch(pre, cand bg.Board, prev, cur perceive.ObservedBoard) float64 {
 // DecideAnyDice explains an observed board transition when the dice were NOT
 // seen: it tries every distinct roll, asks the engine for the legal moves of
 // each, and scores every candidate (dice, move) by how well its predicted board
-// delta matches the observed reading delta (see deltaMatch), blended with a
+// delta matches the observed reading delta (see DeltaMatch), blended with a
 // WITHIN-ROLL equity prior (architecture §5: "if the dice were never visible,
 // infer the dice set that makes the observed board-diff legal"). The prior is
 // within-roll because equity cannot separate two rolls reaching the SAME
@@ -330,7 +336,7 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 		anyLegal = true
 		bm := -1.0
 		for _, mv := range moves {
-			if m := deltaMatch(pre.Board, mv.Result, prev, cur); m > bm {
+			if m := DeltaMatch(pre.Board, mv.Result, prev, cur); m > bm {
 				bm = m
 			}
 		}
@@ -398,7 +404,7 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 			if bestEq > worstEq {
 				pr = (mv.Equity - worstEq) / (bestEq - worstEq)
 			}
-			rcs = append(rcs, rollCand{mv, deltaMatch(pre.Board, mv.Result, prev, cur), pr})
+			rcs = append(rcs, rollCand{mv, DeltaMatch(pre.Board, mv.Result, prev, cur), pr})
 		}
 		// Keep the top diff matches of this roll.
 		for i := 1; i < len(rcs); i++ {
