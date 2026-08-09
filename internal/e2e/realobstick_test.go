@@ -39,6 +39,29 @@ var obsFractions = []float64{0.00, 0.50, 0.75, 0.90, 1.00}
 // needs no stable-window search and no perceptual confidence estimate.
 var guardThresholds = []float64{0.90, 0.95, 0.98}
 
+// relativeMargins are the bars for the RELATIVE guard: use the observation only
+// if some candidate explains it better than "nothing moved yet" does, by at
+// least this margin. The comparison board is free — it is the session's own
+// current board (s.board). An absolute bar cannot work because it conflates
+// "is this reading post-move?" with "is this reading accurate?", and reader
+// noise makes the two distributions overlap; a relative test asks only the
+// first question, and reader noise hits both sides of it equally.
+var relativeMargins = []float64{0.00, 0.01, 0.03}
+
+// relativeGuardedRank stays silent while the board still looks unmoved.
+func relativeGuardedRank(moves []engine.LegalMove, pre bg.Board, obs perceive.ObservedBoard, margin float64) []engine.LegalMove {
+	best := 0.0
+	for _, m := range moves {
+		if a := boarddiff.WholeBoardMatch(m.Result, obs); a > best {
+			best = a
+		}
+	}
+	if best <= boarddiff.WholeBoardMatch(pre, obs)+margin {
+		return session.RankLegalMoves(moves, nil)
+	}
+	return session.RankLegalMoves(moves, &obs)
+}
+
 // guardedRank ranks with the observation only when it passes the bar, else
 // falls back to equity-only — the "know when to say nothing" the repo doctrine
 // has demanded since three cues were lost to being too talkative.
@@ -89,6 +112,7 @@ func TestRealCorpus_ObservationTickSensitivity(t *testing.T) {
 	// app is better off staying silent.
 	byFrac := map[float64][]eval.TurnRank{}
 	guarded := map[guardKey][]eval.TurnRank{}
+	relGuarded := map[guardKey][]eval.TurnRank{}
 	var equity []eval.TurnRank
 	measured := 0
 
@@ -172,6 +196,16 @@ func TestRealCorpus_ObservationTickSensitivity(t *testing.T) {
 				venueRanks[f] = append(venueRanks[f], r)
 				byFrac[f] = append(byFrac[f], r)
 			}
+			for _, margin := range relativeMargins {
+				for _, f := range []float64{0.00, 1.00} {
+					tick := prevTurn.TickMs + int(f*float64(curTurn.TickMs-prevTurn.TickMs))
+					ob, _ := read(curTurn.Part, tick)
+					k := guardKey{margin, f}
+					relGuarded[k] = append(relGuarded[k], eval.RankTruth(
+						decisionOf(ts.Player, ts.Dice, relativeGuardedRank(moves, ts.Pre, ob, margin), session.MaxCandidates),
+						truthPly))
+				}
+			}
 			for _, bar := range guardThresholds {
 				for _, f := range []float64{0.00, 1.00} {
 					tick := prevTurn.TickMs + int(f*float64(curTurn.TickMs-prevTurn.TickMs))
@@ -210,6 +244,12 @@ func TestRealCorpus_ObservationTickSensitivity(t *testing.T) {
 	for _, bar := range guardThresholds {
 		logHistogram(t, fmt.Sprintf("  bar %.2f, obs pré-coup ", bar), eval.Histogram(guarded[guardKey{bar, 0.00}]))
 		logHistogram(t, fmt.Sprintf("  bar %.2f, obs post-coup", bar), eval.Histogram(guarded[guardKey{bar, 1.00}]))
+	}
+
+	t.Logf("── garde RELATIVE (le plateau a-t-il seulement bougé ?) ──")
+	for _, margin := range relativeMargins {
+		logHistogram(t, fmt.Sprintf("  marge %.2f, pré-coup ", margin), eval.Histogram(relGuarded[guardKey{margin, 0.00}]))
+		logHistogram(t, fmt.Sprintf("  marge %.2f, post-coup", margin), eval.Histogram(relGuarded[guardKey{margin, 1.00}]))
 	}
 
 	worst := eval.Histogram(byFrac[0.0])
