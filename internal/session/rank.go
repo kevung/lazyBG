@@ -22,6 +22,20 @@ type rankedMove struct {
 	score float64
 }
 
+// RankLegalMoves exposes the UI's candidate ordering, best-first, so a rank
+// measured offline is the rank the human actually sees rather than a
+// re-implementation that can drift. obs mirrors SetObservation's two regimes:
+// nil ranks on equity alone (what the app does today, since nothing calls
+// SetObservation yet), non-nil folds the post-move board reading in.
+func RankLegalMoves(moves []engine.LegalMove, obs *perceive.ObservedBoard) []engine.LegalMove {
+	ranked, _ := rankMoves(moves, obs)
+	out := make([]engine.LegalMove, len(ranked))
+	for i, r := range ranked {
+		out[i] = r.mv
+	}
+	return out
+}
+
 // rankMoves fuses the equity prior with the (optional) post-move observation
 // and returns the candidates best-first. All legal moves are scored before
 // capping, so a low-equity move the pixels support can surface.

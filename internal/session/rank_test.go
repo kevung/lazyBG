@@ -153,3 +153,68 @@ func TestRank_CuesRecorded(t *testing.T) {
 		t.Fatalf("turn 2 cues = %v, want [engine-equity board-diff]", c2)
 	}
 }
+
+// RankLegalMoves is the measurement harness's seam onto the very ordering the
+// UI shows; it must agree with what EnterDice returns, or an offline rank
+// measurement would describe a list no human ever sees.
+func TestRankLegalMoves_AgreesWithEnterDice(t *testing.T) {
+	s := New()
+	cands, err := s.EnterDice(3, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moves, err := engine.LegalMoves(bg.Position{
+		Board: bg.StandardStart(), Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	order := RankLegalMoves(moves, nil)
+	if len(order) < len(cands) {
+		t.Fatalf("ranked %d moves, EnterDice showed %d", len(order), len(cands))
+	}
+	for i, c := range cands {
+		if order[i].Notation != c.Notation {
+			t.Errorf("rank %d: RankLegalMoves = %q, EnterDice = %q", i+1, order[i].Notation, c.Notation)
+		}
+	}
+}
+
+// Characterization, not an endorsement: even a PERFECT post-move observation
+// cannot pull the ranking off the equity-best move. WholeBoardMatch normalizes
+// agreement over all 24 points, but two candidate moves for the same roll
+// differ on only 2-4 of them, so agreement is compressed into a narrow band
+// (measured on the 3-1 opening: 0.71..1.00) while the equity prior spans the
+// full [0,1]. At DefaultWeights the exactly-observed board still lands 4th.
+//
+// Consequence: wiring SetObservation would NOT, on its own, make the UI's
+// candidate list perception-aware. DecideAnyDice avoids this by scoring the
+// read-to-read DELTA instead of the whole board.
+func TestRankLegalMoves_ObservationCannotOverturnTheEquityPrior(t *testing.T) {
+	moves, err := engine.LegalMoves(bg.Position{
+		Board: bg.StandardStart(), Dice: bg.Dice{3, 1}, PlayerOnRoll: bg.P1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	equityOrder := RankLegalMoves(moves, nil)
+	target := equityOrder[len(equityOrder)-1] // the equity-worst legal move
+	obs := obsFromBoard(target.Result)        // observe EXACTLY what it produces
+
+	got := RankLegalMoves(moves, &obs)
+	if got[0].Notation == target.Notation {
+		t.Fatalf("the observed board now ranks first (%q) — the dilution this test "+
+			"documents is gone; re-measure the rank campaign and update issue #69",
+			target.Notation)
+	}
+	rank := 0
+	for i, m := range got {
+		if m.Notation == target.Notation {
+			rank = i + 1
+			break
+		}
+	}
+	if rank == 0 {
+		t.Fatal("the exactly-observed move vanished from the ranking")
+	}
+	t.Logf("perfectly observed move ranks %d/%d despite agree=1.0 (equity-best still leads)",
+		rank, len(got))
+}
