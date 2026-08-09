@@ -71,17 +71,25 @@ and are rebuilding everything else on clean foundations.
   window was built and measured (2026-07-27): it doubles-to-quintuples cue coverage with zero
   end-to-end gain, because the blocker is value precision, not the detection funnel
   (`docs/experiment-plan.md` §6 "Closed experiments"; issue #65).
-- The review UI is **yet to be built.** Its first milestone is now scoped as a **manual
-  transcription tool**: usable standalone, with zero automatic assistance, to produce a `.mat`
-  from a video entirely by hand — built on the *same* Transcription / Turn Segment / Review Item
-  data model the automatic pipeline already targets (`docs/domain-model.md` §4; `cue.MoveDecision`,
-  `pipeline.ReviewItem`, `gate.Outcome`, and `bg.Ply.Confidence` already anticipate human-entered
-  plies). As detector confidence rises, it becomes the automatic pipeline's review UI for free —
-  same screen, same data model, decreasing proportion of turns left for the human. This dual-purpose
-  UX is being specified now (functional spec → UX spec → ADRs → implementation tickets; see
-  `docs/functional-spec.md` / `docs/ux-spec.md` once written, and `docs/adr/`). Other next
-  milestones: more per-capture manifests → retrain, more hand labels for the dice reader
-  (its 65% per-die still climbs with data), cube perception, clock-hit commit cue.
+- **The review UI is built but never validated end to end.** It is the **manual transcription
+  tool** milestone: usable standalone to produce a `.mat` from a video entirely by hand, built on
+  the *same* Transcription / Turn Segment / Review Item data model the automatic pipeline targets
+  (`docs/domain-model.md` §4). `internal/session` (the Wails-agnostic service, ADR-0003) and
+  `gui/app.go` already expose dice entry, ranked candidates, confirm / confirm-flag / override,
+  the review queue, cube actions, game-end detection, retroactive edit with cascade, export, and
+  the perception overlay — all unit-tested. What has never happened is a human transcribing a
+  whole match with it (issue #42, `ready-for-human`), so no ergonomics claim is measured yet.
+  As detector confidence rises it becomes the automatic pipeline's review UI for free — same
+  screen, same data model, decreasing proportion of turns left for the human. Specs:
+  `docs/functional-spec.md`, `docs/ux-spec.md`, `docs/session-format-spec.md`, `docs/adr/`.
+- **The candidate list the human sees is ranked by engine equity alone.** `session.rankMoves`
+  folds a post-move board observation into the ranking when one is supplied, but **nothing calls
+  `SetObservation`** — not the GUI, not the CLI. Measured (issue #69, 240 turns / 4 venues): the
+  truth is the pre-highlighted candidate **70.8%** of the time as shipped and **93.8%** with the
+  observation wired, top-3 **91.7% → 98.0%**. Wiring it is the cheapest measured win available;
+  the open question is when the reading must stay silent (issue #73).
+- Other next milestones: more per-capture manifests → retrain, cube perception, clock-hit commit
+  cue wired into the conductor (the detector exists, validated on 10 real minutes, unused).
 
 Do not reintroduce legacy code wholesale. Reference `legacy_v0` for ideas, port deliberately.
 

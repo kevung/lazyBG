@@ -89,6 +89,17 @@ This reuses the manifest schema in `internal/corpus` verbatim; no new schema is 
   discard whatever automatic evidence already exists, it just isn't *blocked* on evidence being
   strong. The user cycles/selects with 1–2 keystrokes and confirms with a single simple action
   (exact keys: UX pass). This is the primary path, tuned for speed against fast-moving video.
+
+  > **Implementation gap (measured 2026-08-09, issue #69).** `session.rankMoves` implements the
+  > fused score above and is unit-tested, but **nothing calls `SetObservation`** — no observation
+  > ever reaches it, so the shipped app ranks on **engine equity alone**. Over 240 turns across 4
+  > venues the truth is the pre-highlighted candidate **70.8%** of the time as shipped, **93.8%**
+  > with the observation supplied (top-3: **91.7% → 98.0%**). Two caveats found with it: a perfect
+  > observation still cannot overturn a large equity gap, because `WholeBoardMatch` normalizes
+  > agreement over all 24 points while two candidates for the same roll differ on only 2–4
+  > (issue #74); and once perception can move the list, a confident misreading can move the truth
+  > *down*, which is why the wiring carries a "when to stay silent" decision (issue #73). Until
+  > those land, this bullet describes the intent, not the behaviour.
 - **Entry never forces the video to stop.** The user can keep watching/playing while typing —
   there is no "pause to enter, resume to continue" requirement. Speed matters more than
   correctness-on-first-try: a wrong keystroke or a turn entered while distracted is cheap to fix
