@@ -258,6 +258,13 @@ func deltaMatch(pre, cand bg.Board, prev, cur perceive.ObservedBoard) float64 {
 	return agree / wsum
 }
 
+// RunnerUpPenalty is how much the second-best candidate's score discounts the
+// winner's confidence (mirrors fusion.Fuse). Exported because it is the only
+// thing standing between MoveDecision.Top.Confidence and the raw score behind
+// it: a caller that must re-rank a decision's candidates on a comparable scale
+// recovers cands[0].score as Top.Confidence + RunnerUpPenalty*Alternatives[0].Confidence.
+const RunnerUpPenalty = 0.3
+
 // DecideAnyDice explains an observed board transition when the dice were NOT
 // seen: it tries every distinct roll, asks the engine for the legal moves of
 // each, and scores every candidate (dice, move) by how well its predicted board
@@ -444,10 +451,9 @@ func DecideAnyDice(pre bg.Position, prev, cur perceive.ObservedBoard, tick int, 
 		}
 	}
 
-	const runnerUpPenalty = 0.3 // mirror fusion.Fuse
 	conf := cands[0].score
 	if len(cands) > 1 {
-		conf -= runnerUpPenalty * cands[1].score
+		conf -= RunnerUpPenalty * cands[1].score
 	}
 	if conf < 0 {
 		conf = 0
