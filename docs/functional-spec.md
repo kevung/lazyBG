@@ -90,16 +90,21 @@ This reuses the manifest schema in `internal/corpus` verbatim; no new schema is 
   strong. The user cycles/selects with 1–2 keystrokes and confirms with a single simple action
   (exact keys: UX pass). This is the primary path, tuned for speed against fast-moving video.
 
-  > **Implementation gap (measured 2026-08-09, issue #69).** `session.rankMoves` implements the
-  > fused score above and is unit-tested, but **nothing calls `SetObservation`** — no observation
-  > ever reaches it, so the shipped app ranks on **engine equity alone**. Over 240 turns across 4
-  > venues the truth is the pre-highlighted candidate **70.8%** of the time as shipped, **93.8%**
-  > with the observation supplied (top-3: **91.7% → 98.0%**). Two caveats found with it: a perfect
-  > observation still cannot overturn a large equity gap, because `WholeBoardMatch` normalizes
-  > agreement over all 24 points while two candidates for the same roll differ on only 2–4
-  > (issue #74); and once perception can move the list, a confident misreading can move the truth
-  > *down*, which is why the wiring carries a "when to stay silent" decision (issue #73). Until
-  > those land, this bullet describes the intent, not the behaviour.
+  > **What this is worth, and where it silently is not (measured 2026-08-09, issue #69).** The
+  > fused ranking above is live on the forward path: `EnterDiceAt` reads the board at the current
+  > tick and hands it to `rankMoves`. Over 240 turns across 4 venues, measured at the settled
+  > post-move tick, the truth is the pre-highlighted candidate **93.8%** of the time with the
+  > observation and **70.8%** without — top-3 **98.0%** vs **91.7%**.
+  >
+  > The "gracefully degrades to equity-only" clause above is therefore a **23-point drop**, and it
+  > happens **silently**: `observeLocked` returns nil with no signal whenever no reader is loaded,
+  > the Part is uncalibrated, the homography is degenerate, or the frame fails to decode. The
+  > retroactive-edit path (`CandidatesFor`) is unconditionally in that degraded regime. Two known
+  > limits on the good regime: the app observes at `nowTickMs()` — wherever the human happens to
+  > be — not at a settled post-move board, so 93.8% is an upper bound (issue #73); and
+  > `WholeBoardMatch` normalizes agreement over all 24 points while two candidates for one roll
+  > differ on only 2–4, so a perfect observation still cannot overturn a large equity gap
+  > (issue #74).
 - **Entry never forces the video to stop.** The user can keep watching/playing while typing —
   there is no "pause to enter, resume to continue" requirement. Speed matters more than
   correctness-on-first-try: a wrong keystroke or a turn entered while distracted is cheap to fix

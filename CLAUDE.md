@@ -82,12 +82,19 @@ and are rebuilding everything else on clean foundations.
   As detector confidence rises it becomes the automatic pipeline's review UI for free — same
   screen, same data model, decreasing proportion of turns left for the human. Specs:
   `docs/functional-spec.md`, `docs/ux-spec.md`, `docs/session-format-spec.md`, `docs/adr/`.
-- **The candidate list the human sees is ranked by engine equity alone.** `session.rankMoves`
-  folds a post-move board observation into the ranking when one is supplied, but **nothing calls
-  `SetObservation`** — not the GUI, not the CLI. Measured (issue #69, 240 turns / 4 venues): the
-  truth is the pre-highlighted candidate **70.8%** of the time as shipped and **93.8%** with the
-  observation wired, top-3 **91.7% → 98.0%**. Wiring it is the cheapest measured win available;
-  the open question is when the reading must stay silent (issue #73).
+- **The candidate list is perception-ranked on the forward path, equity-only on the edit path —
+  and the fallback between them is silent.** `EnterDiceAt` reads the board at the tick the human
+  is at (`observeLocked`) and feeds it to `rankMoves`; `EnableVideoObservation` is wired from
+  `NewApp()`, so the shipped GUI runs in the perception regime whenever a reader is loaded, the
+  Part is calibrated, and the frame decodes. When any of those fails `observeLocked` returns nil
+  and ranking drops to equity-only **with no signal to the human**. The retroactive-edit path
+  (`CandidatesFor`) passes nil unconditionally. What each regime is worth, measured over 240 turns
+  and 4 venues **at the settled post-move tick** (issue #69): the truth is the pre-highlighted
+  candidate **70.8%** of the time on equity alone, **93.8%** with the observation; top-3
+  **91.7% → 98.0%**. Two open questions sit behind that gap: the app reads at `nowTickMs()`, not
+  at a settled post-move board, so 93.8% is an upper bound on what it actually gets (issue #73);
+  and `WholeBoardMatch` dilutes agreement over 24 points when candidates differ on only 2–4
+  (issue #74).
 - Other next milestones: more per-capture manifests → retrain, cube perception, clock-hit commit
   cue wired into the conductor (the detector exists, validated on 10 real minutes, unused).
 
